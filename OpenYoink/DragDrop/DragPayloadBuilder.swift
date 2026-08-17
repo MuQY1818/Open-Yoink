@@ -1,6 +1,17 @@
 import AppKit
 import UniformTypeIdentifiers
 
+/// F-05: 剪切项拖出的交付确认通道（Sendable 值类型，闭包在 promise 写队列
+/// 上触发 —— 实现方自行切回 MainActor）。只有剪切（isCut）项的 provider
+/// 会挂接：剪切项只广告 promise 类型，所有目的地必经 promise 写入，
+/// delivered/failed 必然有其一（或目标根本没取数据，则两者都不来）。
+struct CutDeliverySink: Sendable {
+    /// 写入完成：参数为 item id 与交付目标 URL。
+    var delivered: @Sendable (UUID, URL) -> Void
+    /// 写入失败：参数为 item id（item 保留在 shelf，可重试）。
+    var failed: @Sendable (UUID) -> Void
+}
+
 /// 拖出 payload 组装：ShelfItem → pasteboard writer 多表示 / `[NSDraggingItem]`
 /// （实施计划 §2.3「拖出」、调研报告 F-04）。
 ///
@@ -97,11 +108,14 @@ enum DragPayloadBuilder {
 
     /// 单个项目的 pasteboard writer。无法构造（text 无内容、url 无地址、
     /// file 无路径、stack 未展开）时返回 nil。
+    /// F-05: `cutDelivery` 仅对 isCut 项生效（交付确认挂接，见 CutDeliverySink）。
     @MainActor
-    static func makePasteboardWriter(for item: ShelfItem, bookmarkService: BookmarkService) -> NSPasteboardWriting? {
+    static func makePasteboardWriter(for item: ShelfItem,
+                                     bookmarkService: BookmarkService,
+                                     cutDelivery: CutDeliverySink? = nil) -> NSPasteboardWriting? {
         switch strategy(for: item) {
         case .fileBacked, .fileBackedImage:
-            return makeFileBackedWriter(for: item, bookmarkService: bookmarkService)
+            return makeFileBackedWriter(for: item, bookmarkService: bookmarkService, cutDelivery: cutDelivery)
         case .plainText:
             return makeTextItem(for: item)
         case .webURL:
@@ -117,9 +131,10 @@ enum DragPayloadBuilder {
     @MainActor
     static func makeDraggingItems(for items: [ShelfItem],
                                   frame: NSRect,
-                                  bookmarkService: BookmarkService) -> [NSDraggingItem] {
+                                  bookmarkService: BookmarkService,
+                                  cutDelivery: CutDeliverySink? = nil) -> [NSDraggingItem] {
         flattenedItems(items).compactMap { item in
-            guard let writer = makePasteboardWriter(for: item, bookmarkService: bookmarkService) else {
+            guard let writer = makePasteboardWriter(for: item, bookmarkService: bookmarkService, cutDelivery: cutDelivery) else {
                 return nil
             }
             let draggingItem = NSDraggingItem(pasteboardWriter: writer)
@@ -157,9 +172,15 @@ enum DragPayloadBuilder {
 
     /// 文件类：`FilePromiseProvider`（promise 表示 + 覆写追加 fileURL 直接
     /// 表示 + 图片项的 public.tiff 位图回退）。
+    ///
+    /// F-05 剪切项分支（`item.isCut`）：**只广告 promise 类型** —— 不广告
+    /// `public.file-url`（否则 Finder 会走 fileURL 直读路径、绕过 promise，
+    /// 拿不到交付确认，移动语义无法闭环），也不挂 tiff 位图回退（位图目标
+    /// 同样无法确认交付）。交付成功/失败经 `cutDelivery` 上报。
     @MainActor
     private static func makeFileBackedWriter(for item: ShelfItem,
-                                             bookmarkService: BookmarkService) -> NSPasteboardWriting? {
+                                             bookmarkService: BookmarkService,
+                                             cutDelivery: CutDeliverySink?) -> NSPasteboardWriting? {
         guard let path = item.path else { return nil }
         // 拖拽开始时解析 bookmark 取最新路径（文件可能在 shelf 停留期间被
         // 移动）；解析失败回退存储路径，promise 写入时会再尝试解析一次。
@@ -171,13 +192,24 @@ enum DragPayloadBuilder {
             sourceURL = URL(fileURLWithPath: path)
         }
         let bookmark = item.bookmark
-        let includeImageFallback = strategy(for: item) == .fileBackedImage
+        let includeImageFallback = strategy(for: item) == .fileBackedImage && !item.isCut
         let tiffDataProvider: (@Sendable () -> Data?)?
         if includeImageFallback {
             // 惰性：目标请求 public.tiff 时才读文件。
             tiffDataProvider = { tiffData(sourceURL: sourceURL, bookmark: bookmark, bookmarkService: bookmarkService) }
         } else {
             tiffDataProvider = nil
+        }
+        let itemID = item.id
+        // 显式类型局部变量（三元 + 闭包字面量会让类型推断器无法产出诊断）。
+        let onDelivered: (@Sendable (URL) -> Void)?
+        let onError: (@Sendable (Error) -> Void)?
+        if item.isCut {
+            onDelivered = { url in cutDelivery?.delivered(itemID, url) }
+            onError = { _ in cutDelivery?.failed(itemID) }
+        } else {
+            onDelivered = nil
+            onError = nil
         }
         return FilePromiseProvider(
             payload: FilePromiseProvider.Payload(
@@ -187,7 +219,10 @@ enum DragPayloadBuilder {
                 promisedFileType: promisedFileType(for: item)
             ),
             bookmarkService: bookmarkService,
-            tiffDataProvider: tiffDataProvider
+            advertisesDirectFileURL: !item.isCut,
+            tiffDataProvider: tiffDataProvider,
+            onDelivered: onDelivered,
+            onError: onError
         )
     }
 

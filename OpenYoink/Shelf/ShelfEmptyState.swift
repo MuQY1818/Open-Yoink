@@ -16,6 +16,10 @@ struct ShelfEmptyState: View {
                 Text("Drop files here")
                     .font(.callout)
                     .foregroundStyle(.secondary)
+                // F-05: 双模式拖入提示（直接拖入 = 引用；⌘ 拖入 = 移入原文件）。
+                Text("Hold ⌘ while dropping to move the original here")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
                 Text("⌘⇧Space to toggle the shelf")
                     .font(.caption)
                     .foregroundStyle(.tertiary)

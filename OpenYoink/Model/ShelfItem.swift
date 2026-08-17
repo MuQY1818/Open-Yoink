@@ -30,6 +30,11 @@ struct ShelfItem: Codable, Identifiable, Equatable, Sendable {
     /// Embedded stack members. Only meaningful for `kind == .stack`;
     /// see the type-level note for the embedding tradeoff.
     var children: [ShelfItem]?
+    /// Cut mode (⌘+drop): the original file was moved into the app's managed
+    /// directory (`path`/`bookmark` point at that copy) and the item is
+    /// delivered — then removed from the shelf — on drag out. Persisted;
+    /// JSON written by older versions lacks the key and decodes as false.
+    var isCut: Bool
     /// Runtime-only flag: true when the backing file could not be resolved at
     /// launch (bookmark dead). Never persisted — recomputed on every launch via
     /// `BookmarkService`, so the UI can show "unavailable" instead of dropping
@@ -38,7 +43,7 @@ struct ShelfItem: Codable, Identifiable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         // `isStale` is deliberately excluded (runtime-only, see above).
-        case id, kind, path, bookmark, displayName, addedAt, sourceApp, text, urlString, children
+        case id, kind, path, bookmark, displayName, addedAt, sourceApp, text, urlString, children, isCut
     }
 
     init(
@@ -51,7 +56,8 @@ struct ShelfItem: Codable, Identifiable, Equatable, Sendable {
         sourceApp: SourceAppInfo? = nil,
         text: String? = nil,
         urlString: String? = nil,
-        children: [ShelfItem]? = nil
+        children: [ShelfItem]? = nil,
+        isCut: Bool = false
     ) {
         self.id = id
         self.kind = kind
@@ -63,6 +69,25 @@ struct ShelfItem: Codable, Identifiable, Equatable, Sendable {
         self.text = text
         self.urlString = urlString
         self.children = children
+        self.isCut = isCut
+    }
+
+    /// Custom decoder solely for backward compatibility: `isCut` was added
+    /// after the first persisted schema, so a missing key decodes as false.
+    /// Everything else matches the synthesized memberwise decoding.
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        kind = try container.decode(ItemKind.self, forKey: .kind)
+        path = try container.decodeIfPresent(String.self, forKey: .path)
+        bookmark = try container.decodeIfPresent(Data.self, forKey: .bookmark)
+        displayName = try container.decode(String.self, forKey: .displayName)
+        addedAt = try container.decode(Date.self, forKey: .addedAt)
+        sourceApp = try container.decodeIfPresent(SourceAppInfo.self, forKey: .sourceApp)
+        text = try container.decodeIfPresent(String.self, forKey: .text)
+        urlString = try container.decodeIfPresent(String.self, forKey: .urlString)
+        children = try container.decodeIfPresent([ShelfItem].self, forKey: .children)
+        isCut = try container.decodeIfPresent(Bool.self, forKey: .isCut) ?? false
     }
 
     /// Convenience file URL for kinds backed by an on-disk file.

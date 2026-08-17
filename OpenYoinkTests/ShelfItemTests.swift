@@ -44,6 +44,18 @@ final class ShelfItemTests: XCTestCase {
         XCTAssertEqual(try decoder.decode(ShelfItem.self, from: encoder.encode(link)), link)
     }
 
+    /// F-05: isCut 持久化（顶层与 stack 子项递归）。
+    func testCodableRoundTrip_isCut_persistsIncludingStackChildren() throws {
+        let cutChild = ShelfItem(kind: .file, path: "/tmp/cut.txt", displayName: "cut.txt", isCut: true)
+        let stack = ShelfItem(kind: .stack, displayName: "cut.txt", children: [cutChild])
+        let topLevel = ShelfItem(kind: .folder, path: "/tmp/cutdir", displayName: "cutdir", isCut: true)
+
+        let decodedStack = try decoder.decode(ShelfItem.self, from: encoder.encode(stack))
+        XCTAssertEqual(decodedStack, stack)
+        XCTAssertEqual(decodedStack.children?.first?.isCut, true)
+        XCTAssertEqual(try decoder.decode(ShelfItem.self, from: encoder.encode(topLevel)), topLevel)
+    }
+
     /// Backward compatibility: a persisted item missing every optional field
     /// (as written by an older app version) must still decode.
     func testDecoding_missingOptionalFields_usesDefaults() throws {
@@ -68,6 +80,7 @@ final class ShelfItemTests: XCTestCase {
         XCTAssertNil(item.urlString)
         XCTAssertNil(item.children)
         XCTAssertFalse(item.isStale)
+        XCTAssertFalse(item.isCut, "旧版 JSON 无 isCut 字段，解码应为 false（F-05 向后兼容）")
     }
 
     /// `isStale` is runtime-only and must never be written to disk.

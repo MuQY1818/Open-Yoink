@@ -117,7 +117,9 @@ final class ShelfWindowController: NSObject {
             store: store,
             settings: settings,
             recents: recents,
-            bookmarkService: importCoordinator.bookmarkService
+            bookmarkService: importCoordinator.bookmarkService,
+            tempFileService: tempFileService,
+            noticeCenter: importCoordinator.noticeCenter
         )
         self.quickLookCoordinator = QuickLookCoordinator(
             store: store,

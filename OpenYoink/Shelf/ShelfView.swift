@@ -60,8 +60,10 @@ struct ShelfView: View {
             .overlay { dropTargetHighlight }
             .overlay { expandedStackOverlay }
             .overlay(alignment: .top) { noticeBanner }
+            .overlay(alignment: .bottom) { dropModeHint }
             .animation(Self.cardAnimation, value: expandedStackID)
             .animation(.easeInOut(duration: 0.2), value: notices.message != nil)
+            .animation(.easeInOut(duration: 0.2), value: dropTargetState.mode)
             .padding(8)
             // C5: 框选选框在窗口 .global 坐标系 —— 必须挂在 padding 之后，
             // overlay 局部原点才与窗口内容原点（即 .global 原点）重合。
@@ -223,16 +225,40 @@ struct ShelfView: View {
     // MARK: - Drop highlight (S4 预留)
 
     /// S4: DragContainerView 拖入悬停时 `dropTargetState.isTargeted == true`，
-    /// 整面板 accent 描边 + 浅填充提示可投放。
+    /// 整面板描边 + 浅填充提示可投放。F-05: 色调随拖入模式切换 —— 复制引用
+    /// 用 accent，⌘ 剪切移入用橙色（与卡片剪刀角标同色，语义一致）。
     @ViewBuilder
     private var dropTargetHighlight: some View {
         if dropTargetState.isTargeted {
             RoundedRectangle(cornerRadius: Self.cornerRadius)
-                .strokeBorder(Color.accentColor, lineWidth: 2)
+                .strokeBorder(dropModeTint, lineWidth: 2)
                 .background {
                     RoundedRectangle(cornerRadius: Self.cornerRadius)
-                        .fill(Color.accentColor.opacity(0.12))
+                        .fill(dropModeTint.opacity(0.12))
                 }
+                .allowsHitTesting(false)
+        }
+    }
+
+    /// F-05: 拖入模式的强调色。
+    private var dropModeTint: Color {
+        dropTargetState.mode == .move ? .orange : .accentColor
+    }
+
+    /// F-05: 悬停期间的模式提示（面板底部胶囊；notice 横幅在顶部，互不遮挡）。
+    /// ⌘ 剪切态提示「松开将原文件移动到此处」，复制态提示「松开以添加引用」。
+    @ViewBuilder
+    private var dropModeHint: some View {
+        if dropTargetState.isTargeted {
+            Text(dropTargetState.mode == .move
+                 ? String(localized: "Release to move the original here ⌘")
+                 : String(localized: "Release to add a reference"))
+                .font(.caption)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background { Capsule().fill(.regularMaterial) }
+                .padding(.bottom, 10)
+                .transition(.opacity)
                 .allowsHitTesting(false)
         }
     }

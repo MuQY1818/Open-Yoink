@@ -41,18 +41,27 @@ final class FilePromiseProvider: NSFilePromiseProvider {
     private let promiseDelegate: FilePromiseDelegate
     /// fileURL 直接表示的值（构造时已按 bookmark 解析为最新路径）。
     private let directFileURL: URL
+    /// 是否广告 `public.file-url` 直接表示。F-05 剪切（isCut）项为 false：
+    /// 只广告 promise 类型，保证所有目的地（Finder/浏览器/文本框）都经
+    /// promise 写入 —— 唯有如此才有写入完成的交付确认（`onDelivered`），
+    /// 移动语义（交付后离架 + 删保管文件）才可靠。
+    private let advertisesDirectFileURL: Bool
     /// 图片项的 `public.tiff` 位图回退（惰性：目标请求时才读文件）。
     private let tiffDataProvider: (@Sendable () -> Data?)?
 
     init(payload: Payload,
          bookmarkService: BookmarkService,
+         advertisesDirectFileURL: Bool = true,
          tiffDataProvider: (@Sendable () -> Data?)? = nil,
+         onDelivered: (@Sendable (URL) -> Void)? = nil,
          onError: (@Sendable (Error) -> Void)? = nil) {
         let delegate = FilePromiseDelegate(payload: payload,
                                            bookmarkService: bookmarkService,
+                                           onDelivered: onDelivered,
                                            onError: onError)
         self.promiseDelegate = delegate
         self.directFileURL = payload.sourceURL
+        self.advertisesDirectFileURL = advertisesDirectFileURL
         self.tiffDataProvider = tiffDataProvider
         // 不用 `super.init(fileType:delegate:)`：NSFilePromiseProvider 是 ObjC
         // 类簇，该初始化器内部回调动态类型的 `init()`，对 Swift 子类会触发
@@ -67,8 +76,9 @@ final class FilePromiseProvider: NSFilePromiseProvider {
 
     /// 声明类型：fileURL（+tiff 回退）在前，promise 类型随后（去重保序）。
     /// fileURL 在前让「取最优表示」的目标优先拿到真实文件路径。
+    /// F-05: 剪切项（advertisesDirectFileURL == false）只声明 promise 类型。
     override func writableTypes(for pasteboard: NSPasteboard) -> [NSPasteboard.PasteboardType] {
-        var result: [NSPasteboard.PasteboardType] = [PasteboardTypes.fileURL]
+        var result: [NSPasteboard.PasteboardType] = advertisesDirectFileURL ? [PasteboardTypes.fileURL] : []
         if tiffDataProvider != nil {
             result.append(PasteboardTypes.tiff)
         }
@@ -82,7 +92,7 @@ final class FilePromiseProvider: NSFilePromiseProvider {
     /// 一致）；tiff → 惰性位图数据；其余（promise 类型族）交回父类。
     override func pasteboardPropertyList(forType type: NSPasteboard.PasteboardType) -> Any? {
         switch type {
-        case PasteboardTypes.fileURL:
+        case PasteboardTypes.fileURL where advertisesDirectFileURL:
             return directFileURL.absoluteString as NSString
         case PasteboardTypes.tiff where tiffDataProvider != nil:
             return tiffDataProvider?()
@@ -121,15 +131,20 @@ final class FilePromiseProvider: NSFilePromiseProvider {
 final class FilePromiseDelegate: NSObject, NSFilePromiseProviderDelegate {
     private let payload: FilePromiseProvider.Payload
     private let bookmarkService: BookmarkService
+    /// F-05: 写入完成（交付确认）回调，参数为目标 URL。剪切项据此移出
+    /// shelf 并删除保管副本；回调在写队列上触发，订阅方需自行切 actor。
+    private let onDelivered: (@Sendable (URL) -> Void)?
     private let onError: (@Sendable (Error) -> Void)?
     private let writeQueue: OperationQueue
     private let logger = Logger(subsystem: "com.weijue.OpenYoink", category: "FilePromiseProvider")
 
     init(payload: FilePromiseProvider.Payload,
          bookmarkService: BookmarkService,
+         onDelivered: (@Sendable (URL) -> Void)? = nil,
          onError: (@Sendable (Error) -> Void)?) {
         self.payload = payload
         self.bookmarkService = bookmarkService
+        self.onDelivered = onDelivered
         self.onError = onError
         let queue = OperationQueue()
         queue.name = "com.weijue.OpenYoink.FilePromiseWrite"
@@ -149,12 +164,14 @@ final class FilePromiseDelegate: NSObject, NSFilePromiseProviderDelegate {
     }
 
     /// 在 `writeQueue` 上被调用：复制源文件到目标 URL。任何失败都回调非 nil
-    /// error 并记日志、上报 `onError`，绝不抛出/崩溃。
+    /// error 并记日志、上报 `onError`，绝不抛出/崩溃；成功先报 `onDelivered`
+    /// （F-05 交付确认）再回调 nil error。
     func filePromiseProvider(_ provider: NSFilePromiseProvider,
                              writePromiseTo url: URL,
                              completionHandler: @escaping (Error?) -> Void) {
         do {
             try FilePromiseProvider.writeCopy(of: payload, to: url, bookmarkService: bookmarkService)
+            onDelivered?(url)
             completionHandler(nil)
         } catch {
             logger.error("File promise write failed for \(self.payload.suggestedName, privacy: .public): \(error.localizedDescription, privacy: .public)")

@@ -70,6 +70,11 @@ private struct GeneralSettingsTab: View {
                     Text("Remove").tag(SettingsStore.DragOutRemovalPolicy.remove)
                     Text("Ask Every Time").tag(SettingsStore.DragOutRemovalPolicy.ask)
                 }
+
+                // F-05: 双模式拖入说明（静态文案）。
+                Text("Dropping files keeps a reference. Hold ⌘ while dropping to move the original into the shelf — the original goes to the Trash, so it can be restored.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Language") {

@@ -96,6 +96,20 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法添加拖入的项目。" } }
       }
     },
+    "Couldn't deliver %@ — the item stays on the shelf." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn't deliver %@ — the item stays on the shelf." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法交付 %@——项目已保留在 shelf 上。" } }
+      }
+    },
+    "Couldn't move %@ — a reference was added instead." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn't move %@ — a reference was added instead." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法移动 %@——已改为添加引用。" } }
+      }
+    },
     "Custom" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -176,6 +190,13 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Dropped image data could not be converted to PNG." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖入的图像数据无法转换为 PNG。" } }
+      }
+    },
+    "Dropping files keeps a reference. Hold ⌘ while dropping to move the original into the shelf — the original goes to the Trash, so it can be restored." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Dropping files keeps a reference. Hold ⌘ while dropping to move the original into the shelf — the original goes to the Trash, so it can be restored." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "直接拖入保存文件引用；按住 ⌘ 拖入会把原文件移入 shelf 保管——原文件移入废纸篓，可从中恢复。" } }
       }
     },
     "Enable" : {
@@ -263,6 +284,13 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "High" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "高" } }
+      }
+    },
+    "Hold ⌘ while dropping to move the original here" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Hold ⌘ while dropping to move the original here" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "按住 ⌘ 拖入可将原文件移动到此处" } }
       }
     },
     "Hot key event handler installation failed (OSStatus %d)." : {
@@ -358,6 +386,13 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "鼠标摇动" } }
       }
     },
+    "Moved into the shelf — will be delivered on drag out" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Moved into the shelf — will be delivered on drag out" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已移入 shelf——拖出时交付并离架" } }
+      }
+    },
     "No Recent Items" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -419,6 +454,20 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Recent Items" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "最近项目" } }
+      }
+    },
+    "Release to add a reference" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Release to add a reference" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "松开以添加引用" } }
+      }
+    },
+    "Release to move the original here ⌘" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Release to move the original here ⌘" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "松开将原文件移动到此处 ⌘" } }
       }
     },
     "Remove" : {
@@ -647,6 +696,13 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "While dragging, hold the cursor at the shelf's screen edge for a moment to reveal it. Not available in custom position mode." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖拽过程中，将光标在暂存架一侧的屏幕边缘稍作停留即可唤出。自定义位置模式下不可用。" } }
+      }
+    },
+    "Will move on drag out" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Will move on drag out" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖出时将移动原文件" } }
       }
     },
     "⌘⇧Space to toggle the shelf" : {

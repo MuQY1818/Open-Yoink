@@ -1,4 +1,5 @@
 import AppKit
+import Synchronization
 import UniformTypeIdentifiers
 import XCTest
 @testable import OpenYoink
@@ -210,6 +211,75 @@ final class DragPayloadBuilderTests: XCTestCase {
         XCTAssertEqual(pasteboard.string(forType: .string), "https://www.apple.com")
         let urls = try XCTUnwrap(pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL])
         XCTAssertEqual(urls, [URL(string: "https://www.apple.com")!])
+    }
+
+    // MARK: - F-05 剪切项：只广告 promise 类型
+
+    func testCutItem_writerAdvertisesPromiseOnly_noFileURL() throws {
+        var item = ShelfItem(kind: .file, path: "/tmp/report.pdf", displayName: "report.pdf")
+        item.isCut = true
+        let writer = try XCTUnwrap(DragPayloadBuilder.makePasteboardWriter(for: item, bookmarkService: bookmarkService))
+
+        let advertised = advertisedTypes(of: writer)
+        XCTAssertFalse(advertised.contains(UTType.fileURL.identifier),
+                       "剪切项不得广告 public.file-url（否则 Finder 直读路径绕过交付确认）：\(advertised)")
+        let promiseTypes = NSFilePromiseReceiver.readableDraggedTypes
+        XCTAssertTrue(advertised.contains { promiseTypes.contains($0) },
+                      "剪切项必须保留 promise 类型（一切目的地必经 promise 写入）：\(advertised)")
+        // fileURL 表示不产出数据（双重防线：未声明，且请求也返回 nil）。
+        XCTAssertNil(writer.pasteboardPropertyList(forType: .fileURL))
+    }
+
+    func testCutImageItem_noTiffFallbackEither() throws {
+        var item = ShelfItem(kind: .image, path: "/tmp/pic.png", displayName: "pic.png")
+        item.isCut = true
+        let writer = try XCTUnwrap(DragPayloadBuilder.makePasteboardWriter(for: item, bookmarkService: bookmarkService))
+
+        let advertised = advertisedTypes(of: writer)
+        XCTAssertFalse(advertised.contains(UTType.fileURL.identifier))
+        XCTAssertFalse(advertised.contains(UTType.tiff.identifier),
+                       "剪切图片项不挂 tiff 位图回退（位图目标无法确认交付）")
+        XCTAssertTrue(advertised.contains { NSFilePromiseReceiver.readableDraggedTypes.contains($0) })
+    }
+
+    /// 交付确认挂接：剪切项 writer 的 promise 写入完成后经 sink 上报 item id。
+    func testCutItem_deliverySink_reportsItemID() throws {
+        let bookmarkService = BookmarkService()
+        defer { bookmarkService.stopAccessingAll() }
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("OpenYoinkTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let managedSource = directory.appendingPathComponent("cut.txt")
+        try "cut content".write(to: managedSource, atomically: true, encoding: .utf8)
+        var item = ShelfItem(kind: .file, path: managedSource.path, displayName: "cut.txt")
+        item.isCut = true
+
+        let deliveredID = Mutex<UUID?>(nil)
+        let deliveredURL = Mutex<URL?>(nil)
+        let sink = CutDeliverySink(
+            delivered: { id, url in
+                deliveredID.withLock { $0 = id }
+                deliveredURL.withLock { $0 = url }
+            },
+            failed: { _ in XCTFail("写入应成功") }
+        )
+        let writer = try XCTUnwrap(DragPayloadBuilder.makePasteboardWriter(
+            for: item, bookmarkService: bookmarkService, cutDelivery: sink))
+        let provider = try XCTUnwrap(writer as? FilePromiseProvider)
+        let destination = directory.appendingPathComponent("delivered/cut.txt")
+        try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+
+        let completionError = Mutex<Error??>(nil)
+        provider.delegate?.filePromiseProvider(provider, writePromiseTo: destination) { error in
+            completionError.withLock { $0 = error }
+        }
+
+        XCTAssertNil(try XCTUnwrap(completionError.withLock { $0 }))
+        XCTAssertEqual(deliveredID.withLock { $0 }, item.id)
+        XCTAssertEqual(deliveredURL.withLock { $0 }, destination)
+        XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), "cut content")
     }
 
     // MARK: - 无法构造的项目

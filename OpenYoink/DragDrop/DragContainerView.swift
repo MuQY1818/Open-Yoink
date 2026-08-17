@@ -9,10 +9,14 @@ final class DropTargetState {
     var isTargeted = false
     /// 插入位置（目标 index 卡片前缘；等于 items.count 时画在末卡片后缘）。
     var insertionIndex: Int?
+    /// F-05: 当前悬停的拖入模式（⌘ 按下为 .move），驱动 ShelfView 的
+    /// 高亮色调与「松开即移动/添加引用」提示。
+    var mode: DropInMode = .copy
 
     func reset() {
         isTargeted = false
         insertionIndex = nil
+        mode = .copy
     }
 }
 
@@ -79,6 +83,7 @@ final class DragContainerView: NSView {
         guard sender.draggingSource == nil else { return [] }
         guard Self.hasImportableContent(sender.draggingPasteboard) else { return [] }
         dropTargetState.isTargeted = true
+        updateDropMode(sender)
         updateInsertionIndex(sender)
         return .copy
     }
@@ -86,8 +91,14 @@ final class DragContainerView: NSView {
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
         guard sender.draggingSource == nil else { return [] }
         guard Self.hasImportableContent(sender.draggingPasteboard) else { return [] }
+        // F-05: ⌘ 状态在拖动期间可能变化，实时刷新模式（高亮色调/提示随之切换）。
+        updateDropMode(sender)
         // C6: 拖动期间实时更新插入位置（行列映射见 DropInsertionLocator）。
         updateInsertionIndex(sender)
+        // 始终回 .copy（含 ⌘ 剪切模式）：剪切由我们自管（copy+trash，
+        // 见 CutMoveService），不依赖来源应用配合 .move —— 若回 .move，
+        // Finder 源会在 drop 后自行删除原文件，与我们已做的 trash 重复且
+        // 无法区分来源是否支持。光标徽标的一致性由 ShelfView 的模式提示承担。
         return .copy
     }
 
@@ -100,7 +111,10 @@ final class DragContainerView: NSView {
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        let result = coordinator.importItems(from: sender.draggingPasteboard) { [weak self] item in
+        // F-05: 落下瞬间以实时修饰键判定模式（⌘ = 剪切移入）。
+        let mode = DropImportCoordinator.dropMode(for: sender.draggingPasteboard,
+                                                  modifiers: NSEvent.modifierFlags)
+        let result = coordinator.importItems(from: sender.draggingPasteboard, mode: mode) { [weak self] item in
             // 异步物化完成（promise / 图片数据）：逐个追加入架。
             self?.store.add(item)
         }
@@ -115,6 +129,13 @@ final class DragContainerView: NSView {
     }
 
     // MARK: - Helpers
+
+    /// F-05: 读取实时修饰键（`NSEvent.modifierFlags`，拖拽会话期间随 ⌘ 按放
+    /// 变化）刷新悬停模式；只含 fileURL 的拖放才可能为 .move。
+    private func updateDropMode(_ sender: NSDraggingInfo) {
+        dropTargetState.mode = DropImportCoordinator.dropMode(for: sender.draggingPasteboard,
+                                                              modifiers: NSEvent.modifierFlags)
+    }
 
     /// C6: 把拖放鼠标位置映射为网格插入下标。`draggingLocation` 在本视图
     /// （面板 contentView）坐标系（左下原点）；卡片 frame 由 SwiftUI 以窗口

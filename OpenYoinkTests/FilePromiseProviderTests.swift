@@ -191,6 +191,64 @@ final class FilePromiseProviderTests: XCTestCase {
         XCTAssertTrue(types.contains { NSFilePromiseReceiver.readableDraggedTypes.contains($0.rawValue) })
     }
 
+    /// F-05: 剪切项（advertisesDirectFileURL == false）只声明 promise 类型。
+    func testWritableTypes_promiseOnlyWhenDirectFileURLDisabled() {
+        let provider = FilePromiseProvider(
+            payload: makePayload(sourceURL: URL(fileURLWithPath: "/tmp/hello.txt")),
+            bookmarkService: BookmarkService(),
+            advertisesDirectFileURL: false
+        )
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("OpenYoinkTests-\(UUID().uuidString)"))
+        let types = provider.writableTypes(for: pasteboard)
+
+        XCTAssertFalse(types.contains(.fileURL))
+        XCTAssertTrue(types.contains { NSFilePromiseReceiver.readableDraggedTypes.contains($0.rawValue) })
+        XCTAssertNil(provider.pasteboardPropertyList(forType: .fileURL),
+                     "未广告 fileURL 时请求也不得产出数据")
+    }
+
+    /// F-05: 写入完成回调携带目标 URL（剪切项的交付确认）。
+    func testDelegate_writePromiseTo_successCallsOnDeliveredWithDestination() throws {
+        let bookmarkService = BookmarkService()
+        defer { bookmarkService.stopAccessingAll() }
+        let directory = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = directory.appendingPathComponent("hello.txt")
+        try "deliver me".write(to: source, atomically: true, encoding: .utf8)
+        let destination = directory.appendingPathComponent("out.txt")
+        let deliveredURL = Mutex<URL?>(nil)
+        let provider = FilePromiseProvider(
+            payload: makePayload(sourceURL: source),
+            bookmarkService: bookmarkService,
+            onDelivered: { url in deliveredURL.withLock { $0 = url } }
+        )
+
+        provider.delegate?.filePromiseProvider(provider, writePromiseTo: destination) { _ in }
+
+        XCTAssertEqual(deliveredURL.withLock { $0 }, destination)
+    }
+
+    /// F-05: 写入失败不触发交付确认（只走 onError）。
+    func testDelegate_writePromiseTo_failureDoesNotCallOnDelivered() throws {
+        let bookmarkService = BookmarkService()
+        defer { bookmarkService.stopAccessingAll() }
+        let directory = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let deliveredURL = Mutex<URL?>(nil)
+        let provider = FilePromiseProvider(
+            payload: makePayload(sourceURL: directory.appendingPathComponent("nonexistent.txt")),
+            bookmarkService: bookmarkService,
+            onDelivered: { url in deliveredURL.withLock { $0 = url } }
+        )
+
+        provider.delegate?.filePromiseProvider(
+            provider,
+            writePromiseTo: directory.appendingPathComponent("out.txt")
+        ) { _ in }
+
+        XCTAssertNil(deliveredURL.withLock { $0 })
+    }
+
     func testPasteboardPropertyList_fileURLServesAbsoluteString() {
         let provider = FilePromiseProvider(
             payload: makePayload(sourceURL: URL(fileURLWithPath: "/tmp/hello.txt")),

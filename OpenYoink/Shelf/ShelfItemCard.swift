@@ -80,6 +80,8 @@ struct ShelfItemCard: View {
         .contentShape(RoundedRectangle(cornerRadius: Self.cornerRadius))
         .opacity(item.isStale ? 0.55 : 1)
         .overlay(alignment: .topLeading) { staleBadge }
+        // F-05: 剪切项角标（左下剪刀，与左上 stale 角标不同位置/颜色）。
+        .overlay(alignment: .bottomLeading) { cutBadge }
         // S5 拖出事件层：透明 NSView 覆盖整卡，成为左键事件权威
         //（mouseDown 记录 → mouseDragged 超阈值开始拖拽；mouseUp 无拖拽回落为
         // 点击选择 / 双击 Quick Look）。右键（contextMenu）与滚动透传给 SwiftUI。
@@ -144,10 +146,14 @@ struct ShelfItemCard: View {
     }
 
     /// D9: VoiceOver 标签（如「Report.pdf, 文件」/「Screenshots, 堆叠, 3 个项目」）。
+    /// F-05: 剪切项追加「拖出时将移动原文件」语义。
     private var cardAccessibilityLabel: Text {
         var label = "\(item.displayName), \(Self.localizedKindName(for: item.kind))"
         if item.kind == .stack, let count = item.children?.count {
             label += ", " + String(localized: "\(count) items")
+        }
+        if item.isCut {
+            label += ", " + String(localized: "Will move on drag out")
         }
         if item.isStale {
             label += ", " + String(localized: "File Unavailable")
@@ -284,6 +290,23 @@ struct ShelfItemCard: View {
                 .background { Circle().fill(Color(nsColor: .windowBackgroundColor)) }
                 .padding(5)
                 .help("File unavailable — it may have been moved or deleted.")
+                .allowsHitTesting(false)
+        }
+    }
+
+    /// F-05: 剪切项角标（SF Symbol scissors，橙色，左下）—— 表示「原文件已
+    /// 移入 shelf 保管，拖出时交付并离架」。卡片整体是单个可访问性元素，
+    /// 语义并入 `cardAccessibilityLabel`，此处不再单独暴露。
+    @ViewBuilder
+    private var cutBadge: some View {
+        if item.isCut {
+            Image(systemName: "scissors")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(.white)
+                .padding(4)
+                .background { Circle().fill(.orange) }
+                .padding(6)
+                .help("Moved into the shelf — will be delivered on drag out")
                 .allowsHitTesting(false)
         }
     }

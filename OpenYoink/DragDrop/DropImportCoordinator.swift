@@ -16,6 +16,16 @@ struct DropImportResult: Equatable, Sendable {
     static let unhandled = DropImportResult(items: [], pendingMaterializations: 0)
 }
 
+/// 拖入模式（F-05 双模式）：直接拖入 = 复制引用（现状语义）；⌘+拖入 =
+/// 剪切移入（原文件进废纸篓，保管副本入架）。⌘ 只对 file/folder 的 fileURL
+/// 拖入生效 —— file promise / 文本 / URL / 纯图片数据没有「原文件」概念。
+enum DropInMode: String, Equatable, Sendable {
+    /// 直接拖入：保存原文件引用，原文件不动（默认）。
+    case copy
+    /// ⌘+拖入：原文件移入保管目录（原位置进废纸篓），拖出时交付并离架。
+    case move
+}
+
 /// 把 `NSPasteboard`（来自 `NSDraggingInfo`）转成 `[ShelfItem]` 的纯逻辑层。
 ///
 /// 与 AppKit 拖放协议解耦：输入是 pasteboard，输出是同步 items + 异步物化
@@ -51,16 +61,21 @@ final class DropImportCoordinator {
     /// D10: 拖入/物化失败的内联提示中心（ShelfWindowController 注入 SwiftUI 环境，
     /// ShelfView 渲染标题栏下方的瞬态胶囊）。
     let noticeCenter: ShelfNoticeModel
+    /// F-05: ⌘+拖入（剪切模式）的搬运编排（copy → 校验 → trash → isCut item）。
+    let cutMoveService: CutMoveService
     private let tempFileService: TempFileService
     private let promiseReceiver: FilePromiseReceiver
     private let logger = Logger(subsystem: "com.weijue.OpenYoink", category: "DropImport")
 
     init(bookmarkService: BookmarkService,
          tempFileService: TempFileService,
-         noticeCenter: ShelfNoticeModel = ShelfNoticeModel()) {
+         noticeCenter: ShelfNoticeModel = ShelfNoticeModel(),
+         cutMoveService: CutMoveService? = nil) {
         self.bookmarkService = bookmarkService
         self.tempFileService = tempFileService
         self.noticeCenter = noticeCenter
+        self.cutMoveService = cutMoveService ?? CutMoveService(tempFileService: tempFileService,
+                                                               bookmarkService: bookmarkService)
         self.promiseReceiver = FilePromiseReceiver(tempFileService: tempFileService,
                                                    bookmarkService: bookmarkService,
                                                    noticeCenter: noticeCenter)
@@ -68,13 +83,27 @@ final class DropImportCoordinator {
 
     // MARK: - Entry point
 
+    /// F-05: 修饰键 → 拖入模式（纯函数，单测直断）。⌘ 且拖放含 fileURL
+    /// 时为剪切（.move）；其余一律 .copy —— 非文件类内容没有「原文件」可移。
+    /// `modifiers` 由调用方读 `NSEvent.modifierFlags`（拖拽会话期间的实时状态）。
+    nonisolated static func dropMode(for pasteboard: NSPasteboard,
+                                     modifiers: NSEvent.ModifierFlags) -> DropInMode {
+        guard modifiers.contains(.command),
+              PasteboardTypes.supports(.fileURL, types: pasteboard.types ?? []) else {
+            return .copy
+        }
+        return .move
+    }
+
     /// 分派一次拖入。同步可产出的项目放进返回值；file promise 与图片数据
     /// 在后台物化，完成后经 `onAsyncItemReady`（MainActor 上调用）逐个产出。
     /// UX1: 结果被 `handled` 时同步触发 `onImportHandled`。
+    /// F-05: `mode == .move`（⌘+拖入）时 fileURL 分支改走 cut 搬运。
     @discardableResult
     func importItems(from pasteboard: NSPasteboard,
+                     mode: DropInMode = .copy,
                      onAsyncItemReady: @escaping @MainActor (ShelfItem) -> Void) -> DropImportResult {
-        let result = dispatchImport(from: pasteboard, onAsyncItemReady: onAsyncItemReady)
+        let result = dispatchImport(from: pasteboard, mode: mode, onAsyncItemReady: onAsyncItemReady)
         if result.handled {
             onImportHandled?()
         }
@@ -83,6 +112,7 @@ final class DropImportCoordinator {
 
     /// 实际的分派逻辑（`importItems` 的薄包装之下，便于统一触发导入回调）。
     private func dispatchImport(from pasteboard: NSPasteboard,
+                                mode: DropInMode,
                                 onAsyncItemReady: @escaping @MainActor (ShelfItem) -> Void) -> DropImportResult {
         let types = pasteboard.types ?? []
 
@@ -97,7 +127,8 @@ final class DropImportCoordinator {
 
         // 2. fileURL（Finder 文件/文件夹，及其他应用的文件表示）。
         if PasteboardTypes.supports(.fileURL, types: types) {
-            let items = fileURLItems(from: pasteboard)
+            // F-05: ⌘+拖入走剪切搬运（逐文件独立成败，失败回退引用模式）。
+            let items = mode == .move ? cutMovedItems(from: pasteboard) : fileURLItems(from: pasteboard)
             if !items.isEmpty {
                 return DropImportResult(items: items, pendingMaterializations: 0)
             }
@@ -143,6 +174,33 @@ final class DropImportCoordinator {
             return []
         }
         return urls.map { Self.makeFileBackedItem(for: $0, displayName: $0.lastPathComponent, bookmarkService: bookmarkService, logger: logger) }
+    }
+
+    // MARK: - fileURL（F-05 剪切模式）
+
+    /// ⌘+拖入：逐文件经 `CutMoveService` 搬运，独立成败。回退引用模式时
+    /// 按原因提示（防套娃静默回退；copy/trash 失败告知用户已改为引用）。
+    private func cutMovedItems(from pasteboard: NSPasteboard) -> [ShelfItem] {
+        guard let urls = pasteboard.readObjects(
+            forClasses: [NSURL.self],
+            options: [.urlReadingFileURLsOnly: true]
+        ) as? [URL] else {
+            return []
+        }
+        return urls.map { url in
+            switch cutMoveService.makeCutItem(for: url, displayName: url.lastPathComponent) {
+            case .moved(let item):
+                return item
+            case .fallbackToReference(let item, let reason):
+                switch reason {
+                case .sourceInsideContainer:
+                    break // 防套娃：静默回落引用模式
+                case .copyFailed, .trashFailed:
+                    noticeCenter.show(String(localized: "Couldn't move \(url.lastPathComponent) — a reference was added instead."))
+                }
+                return item
+            }
+        }
     }
 
     // MARK: - Image data
