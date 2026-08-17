@@ -40,6 +40,16 @@ final class TriggerSettingsTests: XCTestCase {
                           TriggerSensitivity.high.edgeBandWidth)
     }
 
+    func testEdgeMappings_dragTunedValues() {
+        // UX2: 拖拽场景（按住左键移动中贴边）比悬停场景的停留更短、带宽更宽。
+        XCTAssertEqual(TriggerSensitivity.low.edgeDwellTime, 0.4)
+        XCTAssertEqual(TriggerSensitivity.medium.edgeDwellTime, 0.2)
+        XCTAssertEqual(TriggerSensitivity.high.edgeDwellTime, 0.1)
+        XCTAssertEqual(TriggerSensitivity.low.edgeBandWidth, 6)
+        XCTAssertEqual(TriggerSensitivity.medium.edgeBandWidth, 10)
+        XCTAssertEqual(TriggerSensitivity.high.edgeBandWidth, 16)
+    }
+
     // MARK: - SettingsStore defaults & persistence
 
     func testDefaults_matchPlanRiskTable() throws {
@@ -55,6 +65,10 @@ final class TriggerSettingsTests: XCTestCase {
         XCTAssertEqual(store.edgeTriggerSensitivity, .medium)
         XCTAssertEqual(store.hotKeyShortcut, .default)
         XCTAssertEqual(store.ignoredAppBundleIDs, [])
+        // UX 批次新增项的默认值：拖拽立即出现、双击存剪贴板、空架自动隐藏。
+        XCTAssertEqual(store.dragAutoAppearMode, .immediate)
+        XCTAssertTrue(store.hotKeyDoublePressSavesClipboard)
+        XCTAssertTrue(store.autoHideWhenEmpty)
     }
 
     func testTriggerSettings_persistAcrossInstances() throws {
@@ -95,5 +109,56 @@ final class TriggerSettingsTests: XCTestCase {
         let store = SettingsStore(defaults: defaults)
         XCTAssertEqual(store.shakeSensitivity, .medium)
         XCTAssertEqual(store.edgeTriggerSensitivity, .medium)
+    }
+
+    // MARK: - UX 批次：新设置持久化与迁移
+
+    func testUXSettings_persistAcrossInstances() throws {
+        let (defaults, name) = try makeSuite()
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let store = SettingsStore(defaults: defaults)
+        store.dragAutoAppearMode = .edgeOnly
+        store.hotKeyDoublePressSavesClipboard = false
+        store.autoHideWhenEmpty = false
+
+        let reloaded = SettingsStore(defaults: defaults)
+        XCTAssertEqual(reloaded.dragAutoAppearMode, .edgeOnly)
+        XCTAssertFalse(reloaded.hotKeyDoublePressSavesClipboard)
+        XCTAssertFalse(reloaded.autoHideWhenEmpty)
+    }
+
+    func testDragAutoAppearMode_invalidPersistedValue_fallsBackToImmediate() throws {
+        let (defaults, name) = try makeSuite()
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        defaults.set("garbage", forKey: "OpenYoink.dragAutoAppearMode")
+        let store = SettingsStore(defaults: defaults)
+        XCTAssertEqual(store.dragAutoAppearMode, .immediate)
+    }
+
+    func testDragAutoAppearMode_legacyEdgeTriggerEnabled_migratesToEdgeOnly() throws {
+        // UX1 迁移：旧版布尔边缘触发开关为开、且从未持久化过新模式 → .edgeOnly。
+        let (defaults, name) = try makeSuite()
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        defaults.set(true, forKey: "OpenYoink.edgeTriggerEnabled")
+        let store = SettingsStore(defaults: defaults)
+        XCTAssertEqual(store.dragAutoAppearMode, .edgeOnly)
+
+        // 迁移立即落盘：后续实例仍读到 edgeOnly。
+        let reloaded = SettingsStore(defaults: defaults)
+        XCTAssertEqual(reloaded.dragAutoAppearMode, .edgeOnly)
+    }
+
+    func testDragAutoAppearMode_explicitModeWinsOverLegacyFlag() throws {
+        // 显式持久化过新模式 → 旧布尔开关不再参与（迁移只发生一次）。
+        let (defaults, name) = try makeSuite()
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        defaults.set(true, forKey: "OpenYoink.edgeTriggerEnabled")
+        defaults.set("off", forKey: "OpenYoink.dragAutoAppearMode")
+        let store = SettingsStore(defaults: defaults)
+        XCTAssertEqual(store.dragAutoAppearMode, .off)
     }
 }

@@ -62,6 +62,9 @@ private struct GeneralSettingsTab: View {
 
                 Toggle("Hide after dragging out", isOn: $settings.autoHide)
 
+                // UX6: 非空→空迁移时自动收回（手动唤出的空架不受影响）。
+                Toggle("Hide automatically when empty", isOn: $settings.autoHideWhenEmpty)
+
                 Picker("After dragging out", selection: $settings.dragOutRemovalPolicy) {
                     Text("Keep on Shelf").tag(SettingsStore.DragOutRemovalPolicy.keep)
                     Text("Remove").tag(SettingsStore.DragOutRemovalPolicy.remove)
@@ -108,11 +111,45 @@ private struct TriggerSettingsTab: View {
                     }
                 }
 
+                // UX3: 双击保存剪贴板。开启时单击带一个识别窗的延迟 —— 脚注
+                // 说明此取舍；关闭即恢复零延迟单击。
+                Toggle("Double-press saves clipboard", isOn: $settings.hotKeyDoublePressSavesClipboard)
+                    .disabled(!settings.hotKeyEnabled)
+                Text("When enabled, a single press toggles the shelf after a brief delay (0.3 s) so a double press can be recognized.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 if let error = hotKeyMonitor.registrationError {
                     Label(error, systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
+            }
+
+            // UX1/2: 拖拽自动出现（Yoink 核心交互）。三档单控：立即出现 /
+            // 拖到贴边唤出 / 无动作。边缘灵敏度沿用旧边缘触发的三档设置。
+            Section("When Dragging Files") {
+                Picker("When Dragging Files", selection: $settings.dragAutoAppearMode) {
+                    Text("Show immediately").tag(SettingsStore.DragAutoAppearMode.immediate)
+                    Text("Show at screen edge").tag(SettingsStore.DragAutoAppearMode.edgeOnly)
+                    Text("Do nothing").tag(SettingsStore.DragAutoAppearMode.off)
+                }
+                .pickerStyle(.radioGroup)
+                .labelsHidden()
+
+                Picker("Sensitivity", selection: $settings.edgeTriggerSensitivity) {
+                    Text("Low").tag(TriggerSensitivity.low)
+                    Text("Medium").tag(TriggerSensitivity.medium)
+                    Text("High").tag(TriggerSensitivity.high)
+                }
+                .disabled(settings.dragAutoAppearMode != .edgeOnly)
+
+                Text(dragModeFootnote)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("Drag triggers stay silent while an ignored app is frontmost.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Mouse Shake") {
@@ -124,18 +161,21 @@ private struct TriggerSettingsTab: View {
                 }
                 .disabled(!settings.shakeTriggerEnabled)
             }
-
-            Section("Screen Edge") {
-                Toggle("Show when the cursor rests on the shelf edge", isOn: $settings.edgeTriggerEnabled)
-                Picker("Sensitivity", selection: $settings.edgeTriggerSensitivity) {
-                    Text("Low").tag(TriggerSensitivity.low)
-                    Text("Medium").tag(TriggerSensitivity.medium)
-                    Text("High").tag(TriggerSensitivity.high)
-                }
-                .disabled(!settings.edgeTriggerEnabled)
-            }
         }
         .formStyle(.grouped)
+    }
+
+    /// UX1/2: 随模式变化的说明文案（immediate 无需贴边；edgeOnly 在 custom
+    /// 位置下不可用）。
+    private var dragModeFootnote: String {
+        switch settings.dragAutoAppearMode {
+        case .immediate:
+            String(localized: "The shelf appears at its configured position as soon as you start dragging — no need to reach the screen edge.")
+        case .edgeOnly:
+            String(localized: "While dragging, hold the cursor at the shelf's screen edge for a moment to reveal it. Not available in custom position mode.")
+        case .off:
+            String(localized: "The shelf won't appear automatically while dragging.")
+        }
     }
 }
 
@@ -194,7 +234,7 @@ private struct IgnoredAppsSettingsTab: View {
             } header: {
                 Text("Ignored Apps")
             } footer: {
-                Text("Shake and edge triggers stay silent while one of these apps is frontmost. The global hot key is never filtered.")
+                Text("Shake and drag triggers stay silent while one of these apps is frontmost. The global hot key is never filtered.")
                     .font(.caption)
             }
         }

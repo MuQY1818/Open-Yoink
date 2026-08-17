@@ -18,27 +18,29 @@ final class ShelfLayoutEngineTests: XCTestCase {
         visibleFrame: CGRect(x: 1920, y: 25, width: 2560, height: 1415)
     )
 
-    // MARK: - Edge attachment
+    // MARK: - Edge attachment（UX5: 紧凑高度 + 垂直居中）
 
-    func testEdgeAttachedFrame_leftAnchorsToVisibleMinX() {
+    func testEdgeAttachedFrame_leftAnchorsToVisibleMinX_andCentersVertically() {
+        // y = 60 + (1020-144)/2 = 498。
         XCTAssertEqual(
-            ShelfLayoutEngine.edgeAttachedFrame(position: .left, width: 320,
+            ShelfLayoutEngine.edgeAttachedFrame(position: .left, width: 320, height: 144,
                                                 visibleFrame: mainScreen.visibleFrame),
-            CGRect(x: 0, y: 60, width: 320, height: 1020)
+            CGRect(x: 0, y: 498, width: 320, height: 144)
         )
     }
 
-    func testEdgeAttachedFrame_rightAnchorsToVisibleMaxX() {
+    func testEdgeAttachedFrame_rightAnchorsToVisibleMaxX_andCentersVertically() {
+        // x = 4480-320 = 4160；y = 25 + (1415-144)/2 = 660.5。
         XCTAssertEqual(
-            ShelfLayoutEngine.edgeAttachedFrame(position: .right, width: 320,
+            ShelfLayoutEngine.edgeAttachedFrame(position: .right, width: 320, height: 144,
                                                 visibleFrame: secondaryScreen.visibleFrame),
-            CGRect(x: 4160, y: 25, width: 320, height: 1415)
+            CGRect(x: 4160, y: 660.5, width: 320, height: 144)
         )
     }
 
     func testEdgeAttachedFrame_customHasNoEdge() {
         XCTAssertNil(
-            ShelfLayoutEngine.edgeAttachedFrame(position: .custom, width: 320,
+            ShelfLayoutEngine.edgeAttachedFrame(position: .custom, width: 320, height: 144,
                                                 visibleFrame: mainScreen.visibleFrame)
         )
     }
@@ -151,26 +153,37 @@ final class ShelfLayoutEngineTests: XCTestCase {
 
     func testTargetFrame_edgePositionsFollowMouseScreen() {
         let screens = [mainScreen, secondaryScreen]
-        // 鼠标在副屏 → 贴副屏右缘。
+        // 鼠标在副屏 → 贴副屏右缘；UX5 起高度按内容（1 项 1 行 = 144）垂直居中。
         XCTAssertEqual(
-            ShelfLayoutEngine.targetFrame(position: .right, width: 320,
+            ShelfLayoutEngine.targetFrame(position: .right, width: 320, itemCount: 1,
                                           mouseLocation: CGPoint(x: 2000, y: 100),
                                           screens: screens, persistedCustomFrame: nil),
-            CGRect(x: 4160, y: 25, width: 320, height: 1415)
+            CGRect(x: 4160, y: 660.5, width: 320, height: 144)
         )
         // 鼠标在主屏 → 贴主屏左缘。
         XCTAssertEqual(
-            ShelfLayoutEngine.targetFrame(position: .left, width: 300,
+            ShelfLayoutEngine.targetFrame(position: .left, width: 300, itemCount: 1,
                                           mouseLocation: CGPoint(x: 500, y: 500),
                                           screens: screens, persistedCustomFrame: nil),
-            CGRect(x: 0, y: 60, width: 300, height: 1020)
+            CGRect(x: 0, y: 498, width: 300, height: 144)
+        )
+    }
+
+    func testTargetFrame_emptyShelfUsesCompactEmptyHeight() {
+        // 空架：紧凑空态高度 200，在主屏垂直居中 → y = 60 + (1020-200)/2 = 470。
+        XCTAssertEqual(
+            ShelfLayoutEngine.targetFrame(position: .right, width: 320, itemCount: 0,
+                                          mouseLocation: CGPoint(x: 500, y: 500),
+                                          screens: [mainScreen], persistedCustomFrame: nil),
+            CGRect(x: 1600, y: 470, width: 320, height: 200)
         )
     }
 
     func testTargetFrame_customWithoutPersistedStartsAtRightEdge() {
-        // 首次选 custom（无持久化 frame）→ 鼠标屏右缘默认 frame 起步。
+        // 首次选 custom（无持久化 frame）→ 鼠标屏右缘默认 frame 起步（UX5 不动
+        // custom 路径：默认 frame 仍为全高）。
         XCTAssertEqual(
-            ShelfLayoutEngine.targetFrame(position: .custom, width: 320,
+            ShelfLayoutEngine.targetFrame(position: .custom, width: 320, itemCount: 5,
                                           mouseLocation: CGPoint(x: 500, y: 500),
                                           screens: [mainScreen], persistedCustomFrame: nil),
             CGRect(x: 1600, y: 60, width: 320, height: 1020)
@@ -181,7 +194,7 @@ final class ShelfLayoutEngineTests: XCTestCase {
         // custom 不跟随鼠标：持久化在副屏，鼠标在主屏，仍出现副屏原处。
         let persisted = CGRect(x: 2000, y: 100, width: 320, height: 600)
         XCTAssertEqual(
-            ShelfLayoutEngine.targetFrame(position: .custom, width: 320,
+            ShelfLayoutEngine.targetFrame(position: .custom, width: 320, itemCount: 3,
                                           mouseLocation: CGPoint(x: 500, y: 500),
                                           screens: [mainScreen, secondaryScreen],
                                           persistedCustomFrame: persisted),
@@ -193,7 +206,7 @@ final class ShelfLayoutEngineTests: XCTestCase {
         // 持久化 frame 所在屏已拔掉 → 回退鼠标屏（被拔则主屏）右缘默认。
         let persisted = CGRect(x: 2000, y: 100, width: 320, height: 600)
         XCTAssertEqual(
-            ShelfLayoutEngine.targetFrame(position: .custom, width: 320,
+            ShelfLayoutEngine.targetFrame(position: .custom, width: 320, itemCount: 2,
                                           mouseLocation: CGPoint(x: 500, y: 500),
                                           screens: [mainScreen],
                                           persistedCustomFrame: persisted),
@@ -203,17 +216,67 @@ final class ShelfLayoutEngineTests: XCTestCase {
 
     func testTargetFrame_emptyScreensReturnsFallback() {
         XCTAssertEqual(
-            ShelfLayoutEngine.targetFrame(position: .right, width: 320,
+            ShelfLayoutEngine.targetFrame(position: .right, width: 320, itemCount: 4,
                                           mouseLocation: .zero, screens: [],
                                           persistedCustomFrame: nil),
             CGRect(origin: .zero, size: ShelfLayoutEngine.fallbackSize)
         )
         XCTAssertEqual(
-            ShelfLayoutEngine.targetFrame(position: .custom, width: 320,
+            ShelfLayoutEngine.targetFrame(position: .custom, width: 320, itemCount: 0,
                                           mouseLocation: .zero, screens: [],
                                           persistedCustomFrame: CGRect(x: 100, y: 100, width: 320, height: 600)),
             CGRect(origin: .zero, size: ShelfLayoutEngine.fallbackSize)
         )
+    }
+
+    // MARK: - UX5 紧凑高度：列数推算（与 SwiftUI adaptive 网格一致）
+
+    func testColumnCount_matchesAdaptiveGridMath() {
+        // 88pt 最小列 + 12 间距；面板内边距合计 32。
+        // 320 → 网格 288 → 3 列（3×88+2×12=288 恰好放下）。
+        XCTAssertEqual(ShelfLayoutEngine.columnCount(forPanelWidth: 320), 3)
+        XCTAssertEqual(ShelfLayoutEngine.columnCount(forPanelWidth: 240), 2)
+        XCTAssertEqual(ShelfLayoutEngine.columnCount(forPanelWidth: 420), 4)
+        // 窄于单列最小宽度也至少 1 列。
+        XCTAssertEqual(ShelfLayoutEngine.columnCount(forPanelWidth: 100), 1)
+    }
+
+    // MARK: - UX5 紧凑高度：行数 / 上限 / 空架
+
+    func testContentHeight_singleRowForUpToFullRowOfItems() {
+        // 3 列：1~3 项同为 1 行 → 28 + 84 + 32 = 144。
+        for count in 1...3 {
+            XCTAssertEqual(ShelfLayoutEngine.contentHeight(itemCount: count, panelWidth: 320,
+                                                           visibleHeight: 1020), 144)
+        }
+    }
+
+    func testContentHeight_growsByRow() {
+        // 4 项 2 行 → 28 + (84×2 + 12) + 32 = 240；7 项 3 行 → 336。
+        XCTAssertEqual(ShelfLayoutEngine.contentHeight(itemCount: 4, panelWidth: 320,
+                                                       visibleHeight: 1020), 240)
+        XCTAssertEqual(ShelfLayoutEngine.contentHeight(itemCount: 7, panelWidth: 320,
+                                                       visibleHeight: 1020), 336)
+    }
+
+    func testContentHeight_narrowerPanelFitsFewerColumnsHenceMoreRows() {
+        // 宽 240 → 2 列：3 项即 2 行 → 240。
+        XCTAssertEqual(ShelfLayoutEngine.contentHeight(itemCount: 3, panelWidth: 240,
+                                                       visibleHeight: 1020), 240)
+    }
+
+    func testContentHeight_capsAtEightyPercentOfVisibleHeight() {
+        // 可见高 300 → 上限 240；10 项 4 行需要 432 → 夹到 240（超出部分滚动）。
+        XCTAssertEqual(ShelfLayoutEngine.contentHeight(itemCount: 10, panelWidth: 320,
+                                                       visibleHeight: 300), 240)
+    }
+
+    func testContentHeight_emptyShelfUsesCompactPlaceholderCappedOnTinyScreens() {
+        XCTAssertEqual(ShelfLayoutEngine.contentHeight(itemCount: 0, panelWidth: 320,
+                                                       visibleHeight: 1020), 200)
+        // 极小屏幕：空态同样受 80% 上限约束。
+        XCTAssertEqual(ShelfLayoutEngine.contentHeight(itemCount: 0, panelWidth: 320,
+                                                       visibleHeight: 200), 160)
     }
 
     // MARK: - Space-change correction

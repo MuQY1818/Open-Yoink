@@ -73,6 +73,14 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "清空最近项目" } }
       }
     },
+    "Clipboard is empty or has nothing the shelf can hold." : {
+      "extractionState" : "manual",
+      "comment" : "Inline notice when a double-press clipboard save finds nothing importable",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Clipboard is empty or has nothing the shelf can hold." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "剪贴板为空，或没有可放入暂存架的内容。" } }
+      }
+    },
     "Collapse stack" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -95,6 +103,14 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "自定义" } }
       }
     },
+    "Do nothing" : {
+      "extractionState" : "manual",
+      "comment" : "Drag auto-appear mode: no automatic appearance while dragging",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Do nothing" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无动作" } }
+      }
+    },
     "Don't ask again" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -110,6 +126,14 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "双击以快速查看" } }
       }
     },
+    "Double-press saves clipboard" : {
+      "extractionState" : "manual",
+      "comment" : "Hot key setting: double-pressing the global hot key saves the clipboard to the shelf",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Double-press saves clipboard" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "双击快捷键保存剪贴板内容" } }
+      }
+    },
     "Drag the shelf by its title bar to place it anywhere. The edge trigger is unavailable in custom mode." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -122,6 +146,14 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Drag to move" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖动以移动" } }
+      }
+    },
+    "Drag triggers stay silent while an ignored app is frontmost." : {
+      "extractionState" : "manual",
+      "comment" : "Footnote in the Triggers settings tab explaining the ignore list",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Drag triggers stay silent while an ignored app is frontmost." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当忽略列表中的应用位于前台时，拖拽触发保持静默。" } }
       }
     },
     "Drop files here" : {
@@ -209,6 +241,14 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Hide after dragging out" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖出后自动隐藏" } }
+      }
+    },
+    "Hide automatically when empty" : {
+      "extractionState" : "manual",
+      "comment" : "General setting: hide the shelf when its last item is removed or dragged out",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Hide automatically when empty" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "为空时自动隐藏" } }
       }
     },
     "Hide Shelf" : {
@@ -423,13 +463,6 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "右侧" } }
       }
     },
-    "Screen Edge" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Screen Edge" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "屏幕边缘" } }
-      }
-    },
     "Sensitivity" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -444,11 +477,11 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设置…" } }
       }
     },
-    "Shake and edge triggers stay silent while one of these apps is frontmost. The global hot key is never filtered." : {
+    "Shake and drag triggers stay silent while one of these apps is frontmost. The global hot key is never filtered." : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Shake and edge triggers stay silent while one of these apps is frontmost. The global hot key is never filtered." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当这些应用位于前台时，摇动与边缘触发保持静默。全局快捷键不受影响。" } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Shake and drag triggers stay silent while one of these apps is frontmost. The global hot key is never filtered." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当这些应用位于前台时，摇动与拖拽触发保持静默。全局快捷键不受影响。" } }
       }
     },
     "Shake the mouse to show the shelf" : {
@@ -473,6 +506,22 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "快捷键" } }
       }
     },
+    "Show at screen edge" : {
+      "extractionState" : "manual",
+      "comment" : "Drag auto-appear mode: reveal only when the drag rests at the shelf's screen edge",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show at screen edge" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖到屏幕边缘时显示" } }
+      }
+    },
+    "Show immediately" : {
+      "extractionState" : "manual",
+      "comment" : "Drag auto-appear mode: show at the configured position as soon as a drag starts",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show immediately" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "立即显示" } }
+      }
+    },
     "Show in Finder" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -485,13 +534,6 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Show Shelf" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示暂存架" } }
-      }
-    },
-    "Show when the cursor rests on the shelf edge" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show when the cursor rests on the shelf edge" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "光标停留在暂存架一侧的屏幕边缘时显示" } }
       }
     },
     "Stack" : {
@@ -532,6 +574,22 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "原始文件不会被删除。" } }
       }
     },
+    "The shelf appears at its configured position as soon as you start dragging — no need to reach the screen edge." : {
+      "extractionState" : "manual",
+      "comment" : "Footnote for the immediate drag auto-appear mode",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The shelf appears at its configured position as soon as you start dragging — no need to reach the screen edge." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开始拖拽时，暂存架立即出现在配置的位置——无需拖到屏幕边缘。" } }
+      }
+    },
+    "The shelf won't appear automatically while dragging." : {
+      "extractionState" : "manual",
+      "comment" : "Footnote for the disabled drag auto-appear mode",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The shelf won't appear automatically while dragging." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖拽时暂存架不会自动出现。" } }
+      }
+    },
     "Triggers" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -565,6 +623,30 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Width" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "宽度" } }
+      }
+    },
+    "When Dragging Files" : {
+      "extractionState" : "manual",
+      "comment" : "Settings section: what happens when the user starts dragging files",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "When Dragging Files" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖拽文件时" } }
+      }
+    },
+    "When enabled, a single press toggles the shelf after a brief delay (0.3 s) so a double press can be recognized." : {
+      "extractionState" : "manual",
+      "comment" : "Footnote under the double-press hot key setting explaining the single-press latency trade-off",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "When enabled, a single press toggles the shelf after a brief delay (0.3 s) so a double press can be recognized." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "启用后，单击会在短暂延迟（0.3 秒）后切换暂存架，以便识别双击。" } }
+      }
+    },
+    "While dragging, hold the cursor at the shelf's screen edge for a moment to reveal it. Not available in custom position mode." : {
+      "extractionState" : "manual",
+      "comment" : "Footnote for the edge-based drag auto-appear mode",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "While dragging, hold the cursor at the shelf's screen edge for a moment to reveal it. Not available in custom position mode." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖拽过程中，将光标在暂存架一侧的屏幕边缘稍作停留即可唤出。自定义位置模式下不可用。" } }
       }
     },
     "⌘⇧Space to toggle the shelf" : {

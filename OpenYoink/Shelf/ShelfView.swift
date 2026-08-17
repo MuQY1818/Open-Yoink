@@ -249,8 +249,16 @@ struct ShelfView: View {
                 .contentShape(Rectangle())
                 .onTapGesture(perform: collapseStack)
                 .overlay {
-                    ShelfStackExpandedView(stack: stack, onDismiss: collapseStack)
-                        .padding(8)
+                    ShelfStackExpandedView(
+                        stack: stack,
+                        onDismiss: collapseStack,
+                        // UX4: 子项 ✕ 从 stack 移除；stack 解散/消失后本浮层
+                        // 因 item(withID:) 返回 nil 自动收起。
+                        onRemoveChild: { childID in
+                            store.removeChild(childID, fromStack: stackID)
+                        }
+                    )
+                    .padding(8)
                 }
                 .transition(.opacity)
         }

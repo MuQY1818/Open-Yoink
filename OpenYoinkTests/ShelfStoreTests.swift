@@ -200,6 +200,86 @@ final class ShelfStoreTests: XCTestCase {
         XCTAssertEqual(names(store), ["a", "b"])
     }
 
+    // MARK: - UX4 removeChild（stack 子项 ✕ 移除）
+
+    private func makeThreeItemStack() throws -> (store: ShelfStore, stackID: UUID, childIDs: [UUID]) {
+        let store = makeStore(names: ["a", "b", "c", "d"])
+        let ids = [store.items[0].id, store.items[1].id, store.items[2].id]
+        let stackID = try XCTUnwrap(store.makeStack(from: Set(ids)))
+        return (store, stackID, ids)
+    }
+
+    func testRemoveChild_fromLargerStack_keepsStackWithRemainingChildren() throws {
+        let (store, stackID, childIDs) = try makeThreeItemStack()
+
+        XCTAssertTrue(store.removeChild(childIDs[1], fromStack: stackID))
+
+        let stack = try XCTUnwrap(store.item(withID: stackID))
+        XCTAssertEqual(stack.kind, .stack)
+        XCTAssertEqual(stack.children?.map(\.id), [childIDs[0], childIDs[2]])
+        XCTAssertEqual(names(store), ["a", "d"]) // stack 沿用首个子项名
+        // stack 选中态保持（makeStack 选中 stack 本身）。
+        XCTAssertEqual(store.selection, [stackID])
+    }
+
+    func testRemoveChild_leavingOneChild_dissolvesStackIntoPlainItem() throws {
+        let store = makeStore(names: ["x", "a", "b", "y"])
+        let a = store.items[1]
+        let b = store.items[2]
+        let stackID = try XCTUnwrap(store.makeStack(from: [a.id, b.id]))
+
+        XCTAssertTrue(store.removeChild(a.id, fromStack: stackID))
+
+        // stack 原位解散为存活子项（普通项），选中跟随。
+        XCTAssertEqual(store.items.map(\.id), [store.items[0].id, b.id, store.items[2].id])
+        XCTAssertEqual(store.item(withID: b.id)?.kind, .file)
+        XCTAssertNil(store.item(withID: stackID))
+        XCTAssertEqual(store.selection, [b.id])
+    }
+
+    func testRemoveChild_lastRemainingChild_removesStack() throws {
+        // 防御性构造：children 为 1 的 stack（makeStack 不会产出，直接构造）。
+        let child = ShelfItem(kind: .file, path: "/tmp/solo", displayName: "solo")
+        let store = ShelfStore(items: [
+            ShelfItem(kind: .stack, displayName: "solo", children: [child])
+        ])
+        let stackID = store.items[0].id
+
+        XCTAssertTrue(store.removeChild(child.id, fromStack: stackID))
+
+        XCTAssertTrue(store.items.isEmpty)
+        XCTAssertTrue(store.selection.isEmpty)
+    }
+
+    func testRemoveChild_unknownIDs_areNoOps() throws {
+        let (store, stackID, childIDs) = try makeThreeItemStack()
+
+        XCTAssertFalse(store.removeChild(UUID(), fromStack: stackID)) // 子项不在 stack 中
+        XCTAssertFalse(store.removeChild(childIDs[0], fromStack: UUID())) // stack 不存在
+        // 非 stack 顶层项同样拒绝。
+        let plainID = try XCTUnwrap(store.items.last?.id)
+        XCTAssertFalse(store.removeChild(childIDs[0], fromStack: plainID))
+
+        let stack = try XCTUnwrap(store.item(withID: stackID))
+        XCTAssertEqual(stack.children?.count, 3)
+    }
+
+    func testRemoveChild_triggersPersistence() throws {
+        let directory = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let persistence = PersistenceController(directoryURL: directory)
+        let a = makeItem("a")
+        let b = makeItem("b")
+        let store = ShelfStore(items: [a, b], persistence: persistence)
+        let stackID = try XCTUnwrap(store.makeStack(from: [a.id, b.id]))
+
+        XCTAssertTrue(store.removeChild(a.id, fromStack: stackID))
+        persistence.flushPendingSave()
+
+        // 解散后的存活子项被持久化（stack 已不存在）。
+        XCTAssertEqual(persistence.load().map(\.id), [b.id])
+    }
+
     // MARK: - Item updates
 
     func testUpdate_replacesItemWithSameID() {

@@ -26,8 +26,8 @@ struct ShelfItemCard: View {
     let isSelected: Bool
     /// 点击回调；additive 为 true 表示 ⌘点击（切换选中），否则单选。
     let onSelect: (_ additive: Bool) -> Void
-    /// 「Remove from Shelf」。为 nil 时右键菜单不含移除项（如 Stack 浮层中的子项，
-    /// 其移除语义随 S5/S6 的 unstack/批量操作一起设计）。
+    /// 「Remove from Shelf」。同时驱动右键菜单移除项与 UX4 悬停 ✕ 按钮；
+    /// 为 nil 时两者都不呈现（移除语义由父视图决定注入）。
     var onRemove: (() -> Void)?
     /// 决定缩略图内容的项目；默认与 `item` 相同。Stack 卡片传入第一个文件类子项。
     var thumbnailItem: ShelfItem?
@@ -39,6 +39,8 @@ struct ShelfItemCard: View {
     @State private var thumbnail: Image?
     /// 来源应用小图标（按 `sourceApp.bundleID` 经 LaunchServices 解析）。
     @State private var sourceAppIcon: NSImage?
+    /// UX4: 卡片悬停态（驱动右上角 ✕ 移除按钮淡入淡出）。
+    @State private var isHovering = false
     /// S4: 缩略图加载经 bookmark 解析文件访问权（见 `ThumbnailLoader`）。
     @Environment(\.bookmarkService) private var bookmarkService
     /// S5: 拖出总控；nil（Preview/单测）时拖拽关闭、点击不受影响。
@@ -94,14 +96,51 @@ struct ShelfItemCard: View {
                 }
             )
         }
+        // UX4: 悬停 ✕ 移除按钮。z 序在拖出事件层之上 —— 命中测试先到达
+        // SwiftUI Button，落在 ✕ 上的点击不会触发选择或拖出；未悬停时
+        // 透明且关闭命中测试，不影响卡片的点击/拖拽/框选。
+        .overlay(alignment: .topTrailing) { removeButton }
+        .onHover { isHovering = $0 }
+        .animation(.easeInOut(duration: 0.15), value: isHovering)
         .contextMenu { contextMenu }
         // D9: 卡片作为整体暴露给 VoiceOver —— 名称 + 本地化 kind（stack 附带
         // 子项数）+ stale 态；选中态走 .isSelected trait；双击 = Quick Look。
+        // UX4: 卡片忽略子元素（✕ 对 VoiceOver 不可见），移除操作改以自定义
+        // action 暴露（rotor「操作」中可触发）。
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(cardAccessibilityLabel)
         .accessibilityHint(Text("Double-click for Quick Look"))
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction(named: Text("Remove from Shelf")) {
+            onRemove?()
+        }
         .task(id: item) { await loadAssets() }
+    }
+
+    /// UX4: 悬停浮现的移除小圆钮（SF Symbol xmark，material 底保证在各种
+    /// 缩略图上可读）。点击 = 从 shelf 移除（`onRemove` 由父视图注入；
+    /// 为 nil 时不渲染）。
+    @ViewBuilder
+    private var removeButton: some View {
+        if let onRemove {
+            Button(action: onRemove) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16, height: 16)
+                    .background { Circle().fill(.regularMaterial) }
+                    .overlay {
+                        Circle()
+                            .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)
+                    }
+            }
+            .buttonStyle(.plain)
+            .padding(4)
+            .opacity(isHovering ? 1 : 0)
+            .allowsHitTesting(isHovering)
+            .help("Remove from Shelf")
+            .accessibilityLabel(Text("Remove from Shelf"))
+        }
     }
 
     /// D9: VoiceOver 标签（如「Report.pdf, 文件」/「Screenshots, 堆叠, 3 个项目」）。

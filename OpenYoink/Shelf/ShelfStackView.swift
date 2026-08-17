@@ -59,9 +59,14 @@ struct ShelfStackView: View {
 /// 不属于顶层 `ShelfStore.items`，故不走 store.selection。
 /// S5：子项卡片可拖出（命中 childSelection 多选时整批拖出）；子项拖出
 /// 不从 stack 移除（移除语义随 S6 的 stack 批量操作一起设计）。
+/// UX4：子项卡片悬停 ✕ 经 `onRemoveChild` 回调从 stack 中移除该子项
+/// （`ShelfStore.removeChild(_:fromStack:)`：剩 1 项自动解散为普通项，
+/// 剩 0 项移除 stack；stack 消失后本浮层由 ShelfView 自动收起）。
 struct ShelfStackExpandedView: View {
     let stack: ShelfItem
     let onDismiss: () -> Void
+    /// UX4: 子项移除回调（参数为子项 id）。nil 时子项卡片不渲染 ✕。
+    var onRemoveChild: ((UUID) -> Void)?
 
     /// 子项局部多选集合（S5 批量拖出读取）。
     @State private var childSelection: Set<UUID> = []
@@ -84,14 +89,16 @@ struct ShelfStackExpandedView: View {
                                     childSelection = [child.id]
                                 }
                             },
-                            // 子项不提供「移除」：store 移除 API 面向顶层项目，
-                            // Stack 内移除随 S6 的 unstack/批量操作一起设计。
+                            onRemove: onRemoveChild.map { remove in
+                                { remove(child.id) }
+                            },
                             dragContentsProvider: dragContents(for:)
                         )
                     }
                 }
                 .padding(2)
                 .animation(ShelfView.cardAnimation, value: childSelection)
+                .animation(ShelfView.cardAnimation, value: stack.children)
             }
             .frame(maxHeight: 320)
         }

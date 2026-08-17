@@ -38,4 +38,55 @@ final class HotKeyMonitorTests: XCTestCase {
         XCTAssertEqual(modifiers,
                        UInt32(cmdKey) | UInt32(shiftKey) | UInt32(optionKey) | UInt32(controlKey))
     }
+
+    // MARK: - UX3 DoublePressDiscriminator
+
+    func testDoublePress_secondPressInsideWindow_isDouble() {
+        var discriminator = DoublePressDiscriminator(window: 0.3)
+        XCTAssertEqual(discriminator.press(at: 10.0), .firstPressPending)
+        XCTAssertTrue(discriminator.hasPending)
+        XCTAssertEqual(discriminator.press(at: 10.25), .doublePress)
+        XCTAssertFalse(discriminator.hasPending)
+    }
+
+    func testDoublePress_secondPressOutsideWindow_startsNewPending() {
+        var discriminator = DoublePressDiscriminator(window: 0.3)
+        XCTAssertEqual(discriminator.press(at: 10.0), .firstPressPending)
+        // 窗外第二次按下 → 不是双击，而是新一轮待确认单击。
+        XCTAssertEqual(discriminator.press(at: 10.5), .firstPressPending)
+        XCTAssertTrue(discriminator.hasPending)
+    }
+
+    func testDoublePress_exactWindowBoundary_countsAsDouble() {
+        // 边界值取可精确表示的二进制小数（0.5/1.5），避免 0.3 这类浮点
+        // 误差淹没「恰好等于窗口」的判定（判别器用 <= window）。
+        var discriminator = DoublePressDiscriminator(window: 0.5)
+        XCTAssertEqual(discriminator.press(at: 1.0), .firstPressPending)
+        XCTAssertEqual(discriminator.press(at: 1.5), .doublePress)
+    }
+
+    func testDoublePress_confirmedSingle_rearmsForNextPress() {
+        var discriminator = DoublePressDiscriminator(window: 0.3)
+        XCTAssertEqual(discriminator.press(at: 1.0), .firstPressPending)
+        discriminator.confirmPending() // 延迟任务到期：单击成立
+        XCTAssertFalse(discriminator.hasPending)
+        // 下一次按下是新的首次（与上次单击无关）。
+        XCTAssertEqual(discriminator.press(at: 1.2), .firstPressPending)
+    }
+
+    func testDoublePress_triplePressIsDoublePlusPending() {
+        var discriminator = DoublePressDiscriminator(window: 0.3)
+        XCTAssertEqual(discriminator.press(at: 0.0), .firstPressPending)
+        XCTAssertEqual(discriminator.press(at: 0.2), .doublePress)
+        // 三连击的第三下：重新进入待确认（等待可能的第四下）。
+        XCTAssertEqual(discriminator.press(at: 0.4), .firstPressPending)
+    }
+
+    func testDoublePress_resetDiscardsPending() {
+        var discriminator = DoublePressDiscriminator(window: 0.3)
+        XCTAssertEqual(discriminator.press(at: 0.0), .firstPressPending)
+        discriminator.reset()
+        XCTAssertFalse(discriminator.hasPending)
+        XCTAssertEqual(discriminator.press(at: 0.1), .firstPressPending)
+    }
 }

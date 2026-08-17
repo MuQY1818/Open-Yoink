@@ -7,6 +7,11 @@ import AppKit
 /// The tracker fires at most once per band entry: leaving the band (or
 /// `reset()`) is the only way to re-arm it, so a cursor resting on the edge
 /// can never retrigger in a loop.
+///
+/// UX2: since the UX batch the tracker is fed `leftMouseDragged` samples
+/// (left button held) instead of `mouseMoved` — the edge trigger only fires
+/// mid-drag; pure hovering no longer reveals the shelf (confirmed design
+/// change). The tracker itself is input-agnostic and unchanged.
 struct EdgeDwellTracker: Sendable, Equatable {
     /// Continuous dwell time (seconds) required before firing.
     let dwellTime: TimeInterval
@@ -43,9 +48,14 @@ struct EdgeDwellTracker: Sendable, Equatable {
     }
 }
 
-/// Screen-edge dwell trigger (S7): resting the cursor on the edge the shelf
-/// attaches to for longer than the sensitivity-dependent dwell time shows
-/// the shelf.
+/// Screen-edge drag dwell trigger (UX2): while the left mouse button is held
+/// (a drag is in progress), resting the cursor inside the band along the edge
+/// the shelf attaches to for longer than the sensitivity-dependent dwell time
+/// shows the shelf.
+///
+/// UX2 设计变更（用户确认）：纯悬停（未按左键的 mouseMoved）不再触发；
+/// 只监听 `leftMouseDragged`。拖拽中的停留时间与带宽比原悬停版更短/更宽
+/// （见 `TriggerSensitivity.edgeDwellTime` / `.edgeBandWidth`）。
 ///
 /// The screen under the cursor is resolved with
 /// `ShelfWindowController.screen(containing:)` — the same rule the shelf
@@ -89,7 +99,7 @@ final class EdgeTriggerMonitor {
         self.bandWidth = bandWidth
         tracker = EdgeDwellTracker(dwellTime: dwellTime)
 
-        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] event in
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDragged) { [weak self] event in
             guard let self else { return }
             let location = NSEvent.mouseLocation
             let timestamp = event.timestamp
@@ -97,7 +107,7 @@ final class EdgeTriggerMonitor {
                 self.handleMouseMoved(to: location, at: timestamp)
             }
         }
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .mouseMoved) { [weak self] event in
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDragged) { [weak self] event in
             guard let self else { return event }
             let location = NSEvent.mouseLocation
             let timestamp = event.timestamp

@@ -1,6 +1,29 @@
 import AppKit
 import SwiftUI
 
+/// UX6: 空架自动隐藏裁决（纯逻辑，与 AppKit 解耦供单测）。
+///
+/// 基于「非空 → 空」的迁移而非「为空」状态：shelf 可见且 items 从 >0 变 0
+/// （移除/拖出导致）→ 应动画隐藏。状态式实现（可见且为空即隐）会把用户
+/// 在空架状态的手动唤出（快捷键/菜单/摇动/边缘 —— 显式意图）立刻收回，
+/// 迁移式天然豁免该场景。首次评估只建立基线，不触发。
+struct EmptyShelfAutoHideRule: Sendable, Equatable {
+    private var previousCount: Int?
+
+    /// 每次 items 变更时评估。返回 true = 应立即自动隐藏。
+    /// 无论结果如何都记录本次数量作为下次基线。
+    mutating func evaluate(itemCount: Int, isVisible: Bool, isEnabled: Bool) -> Bool {
+        defer { previousCount = itemCount }
+        guard let previousCount else { return false }
+        return isEnabled && isVisible && previousCount > 0 && itemCount == 0
+    }
+
+    /// 清空基线（下一次评估只记录不触发）。
+    mutating func reset() {
+        previousCount = nil
+    }
+}
+
 /// 负责 shelf 面板的显示/隐藏（滑入滑出 + 透明度组合动画）、
 /// 基于鼠标所在屏幕的 frame 计算，以及屏幕参数变化时的重新布局。
 /// S6 起同时承担：Quick Look 会话持有（`QuickLookCoordinator`）与卡片键盘
@@ -20,6 +43,8 @@ final class ShelfWindowController: NSObject {
     /// Shelf 数据（S3 起注入 ShelfView 的 @Environment）。
     /// S4: DragContainerView（NSDraggingDestination 桥接）同样持有此 store。
     private let store: ShelfStore
+    /// UX6: 空架自动隐藏裁决状态（跨 items 变更保持上一轮数量基线）。
+    private var emptyAutoHideRule = EmptyShelfAutoHideRule()
     /// S4: 拖入分派（pasteboard → ShelfItem），供 DragContainerView 调用。
     private let importCoordinator: DropImportCoordinator
     /// S4: 拖入悬停高亮/插入位置状态，DragContainerView 驱动、ShelfView 渲染。
@@ -100,6 +125,10 @@ final class ShelfWindowController: NSObject {
             tempFileService: tempFileService
         )
         super.init()
+        // UX5/UX6: 项目增删 → 紧凑高度动画过渡 + 空架自动隐藏裁决。
+        store.onItemsDidChange = { [weak self] in
+            self?.handleItemsDidChange()
+        }
         // S8: autoHide —— 拖出成功（operation 非空）且设置开启时隐藏 shelf。
         // 回调在 DragSessionController.draggingSession(endedAt:) 里按
         // 「实际发生 drop」判定后触发；隐藏与否在此处按最新设置裁决。
@@ -232,13 +261,15 @@ final class ShelfWindowController: NSObject {
     // MARK: - Layout
 
     /// 位置与宽度由 SettingsStore 供给；纯计算收敛在 `ShelfLayoutEngine`（S9）。
-    /// 左/右跟随鼠标所在屏幕（鼠标屏被拔掉回退主屏），贴设定缘、占满可见
-    /// 区域全高；custom 用校验后的持久化 frame（首次/所在屏被拔掉时从目标屏
+    /// 左/右跟随鼠标所在屏幕（鼠标屏被拔掉回退主屏），贴设定缘；UX5 起高度
+    /// 贴合内容（按 `store.items.count` 推算行数，上限可见高度 80%）、垂直
+    /// 居中；custom 用校验后的持久化 frame（首次/所在屏被拔掉时从目标屏
     /// 右缘默认 frame 起步）。
     private func targetFrame() -> NSRect {
         ShelfLayoutEngine.targetFrame(
             position: settings.shelfPosition,
             width: settings.shelfWidth,
+            itemCount: store.items.count,
             mouseLocation: NSEvent.mouseLocation,
             screens: Self.screenGeometries(),
             persistedCustomFrame: settings.customShelfFrame
@@ -310,6 +341,32 @@ final class ShelfWindowController: NSObject {
             context.duration = Self.animationDuration
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             panel.animator().setFrame(target, display: true)
+        }
+    }
+
+    /// UX5/UX6: items 变更（store.onItemsDidChange 钩子）统一处理：
+    /// 1. UX5 紧凑高度 —— 可见时数量变化动画过渡到新目标 frame（custom
+    ///    位置的目标 frame 不含内容高度，天然 no-op）；
+    /// 2. UX6 空架自动隐藏 —— 非空→空迁移且设置开启时动画收回。
+    private func handleItemsDidChange() {
+        let shouldAutoHide = emptyAutoHideRule.evaluate(
+            itemCount: store.items.count,
+            isVisible: appState.isShelfVisible,
+            isEnabled: settings.autoHideWhenEmpty
+        )
+        if appState.isShelfVisible {
+            let target = targetFrame()
+            if target != panel.frame {
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = Self.animationDuration
+                    context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                    panel.animator().setFrame(target, display: true)
+                }
+            }
+        }
+        // 空架隐藏放在高度动画之后裁决：两者同帧时隐藏优先（隐藏动画覆盖）。
+        if shouldAutoHide {
+            hideShelf(animated: true)
         }
     }
 }

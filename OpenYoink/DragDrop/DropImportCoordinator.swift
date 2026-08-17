@@ -40,6 +40,11 @@ final class DropImportCoordinator {
         String(localized: "Dropped Image.png")
     }
 
+    /// UX1: 成功导入回调（拖入与 UX3 剪贴板保存共用此入口）。`importItems`
+    /// 返回 `handled` 时在 MainActor 上同步触发 —— AppDelegate 据此标记
+    /// 拖拽自动唤出会话「本轮已有内容落入」，拖结束时不再自动收回。
+    var onImportHandled: (@MainActor () -> Void)?
+
     /// 共享的书签服务（ShelfWindowController 把它注入 SwiftUI 环境，
     /// 供卡片缩略图/打开操作经 bookmark 解析文件访问权）。
     let bookmarkService: BookmarkService
@@ -65,9 +70,20 @@ final class DropImportCoordinator {
 
     /// 分派一次拖入。同步可产出的项目放进返回值；file promise 与图片数据
     /// 在后台物化，完成后经 `onAsyncItemReady`（MainActor 上调用）逐个产出。
+    /// UX1: 结果被 `handled` 时同步触发 `onImportHandled`。
     @discardableResult
     func importItems(from pasteboard: NSPasteboard,
                      onAsyncItemReady: @escaping @MainActor (ShelfItem) -> Void) -> DropImportResult {
+        let result = dispatchImport(from: pasteboard, onAsyncItemReady: onAsyncItemReady)
+        if result.handled {
+            onImportHandled?()
+        }
+        return result
+    }
+
+    /// 实际的分派逻辑（`importItems` 的薄包装之下，便于统一触发导入回调）。
+    private func dispatchImport(from pasteboard: NSPasteboard,
+                                onAsyncItemReady: @escaping @MainActor (ShelfItem) -> Void) -> DropImportResult {
         let types = pasteboard.types ?? []
 
         // 1. file promise 优先（高质量表示；F-03 明确建议先尝试 promise）。

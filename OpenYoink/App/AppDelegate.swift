@@ -45,9 +45,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// S7: 全局快捷键监听（Carbon RegisterEventHotKey 为主、NSEvent 全局监听
     /// 为备；注册失败状态供 S8 设置页提示）。internal：Settings scene 注入
     /// 环境（registrationError 展示）用。
-    lazy var hotKeyMonitor = HotKeyMonitor(shortcut: settingsStore.hotKeyShortcut) { [weak self] in
-        self?.toggleShelf()
-    }
+    /// UX3: 单击 = toggle；双击 = 保存剪贴板到 shelf（识别窗 ~0.3s，设置可关）。
+    lazy var hotKeyMonitor = HotKeyMonitor(
+        shortcut: settingsStore.hotKeyShortcut,
+        onPress: { [weak self] in
+            self?.toggleShelf()
+        },
+        onDoublePress: { [weak self] in
+            self?.saveClipboardToShelf()
+        }
+    )
     /// S7: 鼠标摇动触发（识别核心 ShakeDetector 为纯类型，见 Triggers/）。
     private lazy var mouseShakeMonitor = MouseShakeMonitor(shouldSuppress: { [weak self] in
         guard let self else { return false }
@@ -55,16 +62,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }, onTrigger: { [weak self] in
         self?.toggleShelf()
     })
-    /// S7: 屏幕边缘停留触发。仅「唤出」不「隐藏」：停留在边缘的意图是取用
-    /// shelf（通常紧接着要向该侧拖拽），若再次停留反而隐藏会产生往复开关的
-    /// 挫败感；隐藏仍由快捷键/菜单承担（调研报告 §7.2：快捷键是无歧义主入口）。
+    /// UX2: 屏幕边缘触发（拖拽版）。仅「唤出」不「隐藏」：贴边的意图是取用
+    /// shelf（通常紧接着要向该侧投放），再次贴边反而隐藏会产生往复开关的
+    /// 挫败感；隐藏仍由快捷键/菜单与 UX1 拖空无落入自动收回承担。
+    /// UX2 设计变更（用户确认）：纯悬停不再触发，仅拖拽中（按住左键）贴边
+    /// 短停留唤出；custom 位置无贴附缘时暂停（applyTriggerSettings）。
     private lazy var edgeTriggerMonitor = EdgeTriggerMonitor(shouldSuppress: { [weak self] in
         guard let self else { return true }
         return self.appState.isShelfVisible
             || IgnoreListService.frontmostAppIsIgnored(in: self.settingsStore.ignoredAppBundleIDs)
     }, onTrigger: { [weak self] in
-        self?.shelfWindowController.showShelf(animated: true)
+        guard let self, !self.appState.isShelfVisible else { return }
+        // UX2: 拖拽贴边唤出也记入自动唤出会话（拖空无落入自动收回）。
+        self.dragAutoShowSession.markShownAutomatically()
+        self.shelfWindowController.showShelf(animated: true)
     })
+    /// UX1: 拖拽开始监听（按下 → 位移超阈值判定拖拽 → 抬起结束）。
+    /// 同时承担 UX2 贴边唤出的会话记帐：只要任一拖拽驱动唤出路径可能
+    /// 生效（immediate 或边缘触发可用）就保持注册。
+    private lazy var dragStartMonitor = DragStartMonitor(shouldSuppress: { [weak self] in
+        guard let self else { return false }
+        return IgnoreListService.frontmostAppIsIgnored(in: self.settingsStore.ignoredAppBundleIDs)
+    }, onDragStart: { [weak self] in
+        self?.handleDragStart()
+    }, onDragEnd: { [weak self] in
+        self?.handleDragEnd()
+    })
+    /// UX1/2: 拖拽自动唤出会话裁决（纯逻辑状态机，见 Triggers/DragStartMonitor）。
+    private var dragAutoShowSession = DragAutoShowSession()
 
     /// S10: 语言覆盖必须在最早阶段生效——`AppleLanguages` 决定进程后续加载的
     /// 本地化资源（Bundle 主语言在首个本地化查询时锁定），故放在
@@ -90,6 +115,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         _ = menuBarController
+        // UX1: 成功导入（拖入/剪贴板保存）→ 标记拖拽自动唤出会话「本轮
+        // 已有内容落入」，拖结束时不再自动收回。
+        dropImportCoordinator.onImportHandled = { [weak self] in
+            self?.dragAutoShowSession.noteImport()
+        }
         applyTriggerSettings()
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(userDefaultsDidChange(_:)),
@@ -107,10 +137,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotKeyMonitor.setEnabled(false)
         mouseShakeMonitor.stop()
         edgeTriggerMonitor.stop()
+        dragStartMonitor.stop()
     }
 
     func toggleShelf() {
         shelfWindowController.toggleShelf(animated: true)
+    }
+
+    // MARK: - UX1/UX2 drag-driven appearance
+
+    /// UX1: 拖拽确认（位移超阈值）。开启新会话记帐；`.immediate` 模式下
+    /// shelf 不可见时立即唤出并打自动唤出标记（拖拽前已可见 = 用户手动
+    /// 唤出，不标记、不动它）。`.edgeOnly` 只做记帐，唤出交给边缘触发。
+    private func handleDragStart() {
+        dragAutoShowSession.dragBegan()
+        guard settingsStore.dragAutoAppearMode == .immediate else { return }
+        guard !appState.isShelfVisible else { return }
+        dragAutoShowSession.markShownAutomatically()
+        shelfWindowController.showShelf(animated: true)
+    }
+
+    /// UX1: 拖拽结束。本轮为自动唤出且没有内容落入 → 动画收回；
+    /// 其余情况（手动唤出、已有导入、用户拖拽中已手动隐藏）不动。
+    private func handleDragEnd() {
+        guard dragAutoShowSession.dragEnded(), appState.isShelfVisible else { return }
+        shelfWindowController.hideShelf(animated: true)
+    }
+
+    // MARK: - UX3 clipboard save
+
+    /// 双击快捷键保存剪贴板：复用 `DropImportCoordinator` 的拖入分派（文件 /
+    /// 图片 / URL / 文本）。成功导入即唤出 shelf 给出反馈；空剪贴板或无
+    /// 可导入内容时不动作（shelf 可见时走既有 notice 提示）。
+    private func saveClipboardToShelf() {
+        let result = dropImportCoordinator.importItems(from: .general) { [weak self] item in
+            self?.shelfStore.add(item)
+        }
+        guard result.handled else {
+            if appState.isShelfVisible {
+                shelfNotice.show(String(localized: "Clipboard is empty or has nothing the shelf can hold."))
+            }
+            return
+        }
+        shelfStore.add(contentsOf: result.items)
+        shelfWindowController.showShelf(animated: true)
     }
 
     // MARK: - Recent items re-add (S10)
@@ -218,11 +288,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Trigger wiring (S7)
 
-    /// S7: 按当前设置启停三个触发监听（启动时与设置变更时调用）。各 monitor
+    /// S7: 按当前设置启停触发监听（启动时与设置变更时调用）。各 monitor
     /// 内部对「配置未变」做了幂等保护，因此可响应任意 UserDefaults 变更
     /// 直接重应用，不会重复注册事件监听。
+    ///
+    /// UX1/2: 拖拽自动出现由 `dragAutoAppearMode` 单控 —— `.immediate`
+    /// 由 DragStartMonitor 在拖拽确认时直接唤出；`.edgeOnly` 由
+    /// EdgeTriggerMonitor（拖拽贴边短停留）唤出；`.off` 两者皆停。
+    /// 边缘机制在 custom 位置无贴附缘时暂停。DragStartMonitor 还承担
+    /// 自动唤出会话记帐（拖空无落入自动收回），因此任一唤出路径可用
+    /// 时都要保持注册。
     private func applyTriggerSettings() {
         hotKeyMonitor.updateShortcut(settingsStore.hotKeyShortcut)
+        hotKeyMonitor.setDoublePressEnabled(settingsStore.hotKeyDoublePressSavesClipboard)
         hotKeyMonitor.setEnabled(settingsStore.hotKeyEnabled)
 
         if settingsStore.shakeTriggerEnabled {
@@ -231,9 +309,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             mouseShakeMonitor.stop()
         }
 
-        // S9: custom 位置无贴附缘，边缘触发失去目标缘，暂停（切回 left/right
-        // 即恢复；开关状态本身不动）。
-        if settingsStore.edgeTriggerEnabled, settingsStore.shelfPosition != .custom {
+        let edgeActive = settingsStore.dragAutoAppearMode == .edgeOnly
+            && settingsStore.shelfPosition != .custom
+        if edgeActive {
             edgeTriggerMonitor.start(
                 side: settingsStore.shelfPosition,
                 dwellTime: settingsStore.edgeTriggerSensitivity.edgeDwellTime,
@@ -241,6 +319,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
         } else {
             edgeTriggerMonitor.stop()
+        }
+
+        if settingsStore.dragAutoAppearMode == .immediate || edgeActive {
+            dragStartMonitor.start()
+        } else {
+            dragStartMonitor.stop()
         }
     }
 

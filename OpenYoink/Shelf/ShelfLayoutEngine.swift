@@ -16,6 +16,23 @@ enum ShelfLayoutEngine {
     /// 屏幕数组为空时的兜底尺寸（正常运行的 macOS 至少一屏，纯防护）。
     static let fallbackSize = CGSize(width: 320, height: 600)
 
+    // MARK: - 紧凑高度常量（UX5）
+
+    /// 网格列最小宽度与间距 —— 与 `ShelfView.columnWidth` / `.gridSpacing`
+    /// 保持一致（列数推算必须与 SwiftUI adaptive 网格的排布一致）。
+    static let gridColumnMinimum: CGFloat = 88
+    static let gridSpacing: CGFloat = 12
+    /// 面板内水平/垂直固定边距合计：窗口外层 padding 8×2 + 内容 padding 8×2。
+    static let contentPadding: CGFloat = 32
+    /// 标题栏块高度（含 VStack 间距）。
+    static let headerHeight: CGFloat = 28
+    /// 单行卡片高度估算：缩略图区 52 + 间距 5 + 名称行 ~15 + 卡片 padding 12。
+    static let cardRowHeight: CGFloat = 84
+    /// 空架时的紧凑总高度（让 `ShelfEmptyState` 插画居中即可，不撑满）。
+    static let emptyStateHeight: CGFloat = 200
+    /// 高度上限：屏幕可见高度的 80%（超出部分由网格 ScrollView 滚动）。
+    static let maximumHeightFraction: CGFloat = 0.8
+
     // MARK: - 目标屏判定
 
     /// 包含鼠标点的屏幕；无命中（鼠标所在屏刚被拔掉、坐标悬空）回退首屏（主屏）。
@@ -26,18 +43,41 @@ enum ShelfLayoutEngine {
 
     // MARK: - 边缘布局
 
-    /// 边缘吸附 frame：贴 position 对应缘、占满 visibleFrame 全高。
-    /// custom 无贴附缘概念，返回 nil（走 `validatedCustomFrame` 路径）。
+    /// UX5: 由面板宽度推算网格列数（与 SwiftUI `adaptive(minimum:spacing:)`
+    /// 的排布规则一致：n 列需 n×min + (n-1)×spacing ≤ 可用宽度）。
+    static func columnCount(forPanelWidth width: CGFloat) -> Int {
+        let gridWidth = width - contentPadding
+        return max(1, Int((gridWidth + gridSpacing) / (gridColumnMinimum + gridSpacing)))
+    }
+
+    /// UX5: 内容贴合高度 —— 标题栏 + 内边距 + 行高×行数 + 行间距；
+    /// 上限为可见高度的 80%（超出滚动）；空架给紧凑空态高度。
+    static func contentHeight(itemCount: Int,
+                              panelWidth: CGFloat,
+                              visibleHeight: CGFloat) -> CGFloat {
+        let cap = visibleHeight * maximumHeightFraction
+        guard itemCount > 0 else { return min(emptyStateHeight, cap) }
+        let columns = columnCount(forPanelWidth: panelWidth)
+        let rows = max(1, (itemCount + columns - 1) / columns)
+        let gridHeight = CGFloat(rows) * cardRowHeight + CGFloat(rows - 1) * gridSpacing
+        return min(headerHeight + gridHeight + contentPadding, cap)
+    }
+
+    /// 边缘吸附 frame：贴 position 对应缘。UX5 起高度由内容决定
+    /// （`contentHeight`），垂直居中于可见区域；custom 无贴附缘概念，
+    /// 返回 nil（走 `validatedCustomFrame` 路径）。
     static func edgeAttachedFrame(position: SettingsStore.ShelfPosition,
                                   width: CGFloat,
+                                  height: CGFloat,
                                   visibleFrame: CGRect) -> CGRect? {
+        let y = visibleFrame.minY + (visibleFrame.height - height) / 2
         switch position {
         case .left:
-            return CGRect(x: visibleFrame.minX, y: visibleFrame.minY,
-                          width: width, height: visibleFrame.height)
+            return CGRect(x: visibleFrame.minX, y: y,
+                          width: width, height: height)
         case .right:
-            return CGRect(x: visibleFrame.maxX - width, y: visibleFrame.minY,
-                          width: width, height: visibleFrame.height)
+            return CGRect(x: visibleFrame.maxX - width, y: y,
+                          width: width, height: height)
         case .custom:
             return nil
         }
@@ -106,13 +146,17 @@ enum ShelfLayoutEngine {
 
     // MARK: - 完整目标 frame 决策
 
-    /// show / 屏幕参数变化 / 设置变更共用的目标 frame 决策：
-    /// - 左/右：目标屏（鼠标所在屏，被拔掉回退主屏）visibleFrame 边缘吸附；
-    /// - custom：持久化 frame 校验后使用；无持久化（首次选 custom）或持久化
-    ///   已落出所有屏幕（屏幕被拔掉）→ 目标屏右缘默认 frame 起步；
+    /// show / 屏幕参数变化 / 设置变更 / 项目增删共用的目标 frame 决策：
+    /// - 左/右：目标屏（鼠标所在屏，被拔掉回退主屏）visibleFrame 边缘吸附，
+    ///   UX5 起高度贴合内容（`itemCount` → 行数 → 紧凑高度，上限 80% 屏高）、
+    ///   垂直居中；
+    /// - custom：持久化 frame 校验后使用（高度取持久化值，不随内容变化）；
+    ///   无持久化（首次选 custom）或持久化已落出所有屏幕（屏幕被拔掉）→
+    ///   目标屏右缘默认 frame 起步；
     /// - 屏幕数组为空（防护）：原点兜底 frame。
     static func targetFrame(position: SettingsStore.ShelfPosition,
                             width: CGFloat,
+                            itemCount: Int,
                             mouseLocation: CGPoint,
                             screens: [ScreenGeometry],
                             persistedCustomFrame: CGRect?) -> CGRect {
@@ -121,8 +165,12 @@ enum ShelfLayoutEngine {
         }
         switch position {
         case .left, .right:
+            let height = contentHeight(itemCount: itemCount,
+                                       panelWidth: width,
+                                       visibleHeight: screen.visibleFrame.height)
             // left/right 必有 edge frame（nil 仅 custom 返回），兜底同防护分支。
-            return edgeAttachedFrame(position: position, width: width, visibleFrame: screen.visibleFrame)
+            return edgeAttachedFrame(position: position, width: width, height: height,
+                                     visibleFrame: screen.visibleFrame)
                 ?? CGRect(origin: .zero, size: fallbackSize)
         case .custom:
             if let persistedCustomFrame,

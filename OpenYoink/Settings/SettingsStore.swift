@@ -31,6 +31,18 @@ final class SettingsStore {
         case system, chinese, english
     }
 
+    /// What happens when the user starts dragging with the left mouse button
+    /// held (UX batch, task 1/2; Yoink's signature "shelf appears on drag").
+    enum DragAutoAppearMode: String, CaseIterable, Sendable {
+        /// Show the shelf at its configured position as soon as a drag starts.
+        case immediate
+        /// Stay hidden on drag start; reveal when the drag rests at the
+        /// shelf's screen edge (drag version of the edge trigger).
+        case edgeOnly
+        /// No drag-triggered appearance.
+        case off
+    }
+
     /// Codable description of the global toggle hot key. Consumed by
     /// `HotKeyMonitor` (S7), which maps it to Carbon modifiers; the S8
     /// `ShortcutRecorderView` writes new values (and clears to nil).
@@ -63,6 +75,14 @@ final class SettingsStore {
     /// Hide the shelf automatically after a drag-out. Default: false.
     var autoHide: Bool {
         didSet { defaults.set(autoHide, forKey: Keys.autoHide) }
+    }
+
+    /// UX6: hide the shelf automatically when its items go from non-empty to
+    /// empty (removal / drag-out). A shelf explicitly summoned while empty
+    /// stays put — the rule only fires on the non-empty → empty transition.
+    /// Default: true.
+    var autoHideWhenEmpty: Bool {
+        didSet { defaults.set(autoHideWhenEmpty, forKey: Keys.autoHideWhenEmpty) }
     }
 
     /// What happens after an item is dragged out. Default: keep.
@@ -105,8 +125,28 @@ final class SettingsStore {
     }
 
     /// Resting the cursor on a screen edge shows the shelf. Default: false.
+    ///
+    /// UX2: legacy pre-UX-batch semantic (hover dwell). The UX batch replaced
+    /// the user-facing control with `dragAutoAppearMode`; this flag is kept
+    /// for persistence compatibility and only feeds the one-time migration in
+    /// `init` (legacy ON → `.edgeOnly`).
     var edgeTriggerEnabled: Bool {
         didSet { defaults.set(edgeTriggerEnabled, forKey: Keys.edgeTriggerEnabled) }
+    }
+
+    /// UX1: drag-triggered shelf appearance. Default: `.immediate`.
+    /// `.edgeOnly` requires a non-custom shelf position (no attachment edge
+    /// otherwise); `custom` position pauses the edge mechanism while active.
+    var dragAutoAppearMode: DragAutoAppearMode {
+        didSet { defaults.set(dragAutoAppearMode.rawValue, forKey: Keys.dragAutoAppearMode) }
+    }
+
+    /// UX3: double-pressing the global hot key saves the general pasteboard
+    /// to the shelf. While enabled, a single press toggles the shelf after a
+    /// short (~0.3 s) discrimination delay; disabling it restores zero-latency
+    /// single presses. Default: true.
+    var hotKeyDoublePressSavesClipboard: Bool {
+        didSet { defaults.set(hotKeyDoublePressSavesClipboard, forKey: Keys.hotKeyDoublePressSavesClipboard) }
     }
 
     /// Shake sensitivity (three tiers; higher = triggers more easily).
@@ -174,12 +214,15 @@ final class SettingsStore {
         static let shelfPosition = prefix + "shelfPosition"
         static let shelfWidth = prefix + "shelfWidth"
         static let autoHide = prefix + "autoHide"
+        static let autoHideWhenEmpty = prefix + "autoHideWhenEmpty"
         static let dragOutRemovalPolicy = prefix + "dragOutRemovalPolicy"
         static let language = prefix + "language"
         static let customShelfFrame = prefix + "customShelfFrame"
         static let hotKeyEnabled = prefix + "hotKeyEnabled"
+        static let hotKeyDoublePressSavesClipboard = prefix + "hotKeyDoublePressSavesClipboard"
         static let shakeTriggerEnabled = prefix + "shakeTriggerEnabled"
         static let edgeTriggerEnabled = prefix + "edgeTriggerEnabled"
+        static let dragAutoAppearMode = prefix + "dragAutoAppearMode"
         static let shakeSensitivity = prefix + "shakeSensitivity"
         static let edgeTriggerSensitivity = prefix + "edgeTriggerSensitivity"
         static let hotKeyShortcut = prefix + "hotKeyShortcut"
@@ -188,13 +231,24 @@ final class SettingsStore {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        // UX1 迁移必须在注册默认值之前读取：注册域会让「从未设置」与
+        // 「显式存过 immediate」无法区分（且 NSRegistrationDomain 进程内
+        // 共享，跨 UserDefaults 实例可见）。旧版布尔 edgeTriggerEnabled（悬停
+        // 触发开关）为开且从未持久化过 dragAutoAppearMode → 迁移为
+        // .edgeOnly（最接近旧意图的贴边唤出），并立即落盘让 UI 反映。
+        // 注意：dragAutoAppearMode 因此刻意不进 register(defaults:) ——
+        // 一旦注册，nil 判定即失效，迁移会永远不会发生。
+        let legacyEdgeTriggerEnabled = defaults.bool(forKey: Keys.edgeTriggerEnabled)
+        let persistedDragMode = defaults.string(forKey: Keys.dragAutoAppearMode)
         defaults.register(defaults: [
             Keys.shelfPosition: ShelfPosition.right.rawValue,
             Keys.shelfWidth: 320.0,
             Keys.autoHide: false,
+            Keys.autoHideWhenEmpty: true,
             Keys.dragOutRemovalPolicy: DragOutRemovalPolicy.keep.rawValue,
             Keys.language: LanguagePreference.system.rawValue,
             Keys.hotKeyEnabled: true,
+            Keys.hotKeyDoublePressSavesClipboard: true,
             Keys.shakeTriggerEnabled: false,
             Keys.edgeTriggerEnabled: false,
             Keys.shakeSensitivity: TriggerSensitivity.medium.rawValue,
@@ -206,6 +260,7 @@ final class SettingsStore {
             ?? .right
         shelfWidth = defaults.double(forKey: Keys.shelfWidth)
         autoHide = defaults.bool(forKey: Keys.autoHide)
+        autoHideWhenEmpty = defaults.bool(forKey: Keys.autoHideWhenEmpty)
         dragOutRemovalPolicy = DragOutRemovalPolicy(
             rawValue: defaults.string(forKey: Keys.dragOutRemovalPolicy) ?? ""
         ) ?? .keep
@@ -218,8 +273,18 @@ final class SettingsStore {
             customShelfFrame = nil
         }
         hotKeyEnabled = defaults.bool(forKey: Keys.hotKeyEnabled)
+        hotKeyDoublePressSavesClipboard = defaults.bool(forKey: Keys.hotKeyDoublePressSavesClipboard)
         shakeTriggerEnabled = defaults.bool(forKey: Keys.shakeTriggerEnabled)
         edgeTriggerEnabled = defaults.bool(forKey: Keys.edgeTriggerEnabled)
+        if let persistedDragMode {
+            dragAutoAppearMode = DragAutoAppearMode(rawValue: persistedDragMode) ?? .immediate
+        } else if legacyEdgeTriggerEnabled {
+            // 迁移：旧版悬停边缘触发开启 → 拖拽贴边唤出。
+            dragAutoAppearMode = .edgeOnly
+            defaults.set(DragAutoAppearMode.edgeOnly.rawValue, forKey: Keys.dragAutoAppearMode)
+        } else {
+            dragAutoAppearMode = .immediate
+        }
         shakeSensitivity = TriggerSensitivity(
             rawValue: defaults.string(forKey: Keys.shakeSensitivity) ?? ""
         ) ?? .medium
