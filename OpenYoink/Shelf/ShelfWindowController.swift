@@ -264,8 +264,9 @@ final class ShelfWindowController: NSObject {
 
     /// 位置与宽度由 SettingsStore 供给；纯计算收敛在 `ShelfLayoutEngine`（S9）。
     /// 左/右跟随鼠标所在屏幕（鼠标屏被拔掉回退主屏），贴设定缘；UX5 起高度
-    /// 贴合内容（按 `store.items.count` 推算行数，上限可见高度 80%）、垂直
-    /// 居中；custom 用校验后的持久化 frame（首次/所在屏被拔掉时从目标屏
+    /// 贴合内容（按 `store.items.count` 推算行数，上限可见高度 80%）；EdgeTab
+    /// 起垂直位置按 `shelfEdgeOffset`（0 = 底缘、1 = 顶缘，默认 0.5 居中）；
+    /// custom 用校验后的持久化 frame（首次/所在屏被拔掉时从目标屏
     /// 右缘默认 frame 起步）。
     private func targetFrame() -> NSRect {
         ShelfLayoutEngine.targetFrame(
@@ -274,7 +275,8 @@ final class ShelfWindowController: NSObject {
             itemCount: store.items.count,
             mouseLocation: NSEvent.mouseLocation,
             screens: Self.screenGeometries(),
-            persistedCustomFrame: settings.customShelfFrame
+            persistedCustomFrame: settings.customShelfFrame,
+            edgeOffset: CGFloat(settings.shelfEdgeOffset)
         )
     }
 

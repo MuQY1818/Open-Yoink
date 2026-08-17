@@ -117,10 +117,18 @@ struct DragAutoShowSession: Sendable, Equatable {
 /// - `onDragStart`：位移阈值首次跨越（忽略列表前台时经 `shouldSuppress` 抑制）；
 /// - `onDragEnd`：已确认拖拽的左键抬起（不被抑制 —— 抑制即无会话，
 ///   配合 `DragAutoShowSession` 空转安全）。
+///
+/// EdgeTab: `isDragInProgress` 是可观察的「拖拽进行中」状态（阈值确认即置位，
+/// 不受 `shouldSuppress` 影响 —— 抑制只挡唤出，不改变「正在拖拽」的事实），
+/// 供边缘拉环做投放暗示高亮；抬起或 `stop()` 复位。
 @MainActor
+@Observable
 final class DragStartMonitor {
     /// Whether the event monitors are currently registered.
     private(set) var isMonitoring = false
+
+    /// EdgeTab: 已确认的拖拽会话进行中（阈值跨越 → 抬起）。
+    private(set) var isDragInProgress = false
 
     private var tracker: DragGestureTracker?
     private var globalMonitor: Any?
@@ -177,6 +185,7 @@ final class DragStartMonitor {
         }
         tracker = nil
         isMonitoring = false
+        isDragInProgress = false
     }
 
     private func handle(eventType: NSEvent.EventType, at point: CGPoint) {
@@ -186,12 +195,16 @@ final class DragStartMonitor {
             tracker?.mouseDown(at: point)
         case .leftMouseDragged:
             guard tracker?.mouseDragged(to: point) == true else { return }
+            // EdgeTab: 投放暗示状态与抑制无关 —— 被抑制（忽略列表 / 正在拖动
+            // 拉环本身）的拖拽依然是「拖拽进行中」，只是不触发唤出。
+            isDragInProgress = true
             // 抑制（忽略列表前台）只影响唤出，不破坏跟踪器状态：抬起时
             // onDragEnd 照常到达，会话裁决（未 dragBegan）空转。
             guard !shouldSuppress() else { return }
             onDragStart()
         case .leftMouseUp:
             guard tracker?.mouseUp() == true else { return }
+            isDragInProgress = false
             onDragEnd()
         default:
             break

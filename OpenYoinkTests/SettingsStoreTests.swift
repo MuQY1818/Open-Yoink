@@ -133,6 +133,31 @@ final class SettingsStoreTests: XCTestCase {
                                                     shift: false, option: true, control: false))
     }
 
+    // MARK: - EdgeTab settings
+
+    func testEdgeTabSettings_defaults() throws {
+        let (defaults, name) = try makeSuite()
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let store = SettingsStore(defaults: defaults)
+        // 默认垂直居中（保持旧版视觉）、拉环默认开。
+        XCTAssertEqual(store.shelfEdgeOffset, 0.5)
+        XCTAssertTrue(store.edgeTabEnabled)
+    }
+
+    func testEdgeTabSettings_persistAcrossInstances() throws {
+        let (defaults, name) = try makeSuite()
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let store = SettingsStore(defaults: defaults)
+        store.shelfEdgeOffset = 0.2
+        store.edgeTabEnabled = false
+
+        let reloaded = SettingsStore(defaults: defaults)
+        XCTAssertEqual(reloaded.shelfEdgeOffset, 0.2)
+        XCTAssertFalse(reloaded.edgeTabEnabled)
+    }
+
     // MARK: - Ignore list editing
 
     func testAddIgnoredApp_appendsNewBundleID() throws {

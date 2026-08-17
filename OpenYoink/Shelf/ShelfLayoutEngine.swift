@@ -64,13 +64,17 @@ enum ShelfLayoutEngine {
     }
 
     /// 边缘吸附 frame：贴 position 对应缘。UX5 起高度由内容决定
-    /// （`contentHeight`），垂直居中于可见区域；custom 无贴附缘概念，
+    /// （`contentHeight`）；EdgeTab 起垂直位置由 `edgeOffset`（0 = 可见区底缘、
+    /// 1 = 顶缘）决定，默认 0.5 即旧版的垂直居中。custom 无贴附缘概念，
     /// 返回 nil（走 `validatedCustomFrame` 路径）。
     static func edgeAttachedFrame(position: SettingsStore.ShelfPosition,
                                   width: CGFloat,
                                   height: CGFloat,
-                                  visibleFrame: CGRect) -> CGRect? {
-        let y = visibleFrame.minY + (visibleFrame.height - height) / 2
+                                  visibleFrame: CGRect,
+                                  edgeOffset: CGFloat = 0.5) -> CGRect? {
+        let clampedOffset = min(max(edgeOffset, 0), 1)
+        let travel = max(0, visibleFrame.height - height)
+        let y = visibleFrame.minY + travel * clampedOffset
         switch position {
         case .left:
             return CGRect(x: visibleFrame.minX, y: y,
@@ -90,6 +94,87 @@ enum ShelfLayoutEngine {
         case .right: return frame.offsetBy(dx: frame.width, dy: 0)
         case .left: return frame.offsetBy(dx: -frame.width, dy: 0)
         case .custom: return frame
+        }
+    }
+
+    // MARK: - EdgeTab 布局（屏幕边缘常驻拉环）
+
+    /// 拉环常态露出宽度（贴缘方向的横向尺寸）。
+    static let edgeTabWidth: CGFloat = 14
+    /// 拉环高度（沿边方向的纵向尺寸）。
+    static let edgeTabHeight: CGFloat = 84
+    /// 强调态（拖拽投放暗示 / 投放悬停）的加宽加高：贴缘与中心 y 不变。
+    static let edgeTabEmphasizedWidth: CGFloat = 18
+    static let edgeTabEmphasizedHeight: CGFloat = 92
+    /// 换边判定带：拖动拉环时光标越过屏幕中线后，距对面边缘小于该值即换边。
+    static let edgeTabFlipDistance: CGFloat = 120
+
+    /// 拉环常态 frame：贴 position 对应缘（与 shelf 同用 visibleFrame，避开
+    /// Dock/menu bar 遮挡区）；`offset`（0 = 拉环中心贴可见区底缘、1 = 顶缘）
+    /// 映射垂直位置并夹取。custom 无贴附缘，返回 nil（调用方不显示拉环）。
+    ///
+    /// offset 映射以拉环**中心**为准（而非底缘），与 `edgeTabOffset(forCenterY:)`
+    /// 互为精确反函数 —— 拖动结束持久化 offset 后重建 frame 不跳位。
+    static func edgeTabFrame(position: SettingsStore.ShelfPosition,
+                             offset: CGFloat,
+                             visibleFrame: CGRect) -> CGRect? {
+        let x: CGFloat
+        switch position {
+        case .left: x = visibleFrame.minX
+        case .right: x = visibleFrame.maxX - edgeTabWidth
+        case .custom: return nil
+        }
+        let height = min(edgeTabHeight, visibleFrame.height)
+        let clampedOffset = min(max(offset, 0), 1)
+        let travel = max(0, visibleFrame.height - height)
+        let centerY = visibleFrame.minY + height / 2 + travel * clampedOffset
+        return CGRect(x: x, y: centerY - height / 2,
+                      width: edgeTabWidth, height: height)
+    }
+
+    /// 拉环中心 y（拖动时由光标驱动）→ offset（0 = 底缘、1 = 顶缘），
+    /// 夹取进 [0,1]。可见高度不大于拉环高度时无垂直行程，回退 0.5。
+    static func edgeTabOffset(forCenterY centerY: CGFloat, visibleFrame: CGRect) -> CGFloat {
+        let height = min(edgeTabHeight, visibleFrame.height)
+        let travel = visibleFrame.height - height
+        guard travel > 0 else { return 0.5 }
+        let raw = (centerY - visibleFrame.minY - height / 2) / travel
+        return min(max(raw, 0), 1)
+    }
+
+    /// 强调态 frame（拖拽暗示的轻微放大）：贴缘侧与中心 y 不变，宽度向屏内
+    /// 加宽、高度对称加高，结果夹取进 visibleFrame。custom 无拉环，原样返回。
+    static func edgeTabEmphasisFrame(from base: CGRect,
+                                     position: SettingsStore.ShelfPosition,
+                                     visibleFrame: CGRect) -> CGRect {
+        let x: CGFloat
+        switch position {
+        case .left: x = visibleFrame.minX
+        case .right: x = visibleFrame.maxX - edgeTabEmphasizedWidth
+        case .custom: return base
+        }
+        let height = min(edgeTabEmphasizedHeight, visibleFrame.height)
+        let frame = CGRect(x: x, y: base.midY - height / 2,
+                           width: edgeTabEmphasizedWidth, height: height)
+        return clamped(frame, into: visibleFrame)
+    }
+
+    /// 拖动拉环的换边判定：光标越过屏幕中线、且进入距对面边缘
+    /// `flipDistance` 的带状区 → 应换到对侧。只逼近对缘但未过中线不换
+    /// （窄屏防护：带与中线可能交叠）。custom 无贴附缘，永不换边。
+    static func shouldFlipSide(position: SettingsStore.ShelfPosition,
+                               cursorLocation: CGPoint,
+                               screenFrame: CGRect,
+                               flipDistance: CGFloat = edgeTabFlipDistance) -> Bool {
+        switch position {
+        case .right:
+            return cursorLocation.x < screenFrame.midX
+                && cursorLocation.x - screenFrame.minX < flipDistance
+        case .left:
+            return cursorLocation.x > screenFrame.midX
+                && screenFrame.maxX - cursorLocation.x < flipDistance
+        case .custom:
+            return false
         }
     }
 
@@ -148,8 +233,8 @@ enum ShelfLayoutEngine {
 
     /// show / 屏幕参数变化 / 设置变更 / 项目增删共用的目标 frame 决策：
     /// - 左/右：目标屏（鼠标所在屏，被拔掉回退主屏）visibleFrame 边缘吸附，
-    ///   UX5 起高度贴合内容（`itemCount` → 行数 → 紧凑高度，上限 80% 屏高）、
-    ///   垂直居中；
+    ///   UX5 起高度贴合内容（`itemCount` → 行数 → 紧凑高度，上限 80% 屏高），
+    ///   EdgeTab 起垂直位置按 `edgeOffset`（默认 0.5 = 垂直居中）；
     /// - custom：持久化 frame 校验后使用（高度取持久化值，不随内容变化）；
     ///   无持久化（首次选 custom）或持久化已落出所有屏幕（屏幕被拔掉）→
     ///   目标屏右缘默认 frame 起步；
@@ -159,7 +244,8 @@ enum ShelfLayoutEngine {
                             itemCount: Int,
                             mouseLocation: CGPoint,
                             screens: [ScreenGeometry],
-                            persistedCustomFrame: CGRect?) -> CGRect {
+                            persistedCustomFrame: CGRect?,
+                            edgeOffset: CGFloat = 0.5) -> CGRect {
         guard let screen = targetScreen(mouseLocation: mouseLocation, screens: screens) else {
             return CGRect(origin: .zero, size: fallbackSize)
         }
@@ -170,7 +256,7 @@ enum ShelfLayoutEngine {
                                        visibleHeight: screen.visibleFrame.height)
             // left/right 必有 edge frame（nil 仅 custom 返回），兜底同防护分支。
             return edgeAttachedFrame(position: position, width: width, height: height,
-                                     visibleFrame: screen.visibleFrame)
+                                     visibleFrame: screen.visibleFrame, edgeOffset: edgeOffset)
                 ?? CGRect(origin: .zero, size: fallbackSize)
         case .custom:
             if let persistedCustomFrame,

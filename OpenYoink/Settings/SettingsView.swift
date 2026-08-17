@@ -65,6 +65,13 @@ private struct GeneralSettingsTab: View {
                 // UX6: 非空→空迁移时自动收回（手动唤出的空架不受影响）。
                 Toggle("Hide automatically when empty", isOn: $settings.autoHideWhenEmpty)
 
+                // EdgeTab: shelf 隐藏时的屏幕边缘常驻拉环（custom 模式无贴附缘，
+                // 开关不生效 —— 说明文案覆盖）。
+                Toggle("Show edge tab while shelf is hidden", isOn: $settings.edgeTabEnabled)
+                Text("Click the tab to show the shelf, drag it along the edge to reposition, or drop files onto it. Not shown in custom position mode.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 Picker("After dragging out", selection: $settings.dragOutRemovalPolicy) {
                     Text("Keep on Shelf").tag(SettingsStore.DragOutRemovalPolicy.keep)
                     Text("Remove").tag(SettingsStore.DragOutRemovalPolicy.remove)

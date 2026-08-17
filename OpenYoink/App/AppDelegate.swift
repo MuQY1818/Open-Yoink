@@ -67,9 +67,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 挫败感；隐藏仍由快捷键/菜单与 UX1 拖空无落入自动收回承担。
     /// UX2 设计变更（用户确认）：纯悬停不再触发，仅拖拽中（按住左键）贴边
     /// 短停留唤出；custom 位置无贴附缘时暂停（applyTriggerSettings）。
+    /// EdgeTab: 拖动拉环本身（isEdgeTabBeingDragged）也是 leftMouseDragged，
+    /// 会路过贴缘带 —— 抑制，避免重定位拉环时误唤出。
     private lazy var edgeTriggerMonitor = EdgeTriggerMonitor(shouldSuppress: { [weak self] in
         guard let self else { return true }
         return self.appState.isShelfVisible
+            || self.appState.isEdgeTabBeingDragged
             || IgnoreListService.frontmostAppIsIgnored(in: self.settingsStore.ignoredAppBundleIDs)
     }, onTrigger: { [weak self] in
         guard let self, !self.appState.isShelfVisible else { return }
@@ -79,10 +82,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     })
     /// UX1: 拖拽开始监听（按下 → 位移超阈值判定拖拽 → 抬起结束）。
     /// 同时承担 UX2 贴边唤出的会话记帐：只要任一拖拽驱动唤出路径可能
-    /// 生效（immediate 或边缘触发可用）就保持注册。
+    /// 生效（immediate 或边缘触发可用）就保持注册。EdgeTab 起还供给
+    /// `isDragInProgress` 可观察状态（拉环投放暗示），因此拉环启用时
+    /// 同样保持注册（applyTriggerSettings）。
+    /// EdgeTab: 拖动拉环本身被识别为拖拽是正常的，但不应唤出 shelf ——
+    /// 经 isEdgeTabBeingDragged 抑制（拉环此时独占该手势）。
     private lazy var dragStartMonitor = DragStartMonitor(shouldSuppress: { [weak self] in
         guard let self else { return false }
-        return IgnoreListService.frontmostAppIsIgnored(in: self.settingsStore.ignoredAppBundleIDs)
+        return self.appState.isEdgeTabBeingDragged
+            || IgnoreListService.frontmostAppIsIgnored(in: self.settingsStore.ignoredAppBundleIDs)
     }, onDragStart: { [weak self] in
         self?.handleDragStart()
     }, onDragEnd: { [weak self] in
@@ -90,6 +98,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     })
     /// UX1/2: 拖拽自动唤出会话裁决（纯逻辑状态机，见 Triggers/DragStartMonitor）。
     private var dragAutoShowSession = DragAutoShowSession()
+
+    /// EdgeTab: shelf 隐藏时贴屏幕边缘的常驻拉环（单击唤出 / 拖入接收 /
+    /// 沿边拖动换位）。与 ShelfWindowController 并列，可见性互斥。
+    private lazy var edgeTabController = EdgeTabController(
+        appState: appState,
+        settings: settingsStore,
+        store: shelfStore,
+        importCoordinator: dropImportCoordinator,
+        dragStartMonitor: dragStartMonitor,
+        onToggleShelf: { [weak self] in
+            self?.toggleShelf()
+        },
+        onShowShelf: { [weak self] in
+            self?.shelfWindowController.showShelf(animated: true)
+        }
+    )
 
     /// S10: 语言覆盖必须在最早阶段生效——`AppleLanguages` 决定进程后续加载的
     /// 本地化资源（Bundle 主语言在首个本地化查询时锁定），故放在
@@ -115,6 +139,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         _ = menuBarController
+        // EdgeTab: 拉环随启动就位（shelf 初始隐藏，拉环应在位）。
+        _ = edgeTabController
         // UX1: 成功导入（拖入/剪贴板保存）→ 标记拖拽自动唤出会话「本轮
         // 已有内容落入」，拖结束时不再自动收回。
         dropImportCoordinator.onImportHandled = { [weak self] in
@@ -297,7 +323,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// EdgeTriggerMonitor（拖拽贴边短停留）唤出；`.off` 两者皆停。
     /// 边缘机制在 custom 位置无贴附缘时暂停。DragStartMonitor 还承担
     /// 自动唤出会话记帐（拖空无落入自动收回），因此任一唤出路径可用
-    /// 时都要保持注册。
+    /// 时都要保持注册；EdgeTab 起还供给拉环投放暗示的 `isDragInProgress`
+    /// 状态，拉环可用（edgeTabEnabled 且非 custom）时同样保持注册。
     private func applyTriggerSettings() {
         hotKeyMonitor.updateShortcut(settingsStore.hotKeyShortcut)
         hotKeyMonitor.setDoublePressEnabled(settingsStore.hotKeyDoublePressSavesClipboard)
@@ -321,7 +348,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             edgeTriggerMonitor.stop()
         }
 
-        if settingsStore.dragAutoAppearMode == .immediate || edgeActive {
+        // EdgeTab 可见性与拉环同一判定（shelf 隐藏 && 开启 && 非 custom），
+        // 但 monitor 注册只需后两者 —— 拉环一在位就需要拖拽状态。
+        let edgeTabActive = settingsStore.edgeTabEnabled
+            && settingsStore.shelfPosition != .custom
+        if settingsStore.dragAutoAppearMode == .immediate || edgeActive || edgeTabActive {
             dragStartMonitor.start()
         } else {
             dragStartMonitor.stop()

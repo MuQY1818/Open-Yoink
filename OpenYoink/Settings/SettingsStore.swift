@@ -95,6 +95,21 @@ final class SettingsStore {
         didSet { defaults.set(language.rawValue, forKey: Keys.language) }
     }
 
+    /// EdgeTab: vertical placement of the shelf (and its edge tab) along the
+    /// attached edge — 0 pins to the bottom of the visible area, 1 to the top.
+    /// Default: 0.5 (vertically centered, matching the pre-EdgeTab look).
+    /// No "unset" state needs distinguishing, so it lives in register(defaults:).
+    var shelfEdgeOffset: Double {
+        didSet { defaults.set(shelfEdgeOffset, forKey: Keys.shelfEdgeOffset) }
+    }
+
+    /// EdgeTab: show the edge tab on the shelf's screen edge while the shelf
+    /// is hidden. Default: true. Only meaningful for left/right positions —
+    /// custom placement has no attachment edge, so no tab is shown.
+    var edgeTabEnabled: Bool {
+        didSet { defaults.set(edgeTabEnabled, forKey: Keys.edgeTabEnabled) }
+    }
+
     /// Persisted panel frame for the `custom` shelf position (S9), in global
     /// screen coordinates. nil = no custom placement yet — the first switch to
     /// custom starts from the right-edge default frame (see
@@ -213,6 +228,8 @@ final class SettingsStore {
         private static let prefix = "OpenYoink."
         static let shelfPosition = prefix + "shelfPosition"
         static let shelfWidth = prefix + "shelfWidth"
+        static let shelfEdgeOffset = prefix + "shelfEdgeOffset"
+        static let edgeTabEnabled = prefix + "edgeTabEnabled"
         static let autoHide = prefix + "autoHide"
         static let autoHideWhenEmpty = prefix + "autoHideWhenEmpty"
         static let dragOutRemovalPolicy = prefix + "dragOutRemovalPolicy"
@@ -243,6 +260,8 @@ final class SettingsStore {
         defaults.register(defaults: [
             Keys.shelfPosition: ShelfPosition.right.rawValue,
             Keys.shelfWidth: 320.0,
+            Keys.shelfEdgeOffset: 0.5,
+            Keys.edgeTabEnabled: true,
             Keys.autoHide: false,
             Keys.autoHideWhenEmpty: true,
             Keys.dragOutRemovalPolicy: DragOutRemovalPolicy.keep.rawValue,
@@ -259,6 +278,8 @@ final class SettingsStore {
         shelfPosition = ShelfPosition(rawValue: defaults.string(forKey: Keys.shelfPosition) ?? "")
             ?? .right
         shelfWidth = defaults.double(forKey: Keys.shelfWidth)
+        shelfEdgeOffset = defaults.double(forKey: Keys.shelfEdgeOffset)
+        edgeTabEnabled = defaults.bool(forKey: Keys.edgeTabEnabled)
         autoHide = defaults.bool(forKey: Keys.autoHide)
         autoHideWhenEmpty = defaults.bool(forKey: Keys.autoHideWhenEmpty)
         dragOutRemovalPolicy = DragOutRemovalPolicy(
