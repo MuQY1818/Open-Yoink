@@ -45,6 +45,16 @@ final class ShelfStoreTests: XCTestCase {
         XCTAssertEqual(names(store), ["a", "b", "c"])
     }
 
+    /// C6: 拖入插入位置 —— 批量插入到指定下标（夹取边界），nil 追加。
+    func testAddContentsOfAt_insertsAtClampedIndex() {
+        let store = makeStore(names: ["a", "b"])
+        store.add(contentsOf: [makeItem("c"), makeItem("d")], at: 1)
+        store.add(contentsOf: [makeItem("e")], at: 99)
+        store.add(contentsOf: [makeItem("f")], at: -3)
+        store.add(contentsOf: [makeItem("g")], at: nil)
+        XCTAssertEqual(names(store), ["f", "a", "c", "d", "b", "e", "g"])
+    }
+
     // MARK: - Removing
 
     func testRemove_dropsItemAndSelection_butNeverDeletesOriginalFile() throws {

@@ -3,7 +3,8 @@ import SwiftUI
 /// 空状态（实施计划 §3）：居中插画位 + 投放提示 + 快捷键提示 + 半透明虚线边框。
 ///
 /// 虚线边框暗示可投放区域；S4 拖入悬停时由 ShelfView 的落点高亮
-/// （`DropTargetState.isTargeted` 驱动）接管强调态。文案先为英文，S10 统一提取到 Localizable.xcstrings。
+/// （`DropTargetState.isTargeted` 驱动）接管强调态。文案走 Localizable.xcstrings（S10）；
+/// D9: 整体合并为单个可访问性元素，VoiceOver 一次读完提示与快捷键。
 struct ShelfEmptyState: View {
     var body: some View {
         VStack(spacing: 12) {
@@ -20,6 +21,7 @@ struct ShelfEmptyState: View {
                     .foregroundStyle(.tertiary)
             }
         }
+        .accessibilityElement(children: .combine)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(16)
         .overlay {

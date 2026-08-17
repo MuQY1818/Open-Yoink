@@ -11,9 +11,12 @@ import Foundation
 final class SettingsStore {
     // MARK: - Value types
 
-    /// Screen edge the shelf attaches to.
+    /// Screen edge the shelf attaches to, or free placement (custom).
     enum ShelfPosition: String, CaseIterable, Sendable {
         case left, right
+        /// Free placement (S9): the panel is dragged by its title-bar area and
+        /// the frame persists in `customShelfFrame`.
+        case custom
     }
 
     /// What happens to an item after it is dragged out of the shelf.
@@ -70,6 +73,22 @@ final class SettingsStore {
     /// UI language override. Default: system.
     var language: LanguagePreference {
         didSet { defaults.set(language.rawValue, forKey: Keys.language) }
+    }
+
+    /// Persisted panel frame for the `custom` shelf position (S9), in global
+    /// screen coordinates. nil = no custom placement yet — the first switch to
+    /// custom starts from the right-edge default frame (see
+    /// `ShelfLayoutEngine.targetFrame`). Readers must re-validate against the
+    /// current screens (`ShelfLayoutEngine.validatedCustomFrame`): the screen
+    /// the frame lived on may have been unplugged.
+    var customShelfFrame: CGRect? {
+        didSet {
+            if let customShelfFrame, let data = try? JSONEncoder().encode(customShelfFrame) {
+                defaults.set(data, forKey: Keys.customShelfFrame)
+            } else if customShelfFrame == nil {
+                defaults.removeObject(forKey: Keys.customShelfFrame)
+            }
+        }
     }
 
     // MARK: - Triggers (wired in S7; settings UI in S8)
@@ -157,6 +176,7 @@ final class SettingsStore {
         static let autoHide = prefix + "autoHide"
         static let dragOutRemovalPolicy = prefix + "dragOutRemovalPolicy"
         static let language = prefix + "language"
+        static let customShelfFrame = prefix + "customShelfFrame"
         static let hotKeyEnabled = prefix + "hotKeyEnabled"
         static let shakeTriggerEnabled = prefix + "shakeTriggerEnabled"
         static let edgeTriggerEnabled = prefix + "edgeTriggerEnabled"
@@ -191,6 +211,12 @@ final class SettingsStore {
         ) ?? .keep
         language = LanguagePreference(rawValue: defaults.string(forKey: Keys.language) ?? "")
             ?? .system
+        if let data = defaults.data(forKey: Keys.customShelfFrame) {
+            // 解码失败视为无自定义位置（下次选 custom 从右缘默认起步）。
+            customShelfFrame = try? JSONDecoder().decode(CGRect.self, from: data)
+        } else {
+            customShelfFrame = nil
+        }
         hotKeyEnabled = defaults.bool(forKey: Keys.hotKeyEnabled)
         shakeTriggerEnabled = defaults.bool(forKey: Keys.shakeTriggerEnabled)
         edgeTriggerEnabled = defaults.bool(forKey: Keys.edgeTriggerEnabled)

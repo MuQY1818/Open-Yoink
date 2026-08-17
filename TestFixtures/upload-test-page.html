@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Open-Yoink Drag-Out Test Page</title>
+<!--
+  Open-Yoink manual test fixture (no network, no dependencies).
+  Open this file directly in Safari / Chrome / Firefox via file:// and drag
+  items out of the Open-Yoink shelf onto the zones below.
+
+  What to verify / 验证点:
+  1. File Zone: a shelf file/folder dropped here must appear in the log with
+     name/size/type — proves the browser accepted either the fileURL mapping
+     or the file promise (DataTransfer.files non-empty).
+  2. Type Inspector: shows raw e.dataTransfer.types / items so you can see
+     which representations Open-Yoink advertised (public.file-url,
+     promise UTI, public.png, public.utf8-plain-text, ...).
+  3. Rich Text Zone (contenteditable): text drops should insert text.
+  4. Plain textarea: text/URL drops should insert a string.
+-->
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 32px;
+         max-width: 900px; margin-inline: auto; line-height: 1.5; }
+  h1 { font-size: 22px; } h2 { font-size: 16px; margin-bottom: 8px; }
+  .zone { border: 2px dashed #888; border-radius: 12px; padding: 24px;
+          margin: 16px 0 32px; text-align: center; transition: all .15s; }
+  .zone.over { border-color: #0D63EB; background: rgba(13,99,235,.12); }
+  .zone small { opacity: .65; display: block; margin-top: 6px; }
+  #fileList, #typeLog { text-align: left; font: 12px/1.6 ui-monospace, Menlo, monospace;
+          background: rgba(128,128,128,.12); border-radius: 8px; padding: 12px;
+          max-height: 220px; overflow: auto; white-space: pre-wrap; margin-top: 12px; }
+  #fileList:empty::before { content: "(dropped files will appear here)"; opacity: .5; }
+  #typeLog:empty::before { content: "(drop something to inspect dataTransfer)"; opacity: .5; }
+  .rich { min-height: 90px; text-align: left; }
+  textarea { width: 100%; min-height: 90px; border-radius: 8px; border: 1px solid #888;
+             padding: 10px; font: inherit; background: transparent; color: inherit; }
+  .thumb { max-height: 48px; border-radius: 6px; vertical-align: middle; margin-right: 8px; }
+  .ok { color: #1a7f37; font-weight: 600; }
+</style>
+</head>
+<body>
+<h1>Open-Yoink Drag-Out Test Page / 拖出测试页</h1>
+<p>Drag items from the Open-Yoink shelf into the zones. Nothing is uploaded anywhere.
+   把 shelf 里的项目拖到下面各区域即可，本页不联网。</p>
+
+<h2>1. File Upload Zone / 文件上传区</h2>
+<div class="zone" id="fileZone">
+  Drop files here（模拟上传区）
+  <small>Accepts files — checks DataTransfer.files（fileURL 映射或 file promise 任一成功即可）</small>
+  <div id="fileList"></div>
+</div>
+<input type="file" id="realInput" multiple style="display:none">
+
+<h2>2. Type Inspector / 表示层检查器</h2>
+<div class="zone" id="typeZone">
+  Drop anything here to inspect advertised types
+  <small>显示 e.dataTransfer.types 与 items（对照 Open-Yoink 应广播的表示）</small>
+  <div id="typeLog"></div>
+</div>
+
+<h2>3. Rich Text Zone / 富文本区</h2>
+<div class="zone rich" id="richZone" contenteditable="true">
+  Drop a text item here — 文本项应插入到此处
+</div>
+
+<h2>4. Plain Text Area / 纯文本框</h2>
+<textarea id="plainZone" placeholder="Drop a text or URL item here — 文本/URL 项应插入字符串"></textarea>
+
+<script>
+const fileList = document.getElementById('fileList');
+const typeLog  = document.getElementById('typeLog');
+
+function arm(zone, onDrop) {
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('over'));
+  zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('over'); onDrop(e); });
+}
+
+arm(document.getElementById('fileZone'), e => {
+  const files = e.dataTransfer.files;
+  if (!files || files.length === 0) {
+    fileList.innerHTML += '<span style="color:#c00">✗ drop accepted but DataTransfer.files is EMPTY — neither fileURL mapping nor promise landed</span>\n';
+    return;
+  }
+  for (const f of files) {
+    const row = document.createElement('div');
+    row.innerHTML = `<span class="ok">✓</span> ${f.name} — ${f.size} bytes — ${f.type || '(no uti)'}`;
+    if (f.type.startsWith('image/')) {
+      const img = document.createElement('img');
+      img.className = 'thumb';
+      img.src = URL.createObjectURL(f);
+      row.prepend(img);
+    }
+    fileList.appendChild(row);
+  }
+});
+
+arm(document.getElementById('typeZone'), e => {
+  const dt = e.dataTransfer;
+  let s = `types: [${[...dt.types].join(', ')}]\n`;
+  for (const item of dt.items) s += `  item: kind=${item.kind} type=${item.type}\n`;
+  s += `  files.length = ${dt.files.length}\n`;
+  s += `  string public.utf8-plain-text: ${dt.getData('text/plain') ? 'yes' : 'no'}\n`;
+  s += `  string public.url: ${dt.getData('public.url') || dt.getData('text/uri-list') ? 'yes' : 'no'}\n`;
+  typeLog.textContent = s + '\n' + typeLog.textContent;
+});
+
+// rich/plain zones use native contenteditable/textarea drop behavior.
+</script>
+</body>
+</html>

@@ -1,4 +1,5 @@
 import AppKit
+import OSLog
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -9,15 +10,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let bookmarkService = BookmarkService()
     /// 物化临时文件目录（file promise 与图片数据落盘处）。
     private let tempFileService = TempFileService()
+    /// S10: 拖入/物化失败的内联提示（shelf 标题栏下方短暂胶囊，自动消失）。
+    private let shelfNotice = ShelfNoticeModel()
+    private let logger = Logger(subsystem: "com.weijue.OpenYoink", category: "App")
     /// Shelf 数据（S3 起由 AppDelegate 持有并注入 ShelfView）。
     private lazy var shelfStore = ShelfStore(persistence: persistence)
-    /// S4: 拖入分派器（pasteboard → ShelfItem）。
+    /// S4: 拖入分派器（pasteboard → ShelfItem）。S10: 失败路径经 shelfNotice 反馈。
     private lazy var dropImportCoordinator = DropImportCoordinator(bookmarkService: bookmarkService,
-                                                                   tempFileService: tempFileService)
+                                                                   tempFileService: tempFileService,
+                                                                   noticeCenter: shelfNotice)
     /// 用户设置（S5 起拖出后移除策略被 DragSessionController 读取；S8 由
     /// SettingsView 编辑）。internal：OpenYoinkApp 的 Settings scene 注入环境用。
     let settingsStore = SettingsStore()
-    /// S5: 最近拖出历史（内存 + recents.json；S10 接菜单栏「最近项目」）。
+    /// S5: 最近拖出历史（内存 + recents.json；S10 已接入菜单栏「最近项目」）。
     private let recentItemsService = RecentItemsService()
 
     private lazy var shelfWindowController = ShelfWindowController(appState: appState,
@@ -26,9 +31,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                                                    tempFileService: tempFileService,
                                                                    settings: settingsStore,
                                                                    recents: recentItemsService)
-    private lazy var menuBarController = MenuBarController(appState: appState) { [weak self] in
-        self?.toggleShelf()
-    }
+    private lazy var menuBarController = MenuBarController(
+        appState: appState,
+        recents: recentItemsService,
+        onToggleShelf: { [weak self] in
+            self?.toggleShelf()
+        },
+        onReaddRecent: { [weak self] entry in
+            self?.readdRecent(entry)
+        }
+    )
 
     /// S7: 全局快捷键监听（Carbon RegisterEventHotKey 为主、NSEvent 全局监听
     /// 为备；注册失败状态供 S8 设置页提示）。internal：Settings scene 注入
@@ -54,6 +66,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self?.shelfWindowController.showShelf(animated: true)
     })
 
+    /// S10: 语言覆盖必须在最早阶段生效——`AppleLanguages` 决定进程后续加载的
+    /// 本地化资源（Bundle 主语言在首个本地化查询时锁定），故放在
+    /// willFinishLaunching（SwiftUI scene 与任何 UI 构建之前）。
+    /// 设置页注明「重启后生效」：运行期切换只写偏好，下次启动由此应用。
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        applyLanguageOverride()
+    }
+
+    /// 按 `SettingsStore.language` 覆盖 `AppleLanguages`；`.system` 时移除覆盖，
+    /// 完全交还系统语言列表。
+    private func applyLanguageOverride() {
+        switch settingsStore.language {
+        case .system:
+            UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+        case .english:
+            UserDefaults.standard.set(["en"], forKey: "AppleLanguages")
+        case .chinese:
+            UserDefaults.standard.set(["zh-Hans"], forKey: "AppleLanguages")
+        }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         _ = menuBarController
@@ -78,6 +111,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func toggleShelf() {
         shelfWindowController.toggleShelf(animated: true)
+    }
+
+    // MARK: - Recent items re-add (S10)
+
+    /// 菜单栏「最近项目」点击重新入架：文件类按路径重建 ShelfItem（含新的
+    /// 安全书签；`canReadd` 已在菜单侧确认可访问），URL 直接复原。text/stack
+    /// 条目在菜单侧已置灰，不会到达这里。入架后唤出 shelf 给出明确反馈。
+    private func readdRecent(_ entry: RecentEntry) {
+        switch entry.kind {
+        case .file, .folder, .image:
+            guard let path = entry.path else { return }
+            let item = DropImportCoordinator.makeFileBackedItem(
+                for: URL(fileURLWithPath: path),
+                displayName: entry.displayName,
+                bookmarkService: bookmarkService,
+                logger: logger
+            )
+            shelfStore.add(item)
+        case .url:
+            guard let urlString = entry.urlString else { return }
+            shelfStore.add(ShelfItem(kind: .url,
+                                     displayName: entry.displayName,
+                                     urlString: urlString))
+        case .text, .stack:
+            return
+        }
+        shelfWindowController.showShelf(animated: true)
     }
 
     // MARK: - Bookmark resolution at launch (S4)
@@ -171,7 +231,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             mouseShakeMonitor.stop()
         }
 
-        if settingsStore.edgeTriggerEnabled {
+        // S9: custom 位置无贴附缘，边缘触发失去目标缘，暂停（切回 left/right
+        // 即恢复；开关状态本身不动）。
+        if settingsStore.edgeTriggerEnabled, settingsStore.shelfPosition != .custom {
             edgeTriggerMonitor.start(
                 side: settingsStore.shelfPosition,
                 dwellTime: settingsStore.edgeTriggerSensitivity.edgeDwellTime,

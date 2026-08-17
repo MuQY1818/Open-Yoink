@@ -133,14 +133,14 @@ final class DragSessionController: NSObject, NSDraggingSource {
             : contents.topLevelIDs.count
         let alert = NSAlert()
         alert.messageText = itemCount == 1
-            ? "Remove the dragged item from the shelf?"
-            : "Remove the \(itemCount) dragged items from the shelf?"
-        alert.informativeText = "The original files are never deleted."
+            ? String(localized: "Remove the dragged item from the shelf?")
+            : String(localized: "Remove the \(itemCount) dragged items from the shelf?")
+        alert.informativeText = String(localized: "The original files are never deleted.")
         alert.alertStyle = .informational
-        alert.addButton(withTitle: "Remove")
-        alert.addButton(withTitle: "Keep")
+        alert.addButton(withTitle: String(localized: "Remove"))
+        alert.addButton(withTitle: String(localized: "Keep"))
         alert.showsSuppressionButton = true
-        alert.suppressionButton?.title = "Don't ask again"
+        alert.suppressionButton?.title = String(localized: "Don't ask again")
 
         NSApp.activate(ignoringOtherApps: true)
         let response = alert.runModal()

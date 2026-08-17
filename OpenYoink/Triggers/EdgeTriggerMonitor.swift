@@ -142,6 +142,8 @@ final class EdgeTriggerMonitor {
     /// Pure band test: full-height strip of `bandWidth` points along the
     /// given side of `screenFrame`. Points outside the screen never count.
     /// Coordinates live in the global screen space of `NSEvent.mouseLocation`.
+    /// S9: `.custom` 无贴附缘，永不命中（AppDelegate 在 custom 模式下也不
+    /// 启动本监听；此分支仅保证纯函数对全枚举有定义）。
     nonisolated static func isInsideEdgeBand(_ point: CGPoint,
                                              screenFrame: CGRect,
                                              side: SettingsStore.ShelfPosition,
@@ -152,6 +154,8 @@ final class EdgeTriggerMonitor {
             return point.x >= screenFrame.maxX - bandWidth
         case .left:
             return point.x <= screenFrame.minX + bandWidth
+        case .custom:
+            return false
         }
     }
 }

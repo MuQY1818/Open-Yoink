@@ -24,6 +24,9 @@ final class ShelfWindowController: NSObject {
     private let importCoordinator: DropImportCoordinator
     /// S4: 拖入悬停高亮/插入位置状态，DragContainerView 驱动、ShelfView 渲染。
     private let dropTargetState = DropTargetState()
+    /// C5/C6: 卡片网格几何（ShelfView 上报 frame；DragContainerView 拖入定位、
+    /// ShelfView 框选命中共用）。
+    private let gridGeometry = ShelfGridGeometry()
     /// S5: 拖出总控（卡片 mouseDragged → NSDraggingSession；结束后按设置策略
     /// 移除/保留/询问（S8 .ask NSAlert）并记入最近历史；S8 起经
     /// onSuccessfulDrop 回调接 autoHide）。
@@ -47,6 +50,9 @@ final class ShelfWindowController: NSObject {
             rootView: ShelfView()
                 .environment(store)
                 .environment(dropTargetState)
+                .environment(settings)
+                .environment(gridGeometry)
+                .environment(importCoordinator.noticeCenter)
                 .environment(\.bookmarkService, importCoordinator.bookmarkService)
                 .environment(\.dragOutController, dragOutController)
                 .environment(\.quickLookCoordinator, quickLookCoordinator)
@@ -56,6 +62,7 @@ final class ShelfWindowController: NSObject {
             store: store,
             coordinator: importCoordinator,
             dropTargetState: dropTargetState,
+            gridGeometry: gridGeometry,
             contentViewController: hostingController
         )
         // S6: 键盘链路入口 —— 卡片单击已让面板成为 key，未被内容消费的
@@ -111,6 +118,13 @@ final class ShelfWindowController: NSObject {
             self,
             selector: #selector(screenParametersDidChange(_:)),
             name: NSApplication.didChangeScreenParametersNotification,
+            object: nil
+        )
+        // S9: Space 切换后的在位校正（见 revalidateFrameAfterSpaceChange）。
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(activeSpaceDidChange(_:)),
+            name: NSWorkspace.activeSpaceDidChangeNotification,
             object: nil
         )
         // S8: 位置/宽度设置变更时动画过渡到新 frame（见 applyLayoutSettings）。
@@ -217,26 +231,28 @@ final class ShelfWindowController: NSObject {
 
     // MARK: - Layout
 
-    /// S8: 位置（左/右）与宽度均由 SettingsStore 供给；跟随鼠标所在屏幕，
-    /// 贴设定缘、占满可见区域全高。
+    /// 位置与宽度由 SettingsStore 供给；纯计算收敛在 `ShelfLayoutEngine`（S9）。
+    /// 左/右跟随鼠标所在屏幕（鼠标屏被拔掉回退主屏），贴设定缘、占满可见
+    /// 区域全高；custom 用校验后的持久化 frame（首次/所在屏被拔掉时从目标屏
+    /// 右缘默认 frame 起步）。
     private func targetFrame() -> NSRect {
-        let visibleFrame = Self.screenUnderMouse().visibleFrame
-        let width = CGFloat(settings.shelfWidth)
-        let x = switch settings.shelfPosition {
-        case .left: visibleFrame.minX
-        case .right: visibleFrame.maxX - width
-        }
-        return NSRect(x: x, y: visibleFrame.minY, width: width, height: visibleFrame.height)
+        ShelfLayoutEngine.targetFrame(
+            position: settings.shelfPosition,
+            width: settings.shelfWidth,
+            mouseLocation: NSEvent.mouseLocation,
+            screens: Self.screenGeometries(),
+            persistedCustomFrame: settings.customShelfFrame
+        )
     }
 
-    /// 隐藏态 frame：向贴附缘方向平移一个面板宽度（滑出方向随位置反转）。
-    private func hiddenFrame(for visibleFrame: NSRect) -> NSRect {
-        switch settings.shelfPosition {
-        case .right:
-            return visibleFrame.offsetBy(dx: visibleFrame.width, dy: 0)
-        case .left:
-            return visibleFrame.offsetBy(dx: -visibleFrame.width, dy: 0)
-        }
+    /// 隐藏态 frame：左/右向贴附缘方向平移一个面板宽度；custom 原位（淡出）。
+    private func hiddenFrame(for frame: NSRect) -> NSRect {
+        ShelfLayoutEngine.hiddenFrame(for: frame, position: settings.shelfPosition)
+    }
+
+    /// 当前屏幕几何快照（NSScreen → 纯值，供 ShelfLayoutEngine）。
+    private static func screenGeometries() -> [ShelfLayoutEngine.ScreenGeometry] {
+        NSScreen.screens.map { .init(frame: $0.frame, visibleFrame: $0.visibleFrame) }
     }
 
     /// 包含指定点的屏幕（回退主屏）。S7 的 EdgeTriggerMonitor 与本类布局
@@ -245,13 +261,33 @@ final class ShelfWindowController: NSObject {
         NSScreen.screens.first(where: { $0.frame.contains(point) }) ?? NSScreen.screens[0]
     }
 
-    static func screenUnderMouse() -> NSScreen {
-        screen(containing: NSEvent.mouseLocation)
-    }
-
+    /// S9: 插拔屏/改分辨率 → 可见即按新几何重算 frame（鼠标所在屏被拔掉时
+    /// ShelfLayoutEngine 回退主屏；custom frame 落出所有屏幕则回退右缘默认）。
+    /// 隐藏态无持久目标，show 时自会按最新几何计算，这里无需动作。
     @objc private func screenParametersDidChange(_ notification: Notification) {
         guard appState.isShelfVisible else { return }
         panel.setFrame(targetFrame(), display: true)
+    }
+
+    /// S9: Space 切换后的在位校正。canJoinAllSpaces + stationary 让面板留在原
+    /// 全局坐标、跟随出现在每个 Space，屏幕几何并未变化 —— 因此只校验当前
+    /// frame（落出可见区域时瞬时夹回，无动画），不按鼠标重新跟随，避免切
+    /// Space 时 shelf 漂到鼠标所在屏。
+    ///
+    /// 必须 nonisolated：通知按投递线程同步回调（同 userDefaultsDidChange）。
+    @objc private nonisolated func activeSpaceDidChange(_ notification: Notification) {
+        Task { @MainActor in
+            self.revalidateFrameAfterSpaceChange()
+        }
+    }
+
+    private func revalidateFrameAfterSpaceChange() {
+        guard appState.isShelfVisible else { return }
+        let corrected = ShelfLayoutEngine.onscreenCorrection(for: panel.frame,
+                                                             screens: Self.screenGeometries())
+            ?? targetFrame()
+        guard corrected != panel.frame else { return }
+        panel.setFrame(corrected, display: true)
     }
 
     /// S8: 设置变更 → 可见时动画过渡到新 frame。任何 UserDefaults 写入都会

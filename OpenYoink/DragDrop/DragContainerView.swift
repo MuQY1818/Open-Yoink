@@ -26,24 +26,30 @@ final class DropTargetState {
 /// - `performDragOperation` 调 `DropImportCoordinator` 分派，同步 items 直接
 ///   入架，异步物化（promise / 图片数据）完成后经回调逐个入架。
 ///
-/// 插入位置近似（v1）：固定追加到末尾，指示线画在末卡片后缘。鼠标 y →
-/// 网格行的精确映射需要 LazyVGrid 内各卡片几何（ScrollView 滚动偏移 +
-/// adaptive 列数），留待 S10 打磨；追加语义与 Yoink 一致。
+/// 插入位置（S10/C6）：`draggingEntered/Updated` 把鼠标位置（本视图坐标，
+/// 左下原点）翻转到窗口 .global（左上原点）坐标，与 `ShelfGridGeometry`
+/// 上报的卡片 frame 对齐后交 `DropInsertionLocator` 算出行列插入下标，
+/// 实时驱动 ShelfView 的 `insertionIndex` 指示线；网格下方空白区与几何未
+/// 就绪时回退「追加到末尾」（Yoink 语义）。
 @MainActor
 final class DragContainerView: NSView {
     private let store: ShelfStore
     private let coordinator: DropImportCoordinator
     private let dropTargetState: DropTargetState
+    /// S10: 卡片网格几何（SwiftUI 上报），拖入插入定位用。
+    private let gridGeometry: ShelfGridGeometry
     /// 持有的 hosting controller（addSubview 只 retain 视图，controller 需显式持有）。
     private let contentViewController: NSViewController
 
     init(store: ShelfStore,
          coordinator: DropImportCoordinator,
          dropTargetState: DropTargetState,
+         gridGeometry: ShelfGridGeometry,
          contentViewController: NSViewController) {
         self.store = store
         self.coordinator = coordinator
         self.dropTargetState = dropTargetState
+        self.gridGeometry = gridGeometry
         self.contentViewController = contentViewController
         super.init(frame: .zero)
 
@@ -73,13 +79,16 @@ final class DragContainerView: NSView {
         guard sender.draggingSource == nil else { return [] }
         guard Self.hasImportableContent(sender.draggingPasteboard) else { return [] }
         dropTargetState.isTargeted = true
-        dropTargetState.insertionIndex = store.items.count
+        updateInsertionIndex(sender)
         return .copy
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
         guard sender.draggingSource == nil else { return [] }
-        return Self.hasImportableContent(sender.draggingPasteboard) ? .copy : []
+        guard Self.hasImportableContent(sender.draggingPasteboard) else { return [] }
+        // C6: 拖动期间实时更新插入位置（行列映射见 DropInsertionLocator）。
+        updateInsertionIndex(sender)
+        return .copy
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
@@ -96,8 +105,8 @@ final class DragContainerView: NSView {
             self?.store.add(item)
         }
         guard result.handled else { return false }
-        // v1 固定追加到末尾，与 draggingEntered 中的指示线位置一致。
-        store.add(contentsOf: result.items)
+        // C6: 同步项目插入到指示线所示位置（无指示线时追加到末尾）。
+        store.add(contentsOf: result.items, at: dropTargetState.insertionIndex)
         return true
     }
 
@@ -106,6 +115,22 @@ final class DragContainerView: NSView {
     }
 
     // MARK: - Helpers
+
+    /// C6: 把拖放鼠标位置映射为网格插入下标。`draggingLocation` 在本视图
+    /// （面板 contentView）坐标系（左下原点）；卡片 frame 由 SwiftUI 以窗口
+    /// `.global`（左上原点）上报 —— 本视图铺满窗口内容区，翻转 y 即对齐。
+    private func updateInsertionIndex(_ sender: NSDraggingInfo) {
+        let location = sender.draggingLocation
+        let point = CGPoint(x: location.x, y: bounds.height - location.y)
+        let frames: [(index: Int, frame: CGRect)] = store.items.enumerated().compactMap { index, item in
+            gridGeometry.cardFrames[item.id].map { (index, $0) }
+        }
+        dropTargetState.insertionIndex = DropInsertionLocator.insertionIndex(
+            for: point,
+            frames: frames,
+            itemCount: store.items.count
+        )
+    }
 
     private static func hasImportableContent(_ pasteboard: NSPasteboard) -> Bool {
         PasteboardTypes.preferredCategory(in: pasteboard.types ?? []) != nil

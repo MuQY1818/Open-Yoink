@@ -128,13 +128,16 @@ enum DragPayloadBuilder {
         }
     }
 
-    /// 拖拽图像：文件类用 `NSWorkspace.icon(forFile:)`（同步、不需要文件读
-    /// 权限），文本/URL 用与卡片占位一致的 SF Symbol。统一 64pt。
-    /// （卡片缩略图是异步加载的 SwiftUI Image，无法同步回取 NSImage；
-    /// 系统图标在拖拽启动的同步路径上足够清晰且零延迟。）
+    /// 拖拽图像（S10/C7）：优先用卡片已加载的真实缩略图（`DragImageCache`，
+    /// 拖拽启动是同步路径，只能取缓存）；未命中回退 `NSWorkspace.icon(forFile:)`
+    /// （同步、不需要文件读权限），文本/URL 用与卡片占位一致的 SF Symbol。
+    /// 统一 64pt。
     @MainActor
     static func dragImage(for item: ShelfItem) -> NSImage {
         let size = NSSize(width: 64, height: 64)
+        if let cached = DragImageCache.image(for: item.id) {
+            return NSImage(cgImage: cached, size: size)
+        }
         if let path = item.path {
             let icon = NSWorkspace.shared.icon(forFile: path)
             icon.size = size

@@ -35,20 +35,30 @@ struct DropImportResult: Equatable, Sendable {
 @MainActor
 final class DropImportCoordinator {
     /// 物化图片项目的默认显示名（落盘文件名带 UUID 前缀，显示名保持干净）。
-    nonisolated static let materializedImageDisplayName = "Dropped Image.png"
+    /// S10: 用户可见，走 catalog 本地化；保持计算属性以兼容既有引用（含单测）。
+    nonisolated static var materializedImageDisplayName: String {
+        String(localized: "Dropped Image.png")
+    }
 
     /// 共享的书签服务（ShelfWindowController 把它注入 SwiftUI 环境，
     /// 供卡片缩略图/打开操作经 bookmark 解析文件访问权）。
     let bookmarkService: BookmarkService
+    /// D10: 拖入/物化失败的内联提示中心（ShelfWindowController 注入 SwiftUI 环境，
+    /// ShelfView 渲染标题栏下方的瞬态胶囊）。
+    let noticeCenter: ShelfNoticeModel
     private let tempFileService: TempFileService
     private let promiseReceiver: FilePromiseReceiver
     private let logger = Logger(subsystem: "com.weijue.OpenYoink", category: "DropImport")
 
-    init(bookmarkService: BookmarkService, tempFileService: TempFileService) {
+    init(bookmarkService: BookmarkService,
+         tempFileService: TempFileService,
+         noticeCenter: ShelfNoticeModel = ShelfNoticeModel()) {
         self.bookmarkService = bookmarkService
         self.tempFileService = tempFileService
+        self.noticeCenter = noticeCenter
         self.promiseReceiver = FilePromiseReceiver(tempFileService: tempFileService,
-                                                   bookmarkService: bookmarkService)
+                                                   bookmarkService: bookmarkService,
+                                                   noticeCenter: noticeCenter)
     }
 
     // MARK: - Entry point
@@ -135,6 +145,11 @@ final class DropImportCoordinator {
                 return (type, data)
             }
 
+        // D10: 失败提示经 @MainActor 闭包桥回（@MainActor 闭包天然 Sendable，
+        // 可安全捕获进 detached 任务；直接捕获 MainActor 类则违反严格并发）。
+        let reportFailure: @MainActor () -> Void = { [noticeCenter] in
+            noticeCenter.show(String(localized: "Couldn't add the dropped item."))
+        }
         for payload in payloads {
             Task.detached { [bookmarkService, tempFileService, logger] in
                 do {
@@ -150,8 +165,9 @@ final class DropImportCoordinator {
                                                        logger: logger)
                     await onItemReady(item)
                 } catch {
-                    // 失败不崩溃、不静默：日志记录，拖放本身仍视为已处理。
+                    // 失败不崩溃、不静默：日志记录 + D10 内联提示，拖放本身仍视为已处理。
                     logger.error("Failed to materialize dropped image data: \(error.localizedDescription, privacy: .public)")
+                    await reportFailure()
                 }
             }
         }
@@ -198,12 +214,12 @@ final class DropImportCoordinator {
         return items
     }
 
-    /// 文本项目显示名：首行截断（60 字符），空白文本回退为 "Text"。
+    /// 文本项目显示名：首行截断（60 字符），空白文本回退为本地化「Text」。
     static func displayName(forText text: String) -> String {
         let firstLine = text.components(separatedBy: .newlines)
             .first?
             .trimmingCharacters(in: .whitespaces) ?? ""
-        guard !firstLine.isEmpty else { return "Text" }
+        guard !firstLine.isEmpty else { return String(localized: "Text") }
         return firstLine.count > 60 ? String(firstLine.prefix(60)) + "…" : firstLine
     }
 
@@ -257,7 +273,7 @@ enum DropImportError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .imageConversionFailed:
-            "Dropped image data could not be converted to PNG."
+            String(localized: "Dropped image data could not be converted to PNG.")
         }
     }
 }

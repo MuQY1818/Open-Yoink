@@ -1,0 +1,2 @@
+Open-Yoink drag test fixture.
+Drag me into and out of the shelf.

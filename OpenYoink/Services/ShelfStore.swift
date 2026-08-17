@@ -55,8 +55,16 @@ final class ShelfStore {
 
     /// Appends multiple items, preserving their order.
     func add(contentsOf newItems: [ShelfItem]) {
+        add(contentsOf: newItems, at: nil)
+    }
+
+    /// Inserts multiple items starting at `index` (clamped to bounds),
+    /// preserving their order; nil appends (S10/C6: drop-in at the indicated
+    /// insertion position).
+    func add(contentsOf newItems: [ShelfItem], at index: Int?) {
         guard !newItems.isEmpty else { return }
-        items.append(contentsOf: newItems)
+        let insertionIndex = min(max(index ?? items.count, 0), items.count)
+        items.insert(contentsOf: newItems, at: insertionIndex)
         persist()
     }
 

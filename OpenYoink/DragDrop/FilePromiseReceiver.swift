@@ -13,17 +13,22 @@ import OSLog
 /// 对齐）→ 创建 bookmark + ShelfItem → MainActor 回调。
 ///
 /// 错误路径：物化失败/移文件失败/书签创建失败均记录日志，不崩溃、不静默丢
-/// （staging 目录一律清理）。
+/// （staging 目录一律清理）；S10 起失败同时经 `ShelfNoticeModel` 给出
+/// shelf 标题栏下方的瞬态内联提示（不阻塞、不打扰，理由见该类型注释）。
 @MainActor
 final class FilePromiseReceiver {
     private let tempFileService: TempFileService
     private let bookmarkService: BookmarkService
+    private let noticeCenter: ShelfNoticeModel
     private let operationQueue: OperationQueue
     private let logger = Logger(subsystem: "com.weijue.OpenYoink", category: "FilePromiseReceiver")
 
-    init(tempFileService: TempFileService, bookmarkService: BookmarkService) {
+    init(tempFileService: TempFileService,
+         bookmarkService: BookmarkService,
+         noticeCenter: ShelfNoticeModel = ShelfNoticeModel()) {
         self.tempFileService = tempFileService
         self.bookmarkService = bookmarkService
+        self.noticeCenter = noticeCenter
         self.operationQueue = OperationQueue()
         self.operationQueue.name = "com.weijue.OpenYoink.FilePromiseReceive"
         // 计划 §2.3：promise 写入放后台队列，QoS userInitiated。
@@ -59,12 +64,12 @@ final class FilePromiseReceiver {
             }
             dispatched += 1
             // 回调在 operationQueue（后台）执行：只捕获 Sendable 的服务与值类型，
-            // 不捕获 MainActor 隔离的 self。
+            // 不捕获 MainActor 隔离的 self；成功/失败均经闭包内 Task 跳回 MainActor。
             receiver.receivePromisedFiles(
                 atDestination: stagingURL,
                 options: [:],
                 operationQueue: operationQueue
-            ) { [tempFileService, bookmarkService, logger] fileURL, error in
+            ) { [tempFileService, bookmarkService, noticeCenter, logger] fileURL, error in
                 Self.handleMaterializedPromise(
                     fileURL: fileURL,
                     error: error,
@@ -72,12 +77,18 @@ final class FilePromiseReceiver {
                     stagingURL: stagingURL,
                     tempFileService: tempFileService,
                     bookmarkService: bookmarkService,
-                    logger: logger
-                ) { item in
-                    Task { @MainActor in
-                        onItemReady(item)
+                    logger: logger,
+                    completion: { item in
+                        Task { @MainActor in
+                            onItemReady(item)
+                        }
+                    },
+                    failure: {
+                        Task { @MainActor in
+                            noticeCenter.show(String(localized: "Couldn't add the dropped item."))
+                        }
                     }
-                }
+                )
             }
         }
         return dispatched
@@ -85,7 +96,7 @@ final class FilePromiseReceiver {
 
     /// 后台物化完成处理（OperationQueue 上下文，非隔离）。
     /// 成功：移动到物化目录顶层 → kind 推断 + bookmark → completion。
-    /// 失败：记日志；staging 目录无论成败都清理。
+    /// 失败：记日志 + failure 回调（D10 内联提示）；staging 目录无论成败都清理。
     private nonisolated static func handleMaterializedPromise(
         fileURL: URL?,
         error: Error?,
@@ -94,16 +105,19 @@ final class FilePromiseReceiver {
         tempFileService: TempFileService,
         bookmarkService: BookmarkService,
         logger: Logger,
-        completion: (ShelfItem) -> Void
+        completion: (ShelfItem) -> Void,
+        failure: () -> Void
     ) {
         defer { try? FileManager.default.removeItem(at: stagingURL) }
 
         if let error {
             logger.error("File promise materialization failed: \(error.localizedDescription, privacy: .public)")
+            failure()
             return
         }
         guard let fileURL else {
             logger.error("File promise delivered neither a file URL nor an error; dropping this receiver")
+            failure()
             return
         }
 
@@ -121,6 +135,7 @@ final class FilePromiseReceiver {
             completion(item)
         } catch {
             logger.error("Failed to finalize materialized promise \(fileURL.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            failure()
         }
     }
 }

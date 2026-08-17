@@ -1,0 +1,579 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%lld items" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld items" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%lld 个项目" } }
+      }
+    },
+    "%lld of %lld" : {
+      "extractionState" : "manual",
+      "comment" : "Shelf header selection caption: selected count of total count",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld of %lld" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已选 %lld / 共 %lld" } }
+      }
+    },
+    "About" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "About" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关于" } }
+      }
+    },
+    "Acknowledgments" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Acknowledgments" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "致谢" } }
+      }
+    },
+    "Add…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加…" } }
+      }
+    },
+    "After dragging out" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "After dragging out" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖出后" } }
+      }
+    },
+    "Ask Every Time" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Ask Every Time" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每次询问" } }
+      }
+    },
+    "Choose Application…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose Application…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择应用…" } }
+      }
+    },
+    "Click, then press the new shortcut" : {
+      "extractionState" : "manual",
+      "comment" : "Accessibility hint on the shortcut recorder",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Click, then press the new shortcut" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "点击后按下新的快捷键" } }
+      }
+    },
+    "Clear Recent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Clear Recent" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "清空最近项目" } }
+      }
+    },
+    "Collapse stack" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Collapse stack" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "收起堆叠" } }
+      }
+    },
+    "Couldn't add the dropped item." : {
+      "extractionState" : "manual",
+      "comment" : "Inline notice when a drop-in materialization fails",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn't add the dropped item." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法添加拖入的项目。" } }
+      }
+    },
+    "Custom" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Custom" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "自定义" } }
+      }
+    },
+    "Don't ask again" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Don't ask again" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不再询问" } }
+      }
+    },
+    "Double-click for Quick Look" : {
+      "extractionState" : "manual",
+      "comment" : "Accessibility hint on item cards",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Double-click for Quick Look" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "双击以快速查看" } }
+      }
+    },
+    "Drag the shelf by its title bar to place it anywhere. The edge trigger is unavailable in custom mode." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Drag the shelf by its title bar to place it anywhere. The edge trigger is unavailable in custom mode." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖动暂存架标题栏可将其放置到任意位置。自定义模式下边缘触发不可用。" } }
+      }
+    },
+    "Drag to move" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Drag to move" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖动以移动" } }
+      }
+    },
+    "Drop files here" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Drop files here" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "把文件拖到这里" } }
+      }
+    },
+    "Dropped Image.png" : {
+      "extractionState" : "manual",
+      "comment" : "Display name for image data materialized from a drop",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Dropped Image.png" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖入的图片.png" } }
+      }
+    },
+    "Dropped image data could not be converted to PNG." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Dropped image data could not be converted to PNG." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖入的图像数据无法转换为 PNG。" } }
+      }
+    },
+    "Enable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enable" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "启用" } }
+      }
+    },
+    "File" : {
+      "extractionState" : "manual",
+      "comment" : "Item kind name, used in accessibility labels",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "File" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文件" } }
+      }
+    },
+    "File Unavailable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "File Unavailable" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文件不可用" } }
+      }
+    },
+    "File unavailable — it may have been moved or deleted." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "File unavailable — it may have been moved or deleted." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文件不可用——可能已被移动或删除。" } }
+      }
+    },
+    "Folder" : {
+      "extractionState" : "manual",
+      "comment" : "Item kind name, used in accessibility labels",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Folder" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文件夹" } }
+      }
+    },
+    "General" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "General" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "通用" } }
+      }
+    },
+    "Global Hot Key" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Global Hot Key" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "全局快捷键" } }
+      }
+    },
+    "Global hot key recorder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Global hot key recorder" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "全局快捷键录制器" } }
+      }
+    },
+    "Hide after dragging out" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Hide after dragging out" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖出后自动隐藏" } }
+      }
+    },
+    "Hide Shelf" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Hide Shelf" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "隐藏暂存架" } }
+      }
+    },
+    "High" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "High" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "高" } }
+      }
+    },
+    "Hot key event handler installation failed (OSStatus %d)." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Hot key event handler installation failed (OSStatus %d)." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "快捷键事件处理器安装失败（OSStatus %d）。" } }
+      }
+    },
+    "Hot key registration failed (OSStatus %d); another app may already hold this shortcut." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Hot key registration failed (OSStatus %d); another app may already hold this shortcut." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "快捷键注册失败（OSStatus %d），可能有其他应用占用了该快捷键。" } }
+      }
+    },
+    "Ignored Apps" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Ignored Apps" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "忽略的应用" } }
+      }
+    },
+    "Image" : {
+      "extractionState" : "manual",
+      "comment" : "Item kind name, used in accessibility labels",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Image" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "图像" } }
+      }
+    },
+    "Keep" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Keep" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保留" } }
+      }
+    },
+    "Keep on Shelf" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Keep on Shelf" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保留在暂存架" } }
+      }
+    },
+    "Language" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Language" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "语言" } }
+      }
+    },
+    "Left" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Left" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "左侧" } }
+      }
+    },
+    "License" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "License" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "许可证" } }
+      }
+    },
+    "Link" : {
+      "extractionState" : "manual",
+      "comment" : "Item kind name, used in accessibility labels",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Link" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "链接" } }
+      }
+    },
+    "Low" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Low" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "低" } }
+      }
+    },
+    "Medium" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Medium" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "中" } }
+      }
+    },
+    "Mouse Shake" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Mouse Shake" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "鼠标摇动" } }
+      }
+    },
+    "No Recent Items" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No Recent Items" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无最近项目" } }
+      }
+    },
+    "Not Set — Click to Record" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Not Set — Click to Record" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未设置——点击录制" } }
+      }
+    },
+    "Open" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开" } }
+      }
+    },
+    "Open-Yoink is a clean-room implementation that studied the observable behavior of several MIT-licensed open-source shelf apps (HoldMac, DropKit, ShelfMate, NotchPocket, nab, Dropshit). No third-party code is included. See THIRD_PARTY_NOTICES.md in the source repository." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open-Yoink is a clean-room implementation that studied the observable behavior of several MIT-licensed open-source shelf apps (HoldMac, DropKit, ShelfMate, NotchPocket, nab, Dropshit). No third-party code is included. See THIRD_PARTY_NOTICES.md in the source repository." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Open-Yoink 是一个净室实现，研究了多款 MIT 协议开源 shelf 应用（HoldMac、DropKit、ShelfMate、NotchPocket、nab、Dropshit）的可观察行为，不包含任何第三方代码。详见源码仓库中的 THIRD_PARTY_NOTICES.md。" } }
+      }
+    },
+    "Position" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Position" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "位置" } }
+      }
+    },
+    "Press shortcut…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Press shortcut…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请按快捷键…" } }
+      }
+    },
+    "Quick Look" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Quick Look" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "快速查看" } }
+      }
+    },
+    "Quit OpenYoink" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Quit OpenYoink" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "退出 OpenYoink" } }
+      }
+    },
+    "Recent Items" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Recent Items" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "最近项目" } }
+      }
+    },
+    "Remove" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "移除" } }
+      }
+    },
+    "Remove from Shelf" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove from Shelf" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "从暂存架移除" } }
+      }
+    },
+    "Remove the %lld dragged items from the shelf?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove the %lld dragged items from the shelf?" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将拖出的 %lld 个项目从暂存架移除？" } }
+      }
+    },
+    "Remove the dragged item from the shelf?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove the dragged item from the shelf?" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将拖出的项目从暂存架移除？" } }
+      }
+    },
+    "Restore Default" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Restore Default" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "恢复默认" } }
+      }
+    },
+    "Right" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Right" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "右侧" } }
+      }
+    },
+    "Screen Edge" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Screen Edge" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "屏幕边缘" } }
+      }
+    },
+    "Sensitivity" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Sensitivity" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "灵敏度" } }
+      }
+    },
+    "Settings…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Settings…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设置…" } }
+      }
+    },
+    "Shake and edge triggers stay silent while one of these apps is frontmost. The global hot key is never filtered." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Shake and edge triggers stay silent while one of these apps is frontmost. The global hot key is never filtered." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当这些应用位于前台时，摇动与边缘触发保持静默。全局快捷键不受影响。" } }
+      }
+    },
+    "Shake the mouse to show the shelf" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Shake the mouse to show the shelf" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "摇动鼠标以显示暂存架" } }
+      }
+    },
+    "Shelf" : {
+      "extractionState" : "manual",
+      "comment" : "Shelf panel title and settings section name",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Shelf" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂存架" } }
+      }
+    },
+    "Shortcut" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Shortcut" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "快捷键" } }
+      }
+    },
+    "Show in Finder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show in Finder" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在访达中显示" } }
+      }
+    },
+    "Show Shelf" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show Shelf" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示暂存架" } }
+      }
+    },
+    "Show when the cursor rests on the shelf edge" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show when the cursor rests on the shelf edge" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "光标停留在暂存架一侧的屏幕边缘时显示" } }
+      }
+    },
+    "Stack" : {
+      "extractionState" : "manual",
+      "comment" : "Item kind name, used in accessibility labels",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Stack" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "堆叠" } }
+      }
+    },
+    "System" : {
+      "extractionState" : "manual",
+      "comment" : "Language preference: follow the system language",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "System" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "跟随系统" } }
+      }
+    },
+    "Takes effect after relaunch." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Takes effect after relaunch." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重启 App 后生效。" } }
+      }
+    },
+    "Text" : {
+      "extractionState" : "manual",
+      "comment" : "Item kind name and fallback display name for blank text items",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Text" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文本" } }
+      }
+    },
+    "The original files are never deleted." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The original files are never deleted." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "原始文件不会被删除。" } }
+      }
+    },
+    "Triggers" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Triggers" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "触发" } }
+      }
+    },
+    "Type a shortcut · Esc cancels · ⌫ clears" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Type a shortcut · Esc cancels · ⌫ clears" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请按下快捷键 · Esc 取消 · ⌫ 清除" } }
+      }
+    },
+    "Unknown" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unknown" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未知" } }
+      }
+    },
+    "Version" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Version" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "版本" } }
+      }
+    },
+    "Width" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Width" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "宽度" } }
+      }
+    },
+    "⌘⇧Space to toggle the shelf" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "⌘⇧Space to toggle the shelf" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "⌘⇧Space 唤出/隐藏暂存架" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

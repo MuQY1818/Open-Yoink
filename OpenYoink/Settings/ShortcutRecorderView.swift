@@ -179,7 +179,8 @@ struct ShortcutRecorderView: View {
                     }
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Global hot key recorder")
+            .accessibilityLabel(Text("Global hot key recorder"))
+            .accessibilityHint(Text("Click, then press the new shortcut"))
 
             if controller.isRecording {
                 Text("Type a shortcut · Esc cancels · ⌫ clears")
@@ -196,8 +197,8 @@ struct ShortcutRecorderView: View {
     }
 
     private var buttonTitle: String {
-        if controller.isRecording { return "Press shortcut…" }
+        if controller.isRecording { return String(localized: "Press shortcut…") }
         if let shortcut { return ShortcutRecorderLogic.displayString(for: shortcut) }
-        return "Not Set — Click to Record"
+        return String(localized: "Not Set — Click to Record")
     }
 }

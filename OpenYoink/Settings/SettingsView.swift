@@ -4,8 +4,9 @@ import UniformTypeIdentifiers
 
 /// Settings window (S8): four tabs — General / Triggers / Ignored Apps /
 /// About — in the system form style (Form + grouped sections + native
-/// controls). Strings are English originals for now and are written so they
-/// can be lifted straight into Localizable.xcstrings in S10.
+/// controls). All user-visible strings are LocalizedStringKey literals,
+/// resolved through Localizable.xcstrings (S10); runtime-computed fallbacks
+/// use `String(localized:)` explicitly.
 ///
 /// Presented via the SwiftUI `Settings` scene (`OpenYoinkApp`); opened from
 /// the menu bar (`MenuBarController.showSettings`). `SettingsStore` and
@@ -38,8 +39,17 @@ private struct GeneralSettingsTab: View {
                 Picker("Position", selection: $settings.shelfPosition) {
                     Text("Left").tag(SettingsStore.ShelfPosition.left)
                     Text("Right").tag(SettingsStore.ShelfPosition.right)
+                    Text("Custom").tag(SettingsStore.ShelfPosition.custom)
                 }
                 .pickerStyle(.segmented)
+
+                if settings.shelfPosition == .custom {
+                    // S9: custom 模式 —— 面板可拖动，拖动结束持久化 frame；
+                    // 首次选中从右缘默认位置起步。边缘触发在无贴附缘时暂停。
+                    Text("Drag the shelf by its title bar to place it anywhere. The edge trigger is unavailable in custom mode.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
                 LabeledContent("Width") {
                     HStack(spacing: 8) {
@@ -65,7 +75,9 @@ private struct GeneralSettingsTab: View {
                     Text("English").tag(SettingsStore.LanguagePreference.english)
                     Text("中文").tag(SettingsStore.LanguagePreference.chinese)
                 }
-                Text("Takes effect after relaunch. Interface localization ships in a later update; this stores your preference.")
+                // S10: AppleLanguages 覆盖在启动最早期应用（AppDelegate.
+                // applicationWillFinishLaunching），运行期切换故需重启生效。
+                Text("Takes effect after relaunch.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -158,7 +170,7 @@ private struct IgnoredAppsSettingsTab: View {
                                 }
                             } label: {
                                 Label {
-                                    Text(app.localizedName ?? app.bundleIdentifier ?? "Unknown")
+                                    Text(app.localizedName ?? app.bundleIdentifier ?? String(localized: "Unknown"))
                                 } icon: {
                                     if let icon = app.icon {
                                         Image(nsImage: icon)
@@ -255,7 +267,7 @@ private struct IgnoredAppRow: View {
 private struct AboutSettingsTab: View {
     private var versionString: String {
         let info = Bundle.main.infoDictionary
-        let version = info?["CFBundleShortVersionString"] as? String ?? "Unknown"
+        let version = info?["CFBundleShortVersionString"] as? String ?? String(localized: "Unknown")
         let build = info?["CFBundleVersion"] as? String ?? ""
         return build.isEmpty ? version : "\(version) (\(build))"
     }

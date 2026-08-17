@@ -37,6 +37,14 @@ final class EdgeTriggerMonitorTests: XCTestCase {
                                                            screenFrame: frame, side: .right, bandWidth: 4))
     }
 
+    func testBand_customPosition_neverInside() {
+        // S9: custom 位置无贴附缘，屏幕任何点都不命中。
+        XCTAssertFalse(EdgeTriggerMonitor.isInsideEdgeBand(CGPoint(x: 999.5, y: 400),
+                                                           screenFrame: frame, side: .custom, bandWidth: 4))
+        XCTAssertFalse(EdgeTriggerMonitor.isInsideEdgeBand(CGPoint(x: 0.5, y: 400),
+                                                           screenFrame: frame, side: .custom, bandWidth: 4))
+    }
+
     func testBand_nonZeroOriginScreen() {
         // 副屏（原点非 0）：带判定基于屏幕 frame 而非固定坐标。
         let secondScreen = CGRect(x: 1000, y: 0, width: 1440, height: 900)

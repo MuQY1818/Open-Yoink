@@ -95,7 +95,37 @@ struct ShelfItemCard: View {
             )
         }
         .contextMenu { contextMenu }
+        // D9: 卡片作为整体暴露给 VoiceOver —— 名称 + 本地化 kind（stack 附带
+        // 子项数）+ stale 态；选中态走 .isSelected trait；双击 = Quick Look。
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(cardAccessibilityLabel)
+        .accessibilityHint(Text("Double-click for Quick Look"))
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
         .task(id: item) { await loadAssets() }
+    }
+
+    /// D9: VoiceOver 标签（如「Report.pdf, 文件」/「Screenshots, 堆叠, 3 个项目」）。
+    private var cardAccessibilityLabel: Text {
+        var label = "\(item.displayName), \(Self.localizedKindName(for: item.kind))"
+        if item.kind == .stack, let count = item.children?.count {
+            label += ", " + String(localized: "\(count) items")
+        }
+        if item.isStale {
+            label += ", " + String(localized: "File Unavailable")
+        }
+        return Text(label)
+    }
+
+    /// 本地化的 kind 名称（可访问性标签用）。
+    static func localizedKindName(for kind: ItemKind) -> String {
+        switch kind {
+        case .file: String(localized: "File")
+        case .folder: String(localized: "Folder")
+        case .text: String(localized: "Text")
+        case .image: String(localized: "Image")
+        case .url: String(localized: "Link")
+        case .stack: String(localized: "Stack")
+        }
     }
 
     // MARK: - Thumbnail area
@@ -294,9 +324,16 @@ enum ThumbnailLoader {
         }
         let scale = NSScreen.main?.backingScaleFactor ?? 2
         if let cgImage = await quickLookThumbnail(for: url, pointSize: pointSize, scale: scale) {
+            // S10/C7: 登记到拖拽图像缓存，拖出时（同步路径）直接取用真实缩略图。
+            DragImageCache.register(cgImage, for: item.id)
             return Image(decorative: cgImage, scale: scale)
         }
-        return Image(nsImage: NSWorkspace.shared.icon(forFile: url.path))
+        let icon = NSWorkspace.shared.icon(forFile: url.path)
+        var proposedRect = NSRect(origin: .zero, size: icon.size)
+        if let cgIcon = icon.cgImage(forProposedRect: &proposedRect, context: nil, hints: nil) {
+            DragImageCache.register(cgIcon, for: item.id)
+        }
+        return Image(nsImage: icon)
     }
 
     /// 来源应用小图标；bundleID 缺失或无法解析时返回 nil。
@@ -322,6 +359,33 @@ enum ThumbnailLoader {
         // 由调用方回退到 NSWorkspace 图标。
         let representation = try? await QLThumbnailGenerator.shared.generateBestRepresentation(for: request)
         return representation?.cgImage
+    }
+}
+
+// MARK: - DragImageCache (S10/C7)
+
+/// 拖拽图像缓存：卡片缩略图（QL 真实缩略图 / NSWorkspace 图标回退）加载成功后
+/// 按项目 id 登记 CGImage，供 `DragPayloadBuilder.dragImage` 在拖拽启动的
+/// 同步路径上取用。CGImage 为不可变值类型（标注 Sendable 语义安全），跨
+/// MainActor 边界传递无风险。
+///
+/// 容量封顶：超出即整体清空重建 —— 缓存未命中只是回退系统图标，代价低；
+/// 逐条 LRU 对 64pt 小图得不偿失。text/url 项无文件缩略图，不进入缓存
+/// （拖拽图像回退 SF Symbol，与卡片占位一致）。
+@MainActor
+enum DragImageCache {
+    private static var images: [UUID: CGImage] = [:]
+    private static let capacity = 256
+
+    static func register(_ image: CGImage, for id: UUID) {
+        if images.count >= capacity {
+            images.removeAll()
+        }
+        images[id] = image
+    }
+
+    static func image(for id: UUID) -> CGImage? {
+        images[id]
     }
 }
 

@@ -46,6 +46,55 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(store.language, .system)
     }
 
+    // MARK: - Custom shelf frame (S9)
+
+    func testCustomShelfFrame_defaultsToNil() throws {
+        let (defaults, name) = try makeSuite()
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        XCTAssertNil(SettingsStore(defaults: defaults).customShelfFrame)
+    }
+
+    func testCustomShelfFrame_persistsAcrossInstances() throws {
+        let (defaults, name) = try makeSuite()
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let store = SettingsStore(defaults: defaults)
+        let frame = CGRect(x: 120, y: 240, width: 360, height: 800)
+        store.customShelfFrame = frame
+
+        XCTAssertEqual(SettingsStore(defaults: defaults).customShelfFrame, frame)
+    }
+
+    func testCustomShelfFrame_clearedRemovesPersistedValue() throws {
+        let (defaults, name) = try makeSuite()
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let store = SettingsStore(defaults: defaults)
+        store.customShelfFrame = CGRect(x: 0, y: 0, width: 320, height: 600)
+        store.customShelfFrame = nil
+
+        XCTAssertNil(SettingsStore(defaults: defaults).customShelfFrame)
+    }
+
+    func testCustomShelfFrame_corruptDataFallsBackToNil() throws {
+        let (defaults, name) = try makeSuite()
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        defaults.set(Data([0x00, 0x01]), forKey: "OpenYoink.customShelfFrame")
+        XCTAssertNil(SettingsStore(defaults: defaults).customShelfFrame)
+    }
+
+    func testShelfPosition_customPersistsAcrossInstances() throws {
+        let (defaults, name) = try makeSuite()
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let store = SettingsStore(defaults: defaults)
+        store.shelfPosition = .custom
+
+        XCTAssertEqual(SettingsStore(defaults: defaults).shelfPosition, .custom)
+    }
+
     // MARK: - Clearable hot key shortcut
 
     func testHotKeyShortcut_absentKeyFallsBackToDefault() throws {

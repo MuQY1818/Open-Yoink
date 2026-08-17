@@ -134,6 +134,7 @@ struct ShelfStackExpandedView: View {
             }
             .buttonStyle(.plain)
             .help("Collapse stack")
+            .accessibilityLabel(Text("Collapse stack"))
         }
     }
 }

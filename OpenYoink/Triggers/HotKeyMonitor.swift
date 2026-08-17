@@ -98,7 +98,7 @@ final class HotKeyMonitor {
                                          &ref)
         guard status == noErr, let ref else {
             logger.warning("RegisterEventHotKey failed with OSStatus \(status); falling back to NSEvent global monitor")
-            registrationError = "Hot key registration failed (OSStatus \(status)); another app may already hold this shortcut."
+            registrationError = String(localized: "Hot key registration failed (OSStatus \(status)); another app may already hold this shortcut.")
             installNSEventFallback()
             return
         }
@@ -120,7 +120,7 @@ final class HotKeyMonitor {
         guard status == noErr, let ref else {
             Unmanaged<HotKeyActionBox>.fromOpaque(userData).release()
             logger.error("InstallEventHandler failed with OSStatus \(status)")
-            registrationError = "Hot key event handler installation failed (OSStatus \(status))."
+            registrationError = String(localized: "Hot key event handler installation failed (OSStatus \(status)).")
             if let hotKeyRef {
                 UnregisterEventHotKey(hotKeyRef)
                 self.hotKeyRef = nil
