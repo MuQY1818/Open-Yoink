@@ -2,8 +2,8 @@ import SwiftUI
 
 /// 空状态（实施计划 §3）：居中插画位 + 投放提示 + 快捷键提示 + 半透明虚线边框。
 ///
-/// 虚线边框暗示可投放区域；S4 拖入悬停时由 ShelfView 的 `isDropTargeted`
-/// 高亮接管强调态。文案先为英文，S10 统一提取到 Localizable.xcstrings。
+/// 虚线边框暗示可投放区域；S4 拖入悬停时由 ShelfView 的落点高亮
+/// （`DropTargetState.isTargeted` 驱动）接管强调态。文案先为英文，S10 统一提取到 Localizable.xcstrings。
 struct ShelfEmptyState: View {
     var body: some View {
         VStack(spacing: 12) {

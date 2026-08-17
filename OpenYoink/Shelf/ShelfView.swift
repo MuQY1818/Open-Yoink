@@ -10,16 +10,15 @@ import SwiftUI
 /// 交互：普通点击单选、⌘点击切换多选、空白处点击清除选择并收起 Stack；
 /// 点击 Stack 卡片展开浮层（同时只展开一个），点击外部或再次点击收起。
 ///
-/// S4 预留：`isDropTargeted` / `dropInsertionIndex` 两个状态与对应修饰样式
-/// （落点高亮、插入指示线），由 DragContainerView（NSDraggingDestination 桥接）驱动；
+/// S4：`isDropTargeted` / `dropInsertionIndex` 两个预留状态已收敛为
+/// `@Environment(DropTargetState.self)`（DragContainerView 驱动高亮与插入指示线）；
 /// 卡片弹入动画修饰器（spring, response 0.35, damping 0.7）已就位。
 struct ShelfView: View {
     @Environment(ShelfStore.self) private var store
 
-    /// S4: 拖入悬停高亮。由 DragContainerView 的 draggingEntered/Exited 驱动。
-    @State private var isDropTargeted = false
-    /// S4: 插入指示线位置（目标 index 卡片前缘；等于 items.count 时画在末卡片后缘）。
-    @State private var dropInsertionIndex: Int?
+    /// S4: 拖入悬停高亮与插入指示线位置，由 DragContainerView
+    /// （NSDraggingDestination 桥接）驱动。
+    @Environment(DropTargetState.self) private var dropTargetState
     /// 当前展开的 Stack id（同时只展开一个）。
     @State private var expandedStackID: UUID?
 
@@ -45,8 +44,7 @@ struct ShelfView: View {
             .padding(8)
             // 项目集合变化后清除拖入视觉残留（S4 拖放完成后同样走这里复位）。
             .onChange(of: store.items) {
-                isDropTargeted = false
-                dropInsertionIndex = nil
+                dropTargetState.reset()
             }
     }
 
@@ -111,16 +109,16 @@ struct ShelfView: View {
     private func gridCell(for item: ShelfItem) -> some View {
         let index = store.index(ofItemWithID: item.id)
         return cellContent(for: item)
-            // S4: 插入指示线 —— dropInsertionIndex 命中时画在卡片前缘。
+            // S4: 插入指示线 —— insertionIndex 命中时画在卡片前缘。
             .overlay(alignment: .leading) {
-                if dropInsertionIndex != nil, dropInsertionIndex == index {
+                if dropTargetState.insertionIndex != nil, dropTargetState.insertionIndex == index {
                     insertionIndicator
                         .padding(.leading, -(Self.gridSpacing / 2 + 3))
                 }
             }
             // S4: 插入位置指向末尾时画在末卡片后缘。
             .overlay(alignment: .trailing) {
-                if dropInsertionIndex == store.items.count, index == store.items.count - 1 {
+                if dropTargetState.insertionIndex == store.items.count, index == store.items.count - 1 {
                     insertionIndicator
                         .padding(.trailing, -(Self.gridSpacing / 2 + 3))
                 }
@@ -136,16 +134,25 @@ struct ShelfView: View {
                 isExpanded: expandedStackID == item.id,
                 onSelect: { additive in select(item.id, additive: additive) },
                 onToggleExpanded: { toggleStackExpansion(item.id) },
-                onRemove: { store.remove(ids: [item.id]) }
+                onRemove: { store.remove(ids: [item.id]) },
+                dragContentsProvider: dragContents(for:)
             )
         } else {
             ShelfItemCard(
                 item: item,
                 isSelected: store.selection.contains(item.id),
                 onSelect: { additive in select(item.id, additive: additive) },
-                onRemove: { store.remove(ids: [item.id]) }
+                onRemove: { store.remove(ids: [item.id]) },
+                dragContentsProvider: dragContents(for:)
             )
         }
+    }
+
+    /// S5：顶层卡片拖出内容 —— 被拖卡片在当前多选中时整批拖出（stack 由
+    /// DragPayloadBuilder 展开为子项），否则仅拖该卡片。
+    private func dragContents(for anchor: ShelfItem) -> DragOutContents {
+        let dragged = store.selection.contains(anchor.id) ? store.selectedItems : [anchor]
+        return DragOutContents(items: dragged, topLevelIDs: Set(dragged.map(\.id)))
     }
 
     /// S4: 拖入插入指示线（accent 竖条）。
@@ -158,11 +165,11 @@ struct ShelfView: View {
 
     // MARK: - Drop highlight (S4 预留)
 
-    /// S4: DragContainerView 拖入悬停时置 `isDropTargeted = true`，
+    /// S4: DragContainerView 拖入悬停时 `dropTargetState.isTargeted == true`，
     /// 整面板 accent 描边 + 浅填充提示可投放。
     @ViewBuilder
     private var dropTargetHighlight: some View {
-        if isDropTargeted {
+        if dropTargetState.isTargeted {
             RoundedRectangle(cornerRadius: Self.cornerRadius)
                 .strokeBorder(Color.accentColor, lineWidth: 2)
                 .background {
@@ -322,11 +329,13 @@ enum ShelfPreviewFixtures {
 #Preview("Shelf with items") {
     ShelfView()
         .environment(ShelfPreviewFixtures.makeStore())
+        .environment(DropTargetState())
         .frame(width: 320, height: 600)
 }
 
 #Preview("Empty shelf") {
     ShelfView()
         .environment(ShelfStore())
+        .environment(DropTargetState())
         .frame(width: 320, height: 600)
 }

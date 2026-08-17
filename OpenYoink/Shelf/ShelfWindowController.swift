@@ -17,6 +17,13 @@ final class ShelfWindowController: NSObject {
     /// Shelf 数据（S3 起注入 ShelfView 的 @Environment）。
     /// S4: DragContainerView（NSDraggingDestination 桥接）同样持有此 store。
     private let store: ShelfStore
+    /// S4: 拖入分派（pasteboard → ShelfItem），供 DragContainerView 调用。
+    private let importCoordinator: DropImportCoordinator
+    /// S4: 拖入悬停高亮/插入位置状态，DragContainerView 驱动、ShelfView 渲染。
+    private let dropTargetState = DropTargetState()
+    /// S5: 拖出总控（卡片 mouseDragged → NSDraggingSession；结束后按设置策略
+    /// 移除/保留并记入最近历史）。
+    private let dragOutController: DragOutController
 
     private lazy var panel: ShelfPanel = {
         let panel = ShelfPanel(
@@ -25,7 +32,20 @@ final class ShelfWindowController: NSObject {
             backing: .buffered,
             defer: false
         )
-        panel.contentViewController = NSHostingController(rootView: ShelfView().environment(store))
+        // S4: DragContainerView（NSDraggingDestination）包裹 hosting 视图。
+        let hostingController = NSHostingController(
+            rootView: ShelfView()
+                .environment(store)
+                .environment(dropTargetState)
+                .environment(\.bookmarkService, importCoordinator.bookmarkService)
+                .environment(\.dragOutController, dragOutController)
+        )
+        panel.contentView = DragContainerView(
+            store: store,
+            coordinator: importCoordinator,
+            dropTargetState: dropTargetState,
+            contentViewController: hostingController
+        )
         return panel
     }()
 
@@ -33,9 +53,20 @@ final class ShelfWindowController: NSObject {
         appState.isShelfVisible
     }
 
-    init(appState: AppState, store: ShelfStore) {
+    init(appState: AppState,
+         store: ShelfStore,
+         importCoordinator: DropImportCoordinator,
+         settings: SettingsStore,
+         recents: RecentItemsService) {
         self.appState = appState
         self.store = store
+        self.importCoordinator = importCoordinator
+        self.dragOutController = DragOutController(
+            store: store,
+            settings: settings,
+            recents: recents,
+            bookmarkService: importCoordinator.bookmarkService
+        )
         super.init()
         NotificationCenter.default.addObserver(
             self,

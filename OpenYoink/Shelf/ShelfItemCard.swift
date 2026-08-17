@@ -12,8 +12,11 @@ import SwiftUI
 /// 右键菜单：Quick Look / Open / Show in Finder 为 S6 占位（disabled + TODO），
 /// 「Remove from Shelf」直接可用（`ShelfStore.remove(ids:)` 由调用方封装注入）。
 ///
-/// 拖出预留（S5）：卡片底层挂了 `CardDragSourceBridge`（NSViewRepresentable）作为
-/// 视图层级锚点；真正的 NSDraggingSource 在 S5 实现，按 §2.1 决策不走 SwiftUI onDrag。
+/// 拖出（S5）：卡片覆盖 `CardDragSourceBridge`（NSViewRepresentable）作为鼠标
+/// 事件权威 —— mouseDragged 超阈值即开始 `NSDraggingSession`（按 §2.1 决策不走
+/// SwiftUI onDrag），mouseUp 无拖拽回落为点击选择。拖拽内容与批量语义由
+/// `dragContentsProvider`（父视图注入）决定，实际会话由环境里的
+/// `DragOutController` 启动。
 struct ShelfItemCard: View {
     /// 展示的项目。
     let item: ShelfItem
@@ -26,11 +29,18 @@ struct ShelfItemCard: View {
     var onRemove: (() -> Void)?
     /// 决定缩略图内容的项目；默认与 `item` 相同。Stack 卡片传入第一个文件类子项。
     var thumbnailItem: ShelfItem?
+    /// S5 拖出内容计算：给定被拖卡片项目，返回本次拖出的项目集合与涉及的顶层
+    /// id（多选整批 / stack 语义由父视图决定）。nil 时拖出单卡项目。
+    var dragContentsProvider: ((ShelfItem) -> DragOutContents)?
 
     /// QL / Workspace 缩略图（已合成 SwiftUI Image，Sendable，跨任务传递安全）。
     @State private var thumbnail: Image?
     /// 来源应用小图标（按 `sourceApp.bundleID` 经 LaunchServices 解析）。
     @State private var sourceAppIcon: NSImage?
+    /// S4: 缩略图加载经 bookmark 解析文件访问权（见 `ThumbnailLoader`）。
+    @Environment(\.bookmarkService) private var bookmarkService
+    /// S5: 拖出总控；nil（Preview/单测）时拖拽关闭、点击不受影响。
+    @Environment(\.dragOutController) private var dragOutController
 
     static let cornerRadius: CGFloat = 12
     /// 缩略图区高度（点）；宽度随网格列（~88pt）。
@@ -40,12 +50,14 @@ struct ShelfItemCard: View {
          isSelected: Bool,
          onSelect: @escaping (_ additive: Bool) -> Void,
          onRemove: (() -> Void)? = nil,
-         thumbnailItem: ShelfItem? = nil) {
+         thumbnailItem: ShelfItem? = nil,
+         dragContentsProvider: ((ShelfItem) -> DragOutContents)? = nil) {
         self.item = item
         self.isSelected = isSelected
         self.onSelect = onSelect
         self.onRemove = onRemove
         self.thumbnailItem = thumbnailItem
+        self.dragContentsProvider = dragContentsProvider
     }
 
     var body: some View {
@@ -60,11 +72,23 @@ struct ShelfItemCard: View {
         .contentShape(RoundedRectangle(cornerRadius: Self.cornerRadius))
         .opacity(item.isStale ? 0.55 : 1)
         .overlay(alignment: .topLeading) { staleBadge }
-        // S5 拖出锚点：透明 NSView，hitTest 透传，不拦截任何事件。
-        .background { CardDragSourceBridge(itemID: item.id) }
-        .onTapGesture { onSelect(NSEvent.modifierFlags.contains(.command)) }
+        // S5 拖出事件层：透明 NSView 覆盖整卡，成为左键事件权威
+        //（mouseDown 记录 → mouseDragged 超阈值开始拖拽；mouseUp 无拖拽回落为
+        // 点击选择）。右键（contextMenu）与滚动透传给 SwiftUI。
+        .overlay {
+            CardDragSourceBridge(
+                itemID: item.id,
+                onClick: onSelect,
+                onDragBegin: { sourceView, event in
+                    guard let dragOutController else { return }
+                    let contents = dragContentsProvider?(item)
+                        ?? DragOutContents(items: [item], topLevelIDs: [item.id])
+                    dragOutController.beginDrag(contents: contents, from: sourceView, event: event)
+                }
+            )
+        }
         .contextMenu { contextMenu }
-        .task(id: item.id) { await loadAssets() }
+        .task(id: item) { await loadAssets() }
     }
 
     // MARK: - Thumbnail area
@@ -212,7 +236,8 @@ struct ShelfItemCard: View {
     private func loadAssets() async {
         thumbnail = await ThumbnailLoader.thumbnail(
             for: thumbnailItem ?? item,
-            pointSize: CGSize(width: 88, height: Self.thumbnailHeight)
+            pointSize: CGSize(width: 88, height: Self.thumbnailHeight),
+            bookmarkService: bookmarkService
         )
         sourceAppIcon = ThumbnailLoader.sourceAppIcon(bundleID: item.sourceApp?.bundleID)
     }
@@ -229,9 +254,27 @@ struct ShelfItemCard: View {
 enum ThumbnailLoader {
     /// file/folder/image（有磁盘路径的 kind）：优先 QL 真实缩略图，失败回退
     /// NSWorkspace 图标。无路径（text/url/stack 无文件子项）返回 nil，由卡片渲染占位。
+    ///
+    /// S4 起统一经 bookmark 解析：`item.bookmark` 存在时先解析出 URL 并
+    /// `startAccessing`（沙箱下重启后只有解析 security-scoped bookmark 才有
+    /// 文件读取权限），加载完成后配对 `stopAccessing`；解析失败回退原始路径。
     @MainActor
-    static func thumbnail(for item: ShelfItem, pointSize: CGSize) async -> Image? {
-        guard let url = item.fileURL else { return nil }
+    static func thumbnail(for item: ShelfItem, pointSize: CGSize, bookmarkService: BookmarkService) async -> Image? {
+        guard let baseURL = item.fileURL else { return nil }
+        var url = baseURL
+        var accessedURL: URL?
+        if let bookmark = item.bookmark,
+           let resolved = try? bookmarkService.resolve(bookmark) {
+            url = resolved.url
+            if bookmarkService.startAccessing(url) {
+                accessedURL = url
+            }
+        }
+        defer {
+            if let accessedURL {
+                bookmarkService.stopAccessing(accessedURL)
+            }
+        }
         let scale = NSScreen.main?.backingScaleFactor ?? 2
         if let cgImage = await quickLookThumbnail(for: url, pointSize: pointSize, scale: scale) {
             return Image(decorative: cgImage, scale: scale)
@@ -257,37 +300,119 @@ enum ThumbnailLoader {
         let request = QLThumbnailGenerator.Request(
             fileAt: url, size: pointSize, scale: scale, representationTypes: .thumbnail
         )
-        // 沙箱注意：应用重启后需先解析 security-scoped bookmark 才有文件读取权限，
-        // S4 接入 BookmarkService 后此处自然受益。生成失败/无缩略图时返回 nil，
+        // 调用方（thumbnail(for:pointSize:bookmarkService:)）已解析 bookmark 并
+        // startAccessing，此处直接读取。生成失败/无缩略图时返回 nil，
         // 由调用方回退到 NSWorkspace 图标。
         let representation = try? await QLThumbnailGenerator.shared.generateBestRepresentation(for: request)
         return representation?.cgImage
     }
 }
 
-// MARK: - CardDragSourceBridge (S5 预留)
+// MARK: - BookmarkService environment
 
-/// S5 拖出桥接点：每张卡片内嵌一个透明 NSView 作为视图层级锚点。
-///
-/// 当前完全惰性：`hitTest` 返回 nil，不参与事件分发，不影响点击/右键菜单。
-/// S5 将在此 NSView 上实现 `NSDraggingSource`（mouseDown 跟踪 +
-/// `beginDraggingSession`），并对接 `DragPayloadBuilder`（fileURL +
-/// NSFilePromiseProvider 双表示）。按实施计划 §2.1，跨应用拖放不使用 SwiftUI onDrag。
-struct CardDragSourceBridge: NSViewRepresentable {
-    /// 锚点对应的项目 id；S5 据此组装 drag payload（多选时读取 store.selection）。
-    let itemID: UUID
-
-    func makeNSView(context: Context) -> CardDragSourceAnchorView {
-        CardDragSourceAnchorView()
-    }
-
-    func updateNSView(_ nsView: CardDragSourceAnchorView, context: Context) {}
+/// SwiftUI 环境注入 BookmarkService（卡片缩略图/后续打开操作经 bookmark 解析
+/// 文件访问权）。默认值供 Preview 与测试使用；App 入口注入共享实例。
+private struct BookmarkServiceEnvironmentKey: EnvironmentKey {
+    static let defaultValue = BookmarkService()
 }
 
-/// `CardDragSourceBridge` 的底层 NSView。TODO(S5): 在此实现 NSDraggingSource。
+extension EnvironmentValues {
+    var bookmarkService: BookmarkService {
+        get { self[BookmarkServiceEnvironmentKey.self] }
+        set { self[BookmarkServiceEnvironmentKey.self] = newValue }
+    }
+}
+
+// MARK: - CardDragSourceBridge (S5 拖出事件层)
+
+/// S5 拖出桥接：每张卡片覆盖一个透明 NSView，作为卡片区域的鼠标事件权威。
+///
+/// 点击/拖拽仲裁：
+/// - `mouseDown` 记录按下位置；
+/// - `mouseDragged` 位移超阈值（4pt）→ 回调 `onDragBegin`（由
+///   `DragOutController` 启动 `beginDraggingSession`；多选整批/stack 展开
+///   由卡片的 `dragContentsProvider` 决定）；
+/// - `mouseUp` 且未拖拽 → 回落为点击选择（普通点击单选 / ⌘点击 toggle，
+///   与 S3 语义一致）。
+///
+/// 右键（SwiftUI contextMenu）与滚动透传：`hitTest` 只在左键事件期间接管
+/// （ctrl+click 视为右键）。一旦拖拽开始，后续事件由 NSDraggingSession 接管。
+struct CardDragSourceBridge: NSViewRepresentable {
+    /// 锚点对应的项目 id（调试/日志用）。
+    let itemID: UUID
+    /// 无拖拽的 mouseUp（点击选择）。闭包在 MainActor 词法上下文（View body）
+    /// 中创建并继承其隔离；显式标注 @MainActor 参数类型会触发非 Sendable 函数
+    /// 值的跨界转换检查，故保持普通类型。
+    let onClick: (_ additive: Bool) -> Void
+    /// mouseDragged 超阈值；参数为锚点视图与当前事件。
+    let onDragBegin: (_ sourceView: NSView, _ event: NSEvent) -> Void
+
+    func makeNSView(context: Context) -> CardDragSourceAnchorView {
+        let view = CardDragSourceAnchorView()
+        view.itemID = itemID
+        view.onClick = onClick
+        view.onDragBegin = onDragBegin
+        return view
+    }
+
+    func updateNSView(_ nsView: CardDragSourceAnchorView, context: Context) {
+        nsView.itemID = itemID
+        nsView.onClick = onClick
+        nsView.onDragBegin = onDragBegin
+    }
+}
+
+/// `CardDragSourceBridge` 的底层 NSView。
 final class CardDragSourceAnchorView: NSView {
-    /// 事件全部透传给下层 SwiftUI 内容；本视图仅为拖出锚点。
-    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    var itemID: UUID?
+    var onClick: ((_ additive: Bool) -> Void)?
+    var onDragBegin: ((_ sourceView: NSView, _ event: NSEvent) -> Void)?
+
+    /// 拖拽触发位移阈值（点）。
+    static let dragThreshold: CGFloat = 4
+
+    private var mouseDownLocation: NSPoint?
+    private var dragStarted = false
+
+    /// 左键事件（不含 ctrl+click，它等于右键）接管本视图；其余事件透传给
+    /// 下层 SwiftUI 内容（contextMenu 依赖 rightMouseDown，滚动依赖 ScrollView）。
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard let event = NSApp.currentEvent else { return nil }
+        switch event.type {
+        case .leftMouseDown where event.modifierFlags.contains(.control):
+            return nil
+        case .leftMouseDown, .leftMouseDragged, .leftMouseUp:
+            return super.hitTest(point)
+        default:
+            return nil
+        }
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        mouseDownLocation = event.locationInWindow
+        dragStarted = false
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard !dragStarted, let downLocation = mouseDownLocation else { return }
+        let location = event.locationInWindow
+        let distance = hypot(location.x - downLocation.x, location.y - downLocation.y)
+        guard distance >= Self.dragThreshold else { return }
+        dragStarted = true
+        onDragBegin?(self, event)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        defer {
+            mouseDownLocation = nil
+            dragStarted = false
+        }
+        // 拖拽开始后手势由 NSDraggingSession 接管，正常不会再收到 mouseUp；
+        // 防御性判断，避免把拖拽结束误当点击。
+        guard !dragStarted else { return }
+        // 无拖拽 → 点击选择。双击（clickCount > 1）的 Quick Look 在 S6 接入。
+        onClick?(event.modifierFlags.contains(.command))
+    }
 }
 
 // MARK: - Previews
