@@ -19,6 +19,8 @@ struct ShelfView: View {
     /// S4: 拖入悬停高亮与插入指示线位置，由 DragContainerView
     /// （NSDraggingDestination 桥接）驱动。
     @Environment(DropTargetState.self) private var dropTargetState
+    /// S6: Quick Look 会话；选中变化时同步已打开的预览（nil 时为 no-op）。
+    @Environment(\.quickLookCoordinator) private var quickLookCoordinator
     /// 当前展开的 Stack id（同时只展开一个）。
     @State private var expandedStackID: UUID?
 
@@ -219,6 +221,8 @@ struct ShelfView: View {
         } else {
             store.select(id)
         }
+        // S6: Quick Look 面板打开期间，预览跟随选中变化（含 ⌘点击增减多选）。
+        quickLookCoordinator?.refreshPreview(contextItem: store.item(withID: id))
     }
 
     private func clearSelectionAndCollapse() {

@@ -3,8 +3,9 @@ import Foundation
 /// UserDefaults-backed app settings, observable by SwiftUI.
 ///
 /// All keys are prefixed with `OpenYoink.` to avoid collisions. Defaults are
-/// registered on init, so reads always return meaningful values. Settings UI is
-/// built in S8; trigger settings are placeholders wired up in S7.
+/// registered on init, so reads always return meaningful values. Trigger
+/// settings are consumed by `HotKeyMonitor` / `MouseShakeMonitor` /
+/// `EdgeTriggerMonitor` (S7); the settings UI lives in `SettingsView` (S8).
 @MainActor
 @Observable
 final class SettingsStore {
@@ -19,7 +20,7 @@ final class SettingsStore {
     enum DragOutRemovalPolicy: String, CaseIterable, Sendable {
         case keep   // keep the item on the shelf
         case remove // remove it after a successful drop
-        case ask    // placeholder: ask every time (UI wired in S8)
+        case ask    // ask every time (NSAlert in DragSessionController, S8)
     }
 
     /// UI language override.
@@ -27,9 +28,9 @@ final class SettingsStore {
         case system, chinese, english
     }
 
-    /// Codable description of the global toggle hot key. Placeholder
-    /// representation for S7/S8: `ShortcutRecorderView` writes new values,
-    /// `HotKeyMonitor` maps them to `NSEvent`/Carbon modifiers.
+    /// Codable description of the global toggle hot key. Consumed by
+    /// `HotKeyMonitor` (S7), which maps it to Carbon modifiers; the S8
+    /// `ShortcutRecorderView` writes new values (and clears to nil).
     struct HotKeyShortcut: Codable, Equatable, Sendable {
         /// Hardware-independent virtual key code (kVK_*; 49 = Space).
         var keyCode: UInt32
@@ -71,7 +72,7 @@ final class SettingsStore {
         didSet { defaults.set(language.rawValue, forKey: Keys.language) }
     }
 
-    // MARK: - Triggers (placeholders, wired in S7/S8)
+    // MARK: - Triggers (wired in S7; settings UI in S8)
 
     /// Global hot key (⌘⇧Space) toggles the shelf. Default: true.
     var hotKeyEnabled: Bool {
@@ -89,19 +90,30 @@ final class SettingsStore {
         didSet { defaults.set(edgeTriggerEnabled, forKey: Keys.edgeTriggerEnabled) }
     }
 
-    /// Shake sensitivity, 0...1; higher = triggers more easily. Default: 0.5.
-    var shakeSensitivity: Double {
-        didSet { defaults.set(shakeSensitivity, forKey: Keys.shakeSensitivity) }
+    /// Shake sensitivity (three tiers; higher = triggers more easily).
+    /// Default: medium. Mapped to heuristic parameters by
+    /// `TriggerSensitivity.shakeParameters`.
+    var shakeSensitivity: TriggerSensitivity {
+        didSet { defaults.set(shakeSensitivity.rawValue, forKey: Keys.shakeSensitivity) }
     }
 
-    /// Edge-trigger sensitivity, 0...1; higher = shorter dwell time. Default: 0.5.
-    var edgeTriggerSensitivity: Double {
-        didSet { defaults.set(edgeTriggerSensitivity, forKey: Keys.edgeTriggerSensitivity) }
+    /// Edge-trigger sensitivity (three tiers; higher = shorter dwell time and
+    /// wider band). Default: medium. Mapped by `TriggerSensitivity.edgeDwellTime`
+    /// / `.edgeBandWidth`.
+    var edgeTriggerSensitivity: TriggerSensitivity {
+        didSet { defaults.set(edgeTriggerSensitivity.rawValue, forKey: Keys.edgeTriggerSensitivity) }
     }
 
-    /// The toggle hot key. Persisted as JSON.
-    var hotKeyShortcut: HotKeyShortcut {
+    /// The toggle hot key, or nil when the user cleared it in the recorder
+    /// (no shortcut assigned; `hotKeyEnabled` stays untouched so re-recording
+    /// a shortcut re-arms the monitor without a separate toggle).
+    ///
+    /// Persisted as JSON. Three persisted states: key absent → `.default`
+    /// (fresh install); JSON `null` → explicitly cleared; object → shortcut.
+    var hotKeyShortcut: HotKeyShortcut? {
         didSet {
+            // Encoding the Optional itself: a cleared shortcut persists as
+            // top-level `null`, distinguishing it from "never customized".
             if let data = try? JSONEncoder().encode(hotKeyShortcut) {
                 defaults.set(data, forKey: Keys.hotKeyShortcut)
             }
@@ -113,6 +125,25 @@ final class SettingsStore {
     /// Bundle identifiers of apps in which shake/edge triggers stay silent.
     var ignoredAppBundleIDs: [String] {
         didSet { defaults.set(ignoredAppBundleIDs, forKey: Keys.ignoredAppBundleIDs) }
+    }
+
+    /// Adds a bundle ID to the ignore list (settings page, S8). Trims
+    /// whitespace and dedupes case-insensitively, mirroring the matching
+    /// rules of `IgnoreListService.isIgnored`.
+    func addIgnoredApp(bundleID: String) {
+        let trimmed = bundleID.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        let isDuplicate = ignoredAppBundleIDs.contains {
+            $0.trimmingCharacters(in: .whitespaces).caseInsensitiveCompare(trimmed) == .orderedSame
+        }
+        guard !isDuplicate else { return }
+        ignoredAppBundleIDs.append(trimmed)
+    }
+
+    /// Removes entries from the ignore list (settings page, S8).
+    func removeIgnoredApps(bundleIDs: Set<String>) {
+        guard !bundleIDs.isEmpty else { return }
+        ignoredAppBundleIDs.removeAll { bundleIDs.contains($0) }
     }
 
     // MARK: - Init
@@ -146,8 +177,8 @@ final class SettingsStore {
             Keys.hotKeyEnabled: true,
             Keys.shakeTriggerEnabled: false,
             Keys.edgeTriggerEnabled: false,
-            Keys.shakeSensitivity: 0.5,
-            Keys.edgeTriggerSensitivity: 0.5,
+            Keys.shakeSensitivity: TriggerSensitivity.medium.rawValue,
+            Keys.edgeTriggerSensitivity: TriggerSensitivity.medium.rawValue,
             Keys.ignoredAppBundleIDs: [String](),
         ])
 
@@ -163,11 +194,24 @@ final class SettingsStore {
         hotKeyEnabled = defaults.bool(forKey: Keys.hotKeyEnabled)
         shakeTriggerEnabled = defaults.bool(forKey: Keys.shakeTriggerEnabled)
         edgeTriggerEnabled = defaults.bool(forKey: Keys.edgeTriggerEnabled)
-        shakeSensitivity = defaults.double(forKey: Keys.shakeSensitivity)
-        edgeTriggerSensitivity = defaults.double(forKey: Keys.edgeTriggerSensitivity)
-        hotKeyShortcut = defaults.data(forKey: Keys.hotKeyShortcut)
-            .flatMap { try? JSONDecoder().decode(HotKeyShortcut.self, from: $0) }
-            ?? .default
+        shakeSensitivity = TriggerSensitivity(
+            rawValue: defaults.string(forKey: Keys.shakeSensitivity) ?? ""
+        ) ?? .medium
+        edgeTriggerSensitivity = TriggerSensitivity(
+            rawValue: defaults.string(forKey: Keys.edgeTriggerSensitivity) ?? ""
+        ) ?? .medium
+        if let data = defaults.data(forKey: Keys.hotKeyShortcut) {
+            // 显式 do/catch 而非 `try? … ?? .default`：try? 会把
+            // 「解码成功为 nil」（JSON null = 明确清除）与「解码失败」
+            // 扁平化成同一个 nil（SE-0230），清除态会被吞掉。
+            do {
+                hotKeyShortcut = try JSONDecoder().decode(HotKeyShortcut?.self, from: data)
+            } catch {
+                hotKeyShortcut = .default
+            }
+        } else {
+            hotKeyShortcut = .default
+        }
         ignoredAppBundleIDs = defaults.stringArray(forKey: Keys.ignoredAppBundleIDs) ?? []
     }
 }

@@ -14,27 +14,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// S4: 拖入分派器（pasteboard → ShelfItem）。
     private lazy var dropImportCoordinator = DropImportCoordinator(bookmarkService: bookmarkService,
                                                                    tempFileService: tempFileService)
-    /// 用户设置（S5 起拖出后移除策略被 DragSessionController 读取；S8 出设置 UI）。
-    private let settingsStore = SettingsStore()
+    /// 用户设置（S5 起拖出后移除策略被 DragSessionController 读取；S8 由
+    /// SettingsView 编辑）。internal：OpenYoinkApp 的 Settings scene 注入环境用。
+    let settingsStore = SettingsStore()
     /// S5: 最近拖出历史（内存 + recents.json；S10 接菜单栏「最近项目」）。
     private let recentItemsService = RecentItemsService()
 
     private lazy var shelfWindowController = ShelfWindowController(appState: appState,
                                                                    store: shelfStore,
                                                                    importCoordinator: dropImportCoordinator,
+                                                                   tempFileService: tempFileService,
                                                                    settings: settingsStore,
                                                                    recents: recentItemsService)
     private lazy var menuBarController = MenuBarController(appState: appState) { [weak self] in
         self?.toggleShelf()
     }
 
-    /// NSEvent local monitor 句柄（⌘⇧Space）。
-    private var localHotKeyMonitor: Any?
+    /// S7: 全局快捷键监听（Carbon RegisterEventHotKey 为主、NSEvent 全局监听
+    /// 为备；注册失败状态供 S8 设置页提示）。internal：Settings scene 注入
+    /// 环境（registrationError 展示）用。
+    lazy var hotKeyMonitor = HotKeyMonitor(shortcut: settingsStore.hotKeyShortcut) { [weak self] in
+        self?.toggleShelf()
+    }
+    /// S7: 鼠标摇动触发（识别核心 ShakeDetector 为纯类型，见 Triggers/）。
+    private lazy var mouseShakeMonitor = MouseShakeMonitor(shouldSuppress: { [weak self] in
+        guard let self else { return false }
+        return IgnoreListService.frontmostAppIsIgnored(in: self.settingsStore.ignoredAppBundleIDs)
+    }, onTrigger: { [weak self] in
+        self?.toggleShelf()
+    })
+    /// S7: 屏幕边缘停留触发。仅「唤出」不「隐藏」：停留在边缘的意图是取用
+    /// shelf（通常紧接着要向该侧拖拽），若再次停留反而隐藏会产生往复开关的
+    /// 挫败感；隐藏仍由快捷键/菜单承担（调研报告 §7.2：快捷键是无歧义主入口）。
+    private lazy var edgeTriggerMonitor = EdgeTriggerMonitor(shouldSuppress: { [weak self] in
+        guard let self else { return true }
+        return self.appState.isShelfVisible
+            || IgnoreListService.frontmostAppIsIgnored(in: self.settingsStore.ignoredAppBundleIDs)
+    }, onTrigger: { [weak self] in
+        self?.shelfWindowController.showShelf(animated: true)
+    })
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         _ = menuBarController
-        installLocalHotKeyMonitor()
+        applyTriggerSettings()
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(userDefaultsDidChange(_:)),
+                                               name: UserDefaults.didChangeNotification,
+                                               object: nil)
         // S4: 批量解析持久化项目的 bookmark（失败标记 stale，过期书签重建并更新
         // 路径），再按最新路径清理物化目录里的孤儿文件。
         resolvePersistedBookmarks()
@@ -44,7 +71,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         persistence.flushPendingSave()
         bookmarkService.stopAccessingAll()
-        removeLocalHotKeyMonitor()
+        hotKeyMonitor.setEnabled(false)
+        mouseShakeMonitor.stop()
+        edgeTriggerMonitor.stop()
     }
 
     func toggleShelf() {
@@ -127,32 +156,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return paths
     }
 
-    // MARK: - Hot key (⌘⇧Space)
+    // MARK: - Trigger wiring (S7)
 
-    /// S7 替换点：本应用 LSUIElement 不抢焦点，local monitor 仅在 app active 时生效，
-    /// 属预期行为；S7 会用全局监听（NSEvent 全局监听 / Carbon RegisterEventHotKey）
-    /// 的 HotKeyMonitor 替换这里，对外仍只调用 `toggleShelf()`。
-    private func installLocalHotKeyMonitor() {
-        localHotKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            // handler 为同步非隔离上下文，且 NSEvent 非 Sendable：
-            // 命中判断就地完成，切换动作派发到 MainActor 执行。
-            guard let self, Self.isToggleHotKey(event) else { return event }
-            Task { @MainActor in
-                self.toggleShelf()
-            }
-            return nil
+    /// S7: 按当前设置启停三个触发监听（启动时与设置变更时调用）。各 monitor
+    /// 内部对「配置未变」做了幂等保护，因此可响应任意 UserDefaults 变更
+    /// 直接重应用，不会重复注册事件监听。
+    private func applyTriggerSettings() {
+        hotKeyMonitor.updateShortcut(settingsStore.hotKeyShortcut)
+        hotKeyMonitor.setEnabled(settingsStore.hotKeyEnabled)
+
+        if settingsStore.shakeTriggerEnabled {
+            mouseShakeMonitor.start(parameters: settingsStore.shakeSensitivity.shakeParameters)
+        } else {
+            mouseShakeMonitor.stop()
+        }
+
+        if settingsStore.edgeTriggerEnabled {
+            edgeTriggerMonitor.start(
+                side: settingsStore.shelfPosition,
+                dwellTime: settingsStore.edgeTriggerSensitivity.edgeDwellTime,
+                bandWidth: settingsStore.edgeTriggerSensitivity.edgeBandWidth
+            )
+        } else {
+            edgeTriggerMonitor.stop()
         }
     }
 
-    private func removeLocalHotKeyMonitor() {
-        if let monitor = localHotKeyMonitor {
-            NSEvent.removeMonitor(monitor)
-            localHotKeyMonitor = nil
+    /// S7: 设置变更 → 重应用触发配置。
+    ///
+    /// 为什么用 UserDefaults.didChangeNotification 而不是 withObservationTracking：
+    /// 后者的 onChange 是 @Sendable 非隔离闭包，Swift 6 严格并发下无法捕获
+    /// MainActor 隔离的 self；选择器式 NotificationCenter 观察不涉闭包捕获，
+    /// 是本项目已验证的等价机制（同 ShelfWindowController 的屏幕参数监听）。
+    /// applyTriggerSettings 幂等，无关设置项的变更不会导致重复注册。
+    ///
+    /// 必须 nonisolated：该通知按投递线程同步回调，而投递方可能是任意线程
+    /// （XCTest 引导阶段就在后台线程 registerDefaults:）；若选择器方法保留
+    /// MainActor 隔离，运行期隔离断言会在投递线程上直接 SIGTRAP。
+    @objc private nonisolated func userDefaultsDidChange(_ notification: Notification) {
+        Task { @MainActor in
+            self.applyTriggerSettings()
         }
-    }
-
-    private nonisolated static func isToggleHotKey(_ event: NSEvent) -> Bool {
-        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        return flags == [.command, .shift] && event.keyCode == 49 // 49 = Space
     }
 }

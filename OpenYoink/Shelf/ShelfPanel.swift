@@ -5,6 +5,12 @@ import AppKit
 /// 透明背景 + 圆角 + vibrancy 视觉由内容层（`ShelfView`）实现。
 @MainActor
 final class ShelfPanel: NSPanel {
+    /// S6: 键盘事件回调（空格 Quick Look / Delete 移除 / Esc 取消选择或关 QL）。
+    /// 由 ShelfWindowController 注入；返回 true 表示事件已消费。
+    /// 卡片单击会让面板成为 key（见 CardDragSourceAnchorView.mouseUp），未被
+    /// SwiftUI 内容消费的 keyDown 沿 responder chain 到达这里。
+    var onKeyDown: ((NSEvent) -> Bool)?
+
     override init(contentRect: NSRect,
                   styleMask style: NSWindow.StyleMask,
                   backing backingStoreType: NSWindow.BackingStoreType,
@@ -27,5 +33,10 @@ final class ShelfPanel: NSPanel {
 
         // 显示/隐藏动画由 ShelfWindowController 用 NSAnimationContext 显式驱动。
         animationBehavior = .none
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if onKeyDown?(event) == true { return }
+        super.keyDown(with: event)
     }
 }

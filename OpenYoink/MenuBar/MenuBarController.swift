@@ -3,7 +3,7 @@ import AppKit
 /// 菜单栏入口：NSStatusItem + NSMenu。
 ///
 /// 菜单含「Show/Hide Shelf」（勾选项跟随 `AppState.isShelfVisible`）、
-/// 「Settings…」（占位，S8 接入设置窗口后启用）、「Quit OpenYoink」。
+/// 「Settings…」（S8 起打开 SwiftUI Settings scene）、「Quit OpenYoink」。
 /// 菜单文本暂为英文原文，S10 统一提取到 Localizable.xcstrings。
 @MainActor
 final class MenuBarController: NSObject {
@@ -39,9 +39,11 @@ final class MenuBarController: NSObject {
 
         menu.addItem(.separator())
 
-        // S8: 接入 SettingsStore / SettingsView 后改为 enabled 并打开设置窗口。
-        let settingsItem = NSMenuItem(title: "Settings…", action: nil, keyEquivalent: "")
-        settingsItem.isEnabled = false
+        // S8: 打开 SwiftUI Settings scene（见 showSettings(_:)）。
+        let settingsItem = NSMenuItem(title: "Settings…",
+                                      action: #selector(showSettings(_:)),
+                                      keyEquivalent: ",")
+        settingsItem.target = self
         menu.addItem(settingsItem)
 
         menu.addItem(.separator())
@@ -57,6 +59,17 @@ final class MenuBarController: NSObject {
 
     @objc private func toggleShelf(_ sender: NSMenuItem) {
         onToggleShelf()
+    }
+
+    /// S8: 打开 SwiftUI Settings scene 的窗口。
+    ///
+    /// LSUIElement 下的焦点处理：后台 agent 平时处于非活跃状态，
+    /// `showSettingsWindow:` 只负责创建并前置窗口，不会把应用激活——
+    /// 必须随后 `NSApp.activate(ignoringOtherApps:)`，否则设置窗口可能
+    /// 停在原前台应用窗口之后、拿不到键盘焦点（录制快捷键等交互失效）。
+    @objc private func showSettings(_ sender: Any?) {
+        NSApp.sendAction(Selector("showSettingsWindow:"), to: nil, from: sender)
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
 

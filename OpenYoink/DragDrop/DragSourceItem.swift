@@ -23,6 +23,11 @@ final class DragOutController {
     private let recents: RecentItemsService
     private let bookmarkService: BookmarkService
 
+    /// S8: 拖出成功（`operation` 非空）后的回调，由 ShelfWindowController
+    /// 在 init 完成后接线以实现 autoHide（init 期无法捕获未完成的 self）。
+    /// 为 nil 时不做任何事（Preview/测试）。
+    var onSuccessfulDrop: (@MainActor () -> Void)?
+
     init(store: ShelfStore,
          settings: SettingsStore,
          recents: RecentItemsService,
@@ -47,7 +52,8 @@ final class DragOutController {
         let source = DragSessionController(contents: contents,
                                            store: store,
                                            settings: settings,
-                                           recents: recents)
+                                           recents: recents,
+                                           onSuccessfulDrop: onSuccessfulDrop)
         sourceView.beginDraggingSession(with: draggingItems, event: event, source: source)
     }
 }
@@ -59,15 +65,18 @@ final class DragSessionController: NSObject, NSDraggingSource {
     private let store: ShelfStore
     private let settings: SettingsStore
     private let recents: RecentItemsService
+    private let onSuccessfulDrop: (@MainActor () -> Void)?
 
     init(contents: DragOutContents,
          store: ShelfStore,
          settings: SettingsStore,
-         recents: RecentItemsService) {
+         recents: RecentItemsService,
+         onSuccessfulDrop: (@MainActor () -> Void)? = nil) {
         self.contents = contents
         self.store = store
         self.settings = settings
         self.recents = recents
+        self.onSuccessfulDrop = onSuccessfulDrop
         super.init()
     }
 
@@ -84,23 +93,83 @@ final class DragSessionController: NSObject, NSDraggingSource {
     }
 
     /// 会话结束处理：仅当实际 drop 发生（`operation` 非空；取消/目标拒绝为空）
-    /// 才按设置策略处理 —— 移除顶层项目并记入最近历史，或原样保留。
+    /// 才按设置策略处理 —— 移除顶层项目并记入最近历史、原样保留，或（.ask）
+    /// 弹确认框。成功 drop 后先回调 onSuccessfulDrop（autoHide 接线处）。
     func draggingSession(_ session: NSDraggingSession,
                          endedAt screenPoint: NSPoint,
                          operation: NSDragOperation) {
         guard operation != [] else { return }
+        onSuccessfulDrop?()
         switch settings.dragOutRemovalPolicy {
-        case .keep, .ask:
-            // .ask 的确认 UI 在 S8 接入；v1 按非破坏性的 keep 处理。
+        case .keep:
             break
         case .remove:
-            if !contents.topLevelIDs.isEmpty {
-                store.remove(ids: contents.topLevelIDs)
-            }
-            // 记录实际拖出的项目（stack 已展开）。浮层子项拖出 topLevelIDs
-            // 为空、不从 shelf 移除，但同样记入历史。
-            recents.record(DragPayloadBuilder.flattenedItems(contents.items))
+            removeDraggedItems()
+        case .ask:
+            askWhetherToRemove()
         }
+    }
+
+    /// 移除顶层项目并记入最近历史（.remove 策略与 .ask 确认移除共用）。
+    /// 浮层子项拖出 topLevelIDs 为空、不从 shelf 移除，但同样记入历史。
+    private func removeDraggedItems() {
+        if !contents.topLevelIDs.isEmpty {
+            store.remove(ids: contents.topLevelIDs)
+        }
+        recents.record(DragPayloadBuilder.flattenedItems(contents.items))
+    }
+
+    /// S8: .ask 策略 —— 成功拖出后询问是否从 shelf 移除；勾选
+    /// 「Don't ask again」则把本次选择写回为 keep/remove 策略。
+    ///
+    /// LSUIElement 注意点：应用无 Dock 且平时处于非活跃状态，弹 NSAlert
+    /// 前必须 `NSApp.activate(ignoringOtherApps:)` 把应用提到前台，否则
+    /// 对话框会落在其他应用窗口之后、看起来「什么都没发生」。
+    /// runModal 是应用级模态：拖出会话此时已结束，阻塞主线程等待回答是
+    /// 可接受的，也是「每次询问」语义本身所需。
+    private func askWhetherToRemove() {
+        let itemCount = contents.topLevelIDs.isEmpty
+            ? contents.items.count
+            : contents.topLevelIDs.count
+        let alert = NSAlert()
+        alert.messageText = itemCount == 1
+            ? "Remove the dragged item from the shelf?"
+            : "Remove the \(itemCount) dragged items from the shelf?"
+        alert.informativeText = "The original files are never deleted."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Remove")
+        alert.addButton(withTitle: "Keep")
+        alert.showsSuppressionButton = true
+        alert.suppressionButton?.title = "Don't ask again"
+
+        NSApp.activate(ignoringOtherApps: true)
+        let response = alert.runModal()
+        let verdict = DragOutRemovalDecision.verdict(
+            removeChosen: response == .alertFirstButtonReturn,
+            dontAskAgain: alert.suppressionButton?.state == .on
+        )
+        if let policy = verdict.policyToPersist {
+            settings.dragOutRemovalPolicy = policy
+        }
+        if verdict.shouldRemove {
+            removeDraggedItems()
+        }
+    }
+}
+
+/// S8: .ask 策略确认框的裁决（纯逻辑，单测覆盖；NSAlert 交互本身无法
+/// 无头测试）。「不再询问」勾选时把本次选择固化为后续策略。
+enum DragOutRemovalDecision {
+    struct Verdict: Equatable, Sendable {
+        /// 本次是否从 shelf 移除。
+        var shouldRemove: Bool
+        /// 需要写回 SettingsStore 的固化策略；未勾选「不再询问」为 nil。
+        var policyToPersist: SettingsStore.DragOutRemovalPolicy?
+    }
+
+    nonisolated static func verdict(removeChosen: Bool, dontAskAgain: Bool) -> Verdict {
+        Verdict(shouldRemove: removeChosen,
+                policyToPersist: dontAskAgain ? (removeChosen ? .remove : .keep) : nil)
     }
 }
 

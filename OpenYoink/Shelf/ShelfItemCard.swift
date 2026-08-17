@@ -9,13 +9,15 @@ import SwiftUI
 /// url 显示 SF Symbol 链接占位。`isStale`（bookmark 失效）项目整体降透明度，
 /// 并在左上角叠加感叹号角标。
 ///
-/// 右键菜单：Quick Look / Open / Show in Finder 为 S6 占位（disabled + TODO），
-/// 「Remove from Shelf」直接可用（`ShelfStore.remove(ids:)` 由调用方封装注入）。
+/// 右键菜单（S6）：Quick Look / Open / Show in Finder（按 kind 与 stale 状态
+/// 自动禁用，stale 项改显示「File Unavailable」），「Remove from Shelf」直接可用
+/// （`ShelfStore.remove(ids:)` 由调用方封装注入）。双击卡片 = Quick Look。
 ///
 /// 拖出（S5）：卡片覆盖 `CardDragSourceBridge`（NSViewRepresentable）作为鼠标
 /// 事件权威 —— mouseDragged 超阈值即开始 `NSDraggingSession`（按 §2.1 决策不走
-/// SwiftUI onDrag），mouseUp 无拖拽回落为点击选择。拖拽内容与批量语义由
-/// `dragContentsProvider`（父视图注入）决定，实际会话由环境里的
+/// SwiftUI onDrag），mouseUp 无拖拽回落为点击（单击选择并让面板成为 key 以接通
+/// 空格/Delete/Esc 键盘链路；clickCount ≥ 2 双击触发 Quick Look）。拖拽内容与
+/// 批量语义由 `dragContentsProvider`（父视图注入）决定，实际会话由环境里的
 /// `DragOutController` 启动。
 struct ShelfItemCard: View {
     /// 展示的项目。
@@ -41,6 +43,10 @@ struct ShelfItemCard: View {
     @Environment(\.bookmarkService) private var bookmarkService
     /// S5: 拖出总控；nil（Preview/单测）时拖拽关闭、点击不受影响。
     @Environment(\.dragOutController) private var dragOutController
+    /// S6: Quick Look 会话；nil（Preview/单测）时 QL 入口禁用。
+    @Environment(\.quickLookCoordinator) private var quickLookCoordinator
+    /// S6: text 项打开/定位需写临时 .txt（见 `ItemActions`）。
+    @Environment(\.tempFileService) private var tempFileService
 
     static let cornerRadius: CGFloat = 12
     /// 缩略图区高度（点）；宽度随网格列（~88pt）。
@@ -74,11 +80,12 @@ struct ShelfItemCard: View {
         .overlay(alignment: .topLeading) { staleBadge }
         // S5 拖出事件层：透明 NSView 覆盖整卡，成为左键事件权威
         //（mouseDown 记录 → mouseDragged 超阈值开始拖拽；mouseUp 无拖拽回落为
-        // 点击选择）。右键（contextMenu）与滚动透传给 SwiftUI。
+        // 点击选择 / 双击 Quick Look）。右键（contextMenu）与滚动透传给 SwiftUI。
         .overlay {
             CardDragSourceBridge(
                 itemID: item.id,
                 onClick: onSelect,
+                onDoubleClick: { quickLookCoordinator?.toggle(contextItem: item) },
                 onDragBegin: { sourceView, event in
                     guard let dragOutController else { return }
                     let contents = dragContentsProvider?(item)
@@ -214,16 +221,26 @@ struct ShelfItemCard: View {
 
     // MARK: - Context menu
 
+    /// S6 项目操作：Quick Look / Open / Show in Finder 按 kind 可用性禁用；
+    /// stale 项（bookmark 失效）三者均无意义，改显示「File Unavailable」态。
+    /// 可用性规则与操作实现见 `ItemActions`；Quick Look 命中多选时预览整个
+    /// 选中集合（规则见 `QuickLookPreviewPlanner`）。
     @ViewBuilder
     private var contextMenu: some View {
-        // TODO(S6): 以下三项在 QuickLookCoordinator（QLPreviewPanel 数据源/代理）
-        // 与项目操作接入后启用。
-        Button("Quick Look") { /* TODO(S6): QuickLookCoordinator.toggle(for: selection) */ }
-            .disabled(true)
-        Button("Open") { /* TODO(S6): NSWorkspace.shared.open(item.fileURL) */ }
-            .disabled(true)
-        Button("Show in Finder") { /* TODO(S6): NSWorkspace.activateFileViewerSelecting */ }
-            .disabled(true)
+        if item.isStale {
+            Text("File Unavailable")
+        } else {
+            Button("Quick Look") { quickLookCoordinator?.toggle(contextItem: item) }
+                .disabled(quickLookCoordinator == nil || !ItemActions.canQuickLook(item))
+            Button("Open") {
+                ItemActions.open(item, bookmarkService: bookmarkService, tempFileService: tempFileService)
+            }
+            .disabled(!ItemActions.canOpen(item))
+            Button("Show in Finder") {
+                ItemActions.revealInFinder(item, bookmarkService: bookmarkService, tempFileService: tempFileService)
+            }
+            .disabled(!ItemActions.canRevealInFinder(item))
+        }
         if let onRemove {
             Divider()
             Button("Remove from Shelf", role: .destructive, action: onRemove)
@@ -327,23 +344,28 @@ extension EnvironmentValues {
 
 /// S5 拖出桥接：每张卡片覆盖一个透明 NSView，作为卡片区域的鼠标事件权威。
 ///
-/// 点击/拖拽仲裁：
+/// 点击/拖拽/双击仲裁：
 /// - `mouseDown` 记录按下位置；
 /// - `mouseDragged` 位移超阈值（4pt）→ 回调 `onDragBegin`（由
 ///   `DragOutController` 启动 `beginDraggingSession`；多选整批/stack 展开
 ///   由卡片的 `dragContentsProvider` 决定）；
-/// - `mouseUp` 且未拖拽 → 回落为点击选择（普通点击单选 / ⌘点击 toggle，
-///   与 S3 语义一致）。
+/// - `mouseUp` 且未拖拽 → 回落为点击：`clickCount >= 2` 回调 `onDoubleClick`
+///   （S6 双击 Quick Look，首次点击已完成选择，不再重复切换）；否则单击 ——
+///   先让所在窗口成为 key（nonactivating 面板只接键盘焦点、不激活应用，
+///   接通空格/Delete/Esc 键盘链路），再回调 `onClick`（普通点击单选 /
+///   ⌘点击 toggle，与 S3 语义一致）。
 ///
 /// 右键（SwiftUI contextMenu）与滚动透传：`hitTest` 只在左键事件期间接管
 /// （ctrl+click 视为右键）。一旦拖拽开始，后续事件由 NSDraggingSession 接管。
 struct CardDragSourceBridge: NSViewRepresentable {
     /// 锚点对应的项目 id（调试/日志用）。
     let itemID: UUID
-    /// 无拖拽的 mouseUp（点击选择）。闭包在 MainActor 词法上下文（View body）
+    /// 无拖拽的单击 mouseUp（点击选择）。闭包在 MainActor 词法上下文（View body）
     /// 中创建并继承其隔离；显式标注 @MainActor 参数类型会触发非 Sendable 函数
     /// 值的跨界转换检查，故保持普通类型。
     let onClick: (_ additive: Bool) -> Void
+    /// 双击（S6：Quick Look）。
+    let onDoubleClick: () -> Void
     /// mouseDragged 超阈值；参数为锚点视图与当前事件。
     let onDragBegin: (_ sourceView: NSView, _ event: NSEvent) -> Void
 
@@ -351,6 +373,7 @@ struct CardDragSourceBridge: NSViewRepresentable {
         let view = CardDragSourceAnchorView()
         view.itemID = itemID
         view.onClick = onClick
+        view.onDoubleClick = onDoubleClick
         view.onDragBegin = onDragBegin
         return view
     }
@@ -358,6 +381,7 @@ struct CardDragSourceBridge: NSViewRepresentable {
     func updateNSView(_ nsView: CardDragSourceAnchorView, context: Context) {
         nsView.itemID = itemID
         nsView.onClick = onClick
+        nsView.onDoubleClick = onDoubleClick
         nsView.onDragBegin = onDragBegin
     }
 }
@@ -366,6 +390,7 @@ struct CardDragSourceBridge: NSViewRepresentable {
 final class CardDragSourceAnchorView: NSView {
     var itemID: UUID?
     var onClick: ((_ additive: Bool) -> Void)?
+    var onDoubleClick: (() -> Void)?
     var onDragBegin: ((_ sourceView: NSView, _ event: NSEvent) -> Void)?
 
     /// 拖拽触发位移阈值（点）。
@@ -410,7 +435,14 @@ final class CardDragSourceAnchorView: NSView {
         // 拖拽开始后手势由 NSDraggingSession 接管，正常不会再收到 mouseUp；
         // 防御性判断，避免把拖拽结束误当点击。
         guard !dragStarted else { return }
-        // 无拖拽 → 点击选择。双击（clickCount > 1）的 Quick Look 在 S6 接入。
+        // S6: 双击 → Quick Look（首次点击已完成选择，此处不再切换选择）。
+        if event.clickCount >= 2 {
+            onDoubleClick?()
+            return
+        }
+        // 无拖拽 → 点击选择。先让所在窗口成为 key：nonactivating 面板只接键盘
+        // 焦点、不激活应用，是空格/Delete/Esc 键盘链路（ShelfPanel.keyDown）的入口。
+        window?.makeKey()
         onClick?(event.modifierFlags.contains(.command))
     }
 }
