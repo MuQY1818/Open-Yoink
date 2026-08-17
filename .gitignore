@@ -1,0 +1,39 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Xcode
+build/
+DerivedData/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xcuserstate
+*.xccheckout
+*.moved-aside
+*.xcuserdatad
+*.xcscmblueprint
+project.xcworkspace/xcuserdata/
+xcuserdata/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.pins
+Package.resolved
+
+# Archives / exports
+*.xcarchive
+export/
+ExportOptions.plist
+
+# Local env
+.env
+*.local
+
+# Plan / tooling
+.workbuddy/
+outputs/
