@@ -34,7 +34,7 @@ The shelf slides out when you start dragging — drop things on it, navigate any
 brew install --cask muqy1818/tap/openyoink
 ```
 
-Homebrew installs skip the Gatekeeper prompt. Or grab the DMG from [Releases](https://github.com/MuQY1818/Open-Yoink/releases) and drag OpenYoink to Applications — it's ad-hoc signed, so on first launch run:
+Homebrew installs skip the Gatekeeper prompt. Or grab the DMG from [Releases](https://github.com/MuQY1818/OpenYoink/releases) and drag OpenYoink to Applications — it's ad-hoc signed, so on first launch run:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/OpenYoink.app
@@ -64,7 +64,7 @@ Settings (menu bar → Settings…): position & width, auto-hide, drag-out polic
 Requires macOS 26+ and Xcode 26+.
 
 ```bash
-git clone https://github.com/MuQY1818/Open-Yoink.git
+git clone https://github.com/MuQY1818/OpenYoink.git
 cd Open-Yoink
 xcodebuild -project Open-Yoink.xcodeproj -scheme OpenYoink -destination 'platform=macOS' build
 xcodebuild -project Open-Yoink.xcodeproj -scheme OpenYoink -destination 'platform=macOS' test

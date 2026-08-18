@@ -28,7 +28,7 @@
 	<string>Copyright © 2026 weijue. MIT License.</string>
 	<!-- Sparkle 2 自动更新。Feed 托管在 GitHub Pages（docs/appcast.xml）。 -->
 	<key>SUFeedURL</key>
-	<string>https://muqy1818.github.io/Open-Yoink/appcast.xml</string>
+	<string>https://muqy1818.github.io/OpenYoink/appcast.xml</string>
 	<!-- EdDSA 公钥（私钥存登录钥匙串，条目 "Private key for signing Sparkle updates"）。 -->
 	<key>SUPublicEDKey</key>
 	<string>fjAcTFLXwbNHK8rgG6ecCzWjZIDZc/BKo0AFAYVW968=</string>

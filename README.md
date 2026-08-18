@@ -38,7 +38,7 @@
 brew install --cask muqy1818/tap/openyoink
 ```
 
-brew 安装不触发 Gatekeeper 弹窗。或从 [Releases](https://github.com/MuQY1818/Open-Yoink/releases) 下载 DMG 拖进 Applications——当前为 ad-hoc 签名，首次打开在终端执行：
+brew 安装不触发 Gatekeeper 弹窗。或从 [Releases](https://github.com/MuQY1818/OpenYoink/releases) 下载 DMG 拖进 Applications——当前为 ad-hoc 签名，首次打开在终端执行：
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/OpenYoink.app
@@ -68,7 +68,7 @@ xattr -dr com.apple.quarantine /Applications/OpenYoink.app
 需要 macOS 26+ 与 Xcode 26+。
 
 ```bash
-git clone https://github.com/MuQY1818/Open-Yoink.git
+git clone https://github.com/MuQY1818/OpenYoink.git
 cd Open-Yoink
 xcodebuild -project Open-Yoink.xcodeproj -scheme OpenYoink -destination 'platform=macOS' build
 xcodebuild -project Open-Yoink.xcodeproj -scheme OpenYoink -destination 'platform=macOS' test

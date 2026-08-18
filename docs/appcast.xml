@@ -5,16 +5,16 @@
          勿手工编辑 item。 -->
     <channel>
         <title>OpenYoink Updates</title>
-        <link>https://muqy1818.github.io/Open-Yoink/appcast.xml</link>
+        <link>https://muqy1818.github.io/OpenYoink/appcast.xml</link>
         <description>Most recent changes with links to updates for OpenYoink.</description>
         <language>en</language>
         <item>
             <title>Version 1.0</title>
-            <pubDate>Tue, 18 Aug 2026 14:46:18 +0800</pubDate>
+            <pubDate>Tue, 18 Aug 2026 14:57:19 +0800</pubDate>
             <sparkle:version>1</sparkle:version>
             <sparkle:shortVersionString>1.0</sparkle:shortVersionString>
             <sparkle:channel>stable</sparkle:channel>
-            <enclosure url="https://github.com/MuQY1818/Open-Yoink/releases/download/v1.0/OpenYoink-1.0.dmg" sparkle:edSignature="2zKPujikygAzq+mUwwVCL83PWLvrj+IMva5Bvc/qvcCIguUHMdZ3crJJ6G9SCxfOjsfmt6xM4PRb94lz6TlIAw==" length="3125700" type="application/octet-stream" />
+            <enclosure url="https://github.com/MuQY1818/OpenYoink/releases/download/v1.0/OpenYoink-1.0.dmg" sparkle:edSignature="A8XTAVUbWOMywbVQADu8icQogTDHtW5E4ZyHboLEmgCrCCIXP37GPVRanO5Je7BawpPmWV2npcBT4AThibI4DQ==" length="3125684" type="application/octet-stream" />
         </item>
     </channel>
 </rss>

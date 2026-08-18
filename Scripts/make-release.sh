@@ -39,7 +39,7 @@ ARCHIVE_PATH="export/OpenYoink.xcarchive"
 APP_PATH="export/OpenYoink.app"
 DMG_PATH="export/OpenYoink-$VERSION.dmg"
 APPCAST="docs/appcast.xml"
-RELEASE_URL="https://github.com/MuQY1818/Open-Yoink/releases/download/v$VERSION/OpenYoink-$VERSION.dmg"
+RELEASE_URL="https://github.com/MuQY1818/OpenYoink/releases/download/v$VERSION/OpenYoink-$VERSION.dmg"
 
 # ---- 定位 Sparkle 命令行工具（sign_update）----
 if [ -z "${SPARKLE_BIN:-}" ]; then
