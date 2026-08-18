@@ -77,7 +77,9 @@ final class FilePromiseProvider: NSFilePromiseProvider {
     /// 声明类型：fileURL（+tiff 回退）在前，promise 类型随后（去重保序）。
     /// fileURL 在前让「取最优表示」的目标优先拿到真实文件路径。
     /// F-05: 剪切项（advertisesDirectFileURL == false）只声明 promise 类型。
-    override func writableTypes(for pasteboard: NSPasteboard) -> [NSPasteboard.PasteboardType] {
+    /// nonisolated：pasteboard 读取可能被拖到非主队列调用（同 delegate 的
+    /// XPC 队列崩溃教训）；只读不可变 Sendable 状态，任意队列安全。
+    nonisolated override func writableTypes(for pasteboard: NSPasteboard) -> [NSPasteboard.PasteboardType] {
         var result: [NSPasteboard.PasteboardType] = advertisesDirectFileURL ? [PasteboardTypes.fileURL] : []
         if tiffDataProvider != nil {
             result.append(PasteboardTypes.tiff)
@@ -90,7 +92,8 @@ final class FilePromiseProvider: NSFilePromiseProvider {
 
     /// 按类型分派数据：fileURL → URL 字符串（与 NSURL 的 pasteboard 序列化
     /// 一致）；tiff → 惰性位图数据；其余（promise 类型族）交回父类。
-    override func pasteboardPropertyList(forType type: NSPasteboard.PasteboardType) -> Any? {
+    /// nonisolated：同 `writableTypes` 的队列安全说明。
+    nonisolated override func pasteboardPropertyList(forType type: NSPasteboard.PasteboardType) -> Any? {
         switch type {
         case PasteboardTypes.fileURL where advertisesDirectFileURL:
             return directFileURL.absoluteString as NSString
@@ -128,7 +131,14 @@ final class FilePromiseProvider: NSFilePromiseProvider {
 ///
 /// 写失败路径不崩溃：错误经 OSLog 记录并回传给接收应用（completionHandler
 /// 非 nil），同时经 `onError` 回调上报（预留 UI 订阅，S10 接卡片错误态）。
-final class FilePromiseDelegate: NSObject, NSFilePromiseProviderDelegate {
+///
+/// **必须 `nonisolated`**（真机崩溃修复）：目标应用请求 promise 内容时，系统
+/// 经 `NSFileProviderXPCMessenger` 在**自己的 XPC 队列**上同步调用
+/// `operationQueue(for:)` 等方法；本模块默认 MainActor 隔离会在非主队列触发
+/// `_dispatch_assert_queue_fail`（SIGTRAP 闪退，拖到 QSpace Pro 必现——
+/// Finder 走 fileURL 表示不触发，QSpace 走 promise 表示）。三个方法只读
+/// 不可变 Sendable 状态（payload / writeQueue），任何队列调用均安全。
+nonisolated final class FilePromiseDelegate: NSObject, NSFilePromiseProviderDelegate {
     private let payload: FilePromiseProvider.Payload
     private let bookmarkService: BookmarkService
     /// F-05: 写入完成（交付确认）回调，参数为目标 URL。剪切项据此移出
