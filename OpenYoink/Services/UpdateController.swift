@@ -104,18 +104,32 @@ final class UpdateController: NSObject {
         status = .upToDate
     }
 
+    /// Sparkle 的「无更新可用」也属于 abort 回调（SUSparkleErrorDomain /
+    /// SUNoUpdateError = 1001，见 Sparkle/SUErrors.h）——这不是错误，
+    /// 归入 upToDate（Sparkle 自己都不记这条日志，SPUUpdater.m:798）。
+    private static func isNoUpdateError(_ error: any Error) -> Bool {
+        let nsError = error as NSError
+        return nsError.domain == SUSparkleErrorDomain && nsError.code == SUError.noUpdateError.rawValue
+    }
+
     fileprivate func noteUpdateAborted(_ error: any Error) {
+        guard !Self.isNoUpdateError(error) else {
+            status = .upToDate
+            return
+        }
         status = .error(error.localizedDescription)
-        logger.error("Sparkle update aborted: \(error.localizedDescription)")
+        logger.error("Sparkle update aborted: \(error.localizedDescription, privacy: .public)")
     }
 
     /// 检查周期结束（含后台自动检查）。error != nil → 记录错误状态；
     /// 无错且未找到更新的情况已由 noteUpdateNotFound 覆盖；找到更新
     /// 时 UI 已交给 Sparkle，这里把 checking 归位为 idle。
     fileprivate func noteUpdateCycleFinished(error: (any Error)?) {
-        if let error {
+        if let error, !Self.isNoUpdateError(error) {
             status = .error(error.localizedDescription)
-            logger.error("Sparkle update cycle failed: \(error.localizedDescription)")
+            logger.error("Sparkle update cycle failed: \(error.localizedDescription, privacy: .public)")
+        } else if let error {
+            status = .upToDate
         } else if status == .checking {
             status = .idle
         }
