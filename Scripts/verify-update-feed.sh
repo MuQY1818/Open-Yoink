@@ -56,7 +56,7 @@ if [ -z "$FEED_VERSION" ] || [ -z "$FEED_BUILD" ] || [ -z "$ENCLOSURE_URL" ] \
     exit 1
 fi
 if [ -n "$EXPECTED_VERSION" ] && [ "$FEED_VERSION" != "$EXPECTED_VERSION" ]; then
-    echo "error: feed 最新版本为 $FEED_VERSION，期望 $EXPECTED_VERSION。" >&2
+    echo "error: feed 最新版本为 ${FEED_VERSION}，期望 ${EXPECTED_VERSION}。" >&2
     exit 1
 fi
 if [[ ! "$DECLARED_LENGTH" =~ ^[0-9]+$ ]]; then
@@ -69,7 +69,7 @@ echo "==> 下载 OpenYoink $FEED_VERSION ($FEED_BUILD)"
 curl --fail --location --silent --show-error "$ENCLOSURE_URL" --output "$DMG_PATH"
 ACTUAL_LENGTH="$(stat -f '%z' "$DMG_PATH")"
 if [ "$ACTUAL_LENGTH" != "$DECLARED_LENGTH" ]; then
-    echo "error: DMG 长度不一致，feed=$DECLARED_LENGTH，实际=$ACTUAL_LENGTH。" >&2
+    echo "error: DMG 长度不一致，feed=${DECLARED_LENGTH}，实际=${ACTUAL_LENGTH}。" >&2
     exit 1
 fi
 

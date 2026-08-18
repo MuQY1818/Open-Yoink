@@ -97,11 +97,11 @@ fi
 SHORT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP_PATH/Contents/Info.plist")"
 BUNDLE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$APP_PATH/Contents/Info.plist")"
 if [ -n "$EXPECTED_VERSION" ] && [ "$SHORT_VERSION" != "$EXPECTED_VERSION" ]; then
-    echo "error: 版本不一致，期望 $EXPECTED_VERSION，实际 $SHORT_VERSION。" >&2
+    echo "error: 版本不一致，期望 ${EXPECTED_VERSION}，实际 ${SHORT_VERSION}。" >&2
     exit 1
 fi
 if [ -n "$EXPECTED_BUILD" ] && [ "$BUNDLE_VERSION" != "$EXPECTED_BUILD" ]; then
-    echo "error: build 不一致，期望 $EXPECTED_BUILD，实际 $BUNDLE_VERSION。" >&2
+    echo "error: build 不一致，期望 ${EXPECTED_BUILD}，实际 ${BUNDLE_VERSION}。" >&2
     exit 1
 fi
 
