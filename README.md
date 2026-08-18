@@ -1,8 +1,6 @@
 <p align="center">
-  <img src="OpenYoink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-128.png" width="96" alt="OpenYoink 图标">
+  <img src="docs/images/banner.jpg" width="720" alt="OpenYoink — 随手一拖，先放一下">
 </p>
-
-<h1 align="center">OpenYoink</h1>
 
 <p align="center">
   一个开源、原生的 macOS 拖拽暂存架：把文件、文本、图片、链接先放进屏幕边缘，再从容地拖到目标位置。<br>

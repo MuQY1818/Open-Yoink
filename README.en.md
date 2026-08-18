@@ -6,7 +6,6 @@
 
 <p align="center">
   A native macOS drag-and-drop shelf — park files, text, images and links at the edge of your screen, then drop them wherever they need to go.<br>
-  一个开源、原生的 macOS 拖拽暂存架：把文件、文本、图片、链接先放进屏幕边缘，再从容地拖到目标位置。<br>
   <a href="README.md">中文</a> · <a href="#features">Features</a> · <a href="#install">Install</a> · <a href="#usage">Usage</a>
 </p>
 
