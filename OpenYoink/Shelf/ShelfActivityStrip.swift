@@ -62,7 +62,7 @@ struct ShelfActivityStrip: View {
     @ViewBuilder
     private func statusIcon(for task: TransferTask) -> some View {
         switch task.phase {
-        case .preparing, .receiving, .finalizing, .targetAccepted:
+        case .preparing, .receiving, .finalizing:
             if reduceMotion {
                 Image(systemName: "clock")
                     .foregroundStyle(.secondary)
@@ -70,6 +70,9 @@ struct ShelfActivityStrip: View {
                 ProgressView()
                     .controlSize(.small)
             }
+        case .targetAccepted:
+            Image(systemName: "checkmark.circle")
+                .foregroundStyle(.secondary)
         case .delivered:
             Image(systemName: "checkmark.circle.fill")
                 .foregroundStyle(.green)
@@ -88,8 +91,20 @@ struct ShelfActivityStrip: View {
     private func title(for task: TransferTask) -> String {
         switch task.phase {
         case .preparing:
+            if task.direction == .exportFromShelf {
+                return String(localized: "Preparing items to deliver…")
+            }
             return String(localized: "Preparing content…")
         case .receiving(let receivedCount, let expectedCount):
+            if task.direction == .exportFromShelf {
+                if let expectedCount, expectedCount > 1 {
+                    return String(
+                        format: String(localized: "Delivering items… %lld of %lld finished"),
+                        Int64(receivedCount), Int64(expectedCount)
+                    )
+                }
+                return String(localized: "Delivering item…")
+            }
             if let expectedCount, expectedCount > 1 {
                 return String(
                     format: String(localized: "Receiving content… %lld of %lld"),
@@ -106,11 +121,24 @@ struct ShelfActivityStrip: View {
         case .finalizing:
             return String(localized: "Preparing received content…")
         case .targetAccepted:
-            return String(localized: "The destination accepted the items.")
+            return String(
+                format: String(localized: "Destination accepted %lld items"),
+                Int64(task.itemIDs.count)
+            )
         case .delivered:
+            if task.direction == .exportFromShelf {
+                return String(format: String(localized: "%lld items delivered"),
+                              Int64(task.itemIDs.count))
+            }
             return String(format: String(localized: "%lld items added"),
                           Int64(task.itemIDs.count))
         case .partiallySucceeded(let successCount, let failures):
+            if task.direction == .exportFromShelf {
+                return String(
+                    format: String(localized: "%lld items delivered, %lld not delivered"),
+                    Int64(successCount), Int64(failures.count)
+                )
+            }
             if failures.allSatisfy({ $0.reason == .managedMoveFellBackToReference }) {
                 return String(
                     format: String(localized: "%lld items added, %lld added as references"),
@@ -128,6 +156,9 @@ struct ShelfActivityStrip: View {
                 Int64(successCount), Int64(failures.count)
             )
         case .failed:
+            if task.direction == .exportFromShelf {
+                return String(localized: "Couldn't deliver this content")
+            }
             return String(localized: "Couldn't add this content")
         case .cancelled:
             return String(localized: "Transfer cancelled")
@@ -142,7 +173,11 @@ struct ShelfActivityStrip: View {
             return recoveryDetail(for: failures.first)
         case .failed(let failure):
             return recoveryDetail(for: failure)
-        case .targetAccepted, .delivered, .cancelled:
+        case .targetAccepted:
+            return task.direction == .exportFromShelf
+                ? String(localized: "The destination may still be copying the items.")
+                : nil
+        case .delivered, .cancelled:
             return nil
         }
     }

@@ -1,11 +1,12 @@
 import AppKit
 import UniformTypeIdentifiers
 
-/// F-05: 剪切项拖出的交付确认通道（Sendable 值类型，闭包在 promise 写队列
-/// 上触发 —— 实现方自行切回 MainActor）。只有剪切（isCut）项的 provider
-/// 会挂接：剪切项只广告 promise 类型，所有目的地必经 promise 写入，
-/// delivered/failed 必然有其一（或目标根本没取数据，则两者都不来）。
-struct CutDeliverySink: Sendable {
+/// File-promise lifecycle channel. Callbacks may arrive before or after the
+/// AppKit drag-session result and may run on the provider's background queue;
+/// the receiver is responsible for hopping to its actor.
+struct DeliverySink: Sendable {
+    /// The destination selected the promised-file representation.
+    var promiseRequested: @Sendable (UUID) -> Void
     /// 写入完成：参数为 item id 与交付目标 URL。
     var delivered: @Sendable (UUID, URL) -> Void
     /// 写入失败：参数为 item id（item 保留在 shelf，可重试）。
@@ -69,6 +70,23 @@ enum DragPayloadBuilder {
         }
     }
 
+    /// Mirrors the guards used by writer construction without creating AppKit
+    /// objects. Delivery batches use it so skipped malformed cards do not
+    /// inflate the expected outcome count and leave the activity strip stuck.
+    static func canMakePasteboardWriter(for item: ShelfItem) -> Bool {
+        switch strategy(for: item) {
+        case .fileBacked, .fileBackedImage:
+            return item.path != nil
+        case .plainText:
+            return item.text?.isEmpty == false
+        case .webURL:
+            guard let value = item.urlString else { return false }
+            return URL(string: value) != nil
+        case nil:
+            return false
+        }
+    }
+
     /// 展开 stack 为全部子项（递归，防御嵌套 stack），非 stack 项目原样保留、
     /// 顺序不变。语义：stack 卡片拖出 = 拖出其全部子项（计划 §2.3）。
     static func flattenedItems(_ items: [ShelfItem]) -> [ShelfItem] {
@@ -108,14 +126,14 @@ enum DragPayloadBuilder {
 
     /// 单个项目的 pasteboard writer。无法构造（text 无内容、url 无地址、
     /// file 无路径、stack 未展开）时返回 nil。
-    /// F-05: `cutDelivery` 仅对 isCut 项生效（交付确认挂接，见 CutDeliverySink）。
+    /// `delivery` observes file promises for both ordinary and managed items.
     @MainActor
     static func makePasteboardWriter(for item: ShelfItem,
                                      bookmarkService: BookmarkService,
-                                     cutDelivery: CutDeliverySink? = nil) -> NSPasteboardWriting? {
+                                     delivery: DeliverySink? = nil) -> NSPasteboardWriting? {
         switch strategy(for: item) {
         case .fileBacked, .fileBackedImage:
-            return makeFileBackedWriter(for: item, bookmarkService: bookmarkService, cutDelivery: cutDelivery)
+            return makeFileBackedWriter(for: item, bookmarkService: bookmarkService, delivery: delivery)
         case .plainText:
             return makeTextItem(for: item)
         case .webURL:
@@ -132,9 +150,9 @@ enum DragPayloadBuilder {
     static func makeDraggingItems(for items: [ShelfItem],
                                   frame: NSRect,
                                   bookmarkService: BookmarkService,
-                                  cutDelivery: CutDeliverySink? = nil) -> [NSDraggingItem] {
+                                  delivery: DeliverySink? = nil) -> [NSDraggingItem] {
         flattenedItems(items).compactMap { item in
-            guard let writer = makePasteboardWriter(for: item, bookmarkService: bookmarkService, cutDelivery: cutDelivery) else {
+            guard let writer = makePasteboardWriter(for: item, bookmarkService: bookmarkService, delivery: delivery) else {
                 return nil
             }
             let draggingItem = NSDraggingItem(pasteboardWriter: writer)
@@ -176,11 +194,11 @@ enum DragPayloadBuilder {
     /// F-05 剪切项分支（`item.isCut`）：**只广告 promise 类型** —— 不广告
     /// `public.file-url`（否则 Finder 会走 fileURL 直读路径、绕过 promise，
     /// 拿不到交付确认，移动语义无法闭环），也不挂 tiff 位图回退（位图目标
-    /// 同样无法确认交付）。交付成功/失败经 `cutDelivery` 上报。
+    /// 同样无法确认交付）。交付请求、成功与失败经 `delivery` 上报。
     @MainActor
     private static func makeFileBackedWriter(for item: ShelfItem,
                                              bookmarkService: BookmarkService,
-                                             cutDelivery: CutDeliverySink?) -> NSPasteboardWriting? {
+                                             delivery: DeliverySink?) -> NSPasteboardWriting? {
         guard let path = item.path else { return nil }
         // 拖拽开始时解析 bookmark 取最新路径（文件可能在 shelf 停留期间被
         // 移动）；解析失败回退存储路径，promise 写入时会再尝试解析一次。
@@ -202,14 +220,14 @@ enum DragPayloadBuilder {
         }
         let itemID = item.id
         // 显式类型局部变量（三元 + 闭包字面量会让类型推断器无法产出诊断）。
-        let onDelivered: (@Sendable (URL) -> Void)?
-        let onError: (@Sendable (Error) -> Void)?
-        if item.isCut {
-            onDelivered = { url in cutDelivery?.delivered(itemID, url) }
-            onError = { _ in cutDelivery?.failed(itemID) }
-        } else {
-            onDelivered = nil
-            onError = nil
+        let onPromiseRequested: @Sendable () -> Void = {
+            delivery?.promiseRequested(itemID)
+        }
+        let onDelivered: @Sendable (URL) -> Void = { url in
+            delivery?.delivered(itemID, url)
+        }
+        let onError: @Sendable (Error) -> Void = { _ in
+            delivery?.failed(itemID)
         }
         return FilePromiseProvider(
             payload: FilePromiseProvider.Payload(
@@ -221,6 +239,7 @@ enum DragPayloadBuilder {
             bookmarkService: bookmarkService,
             advertisesDirectFileURL: !item.isCut,
             tiffDataProvider: tiffDataProvider,
+            onPromiseRequested: onPromiseRequested,
             onDelivered: onDelivered,
             onError: onError
         )

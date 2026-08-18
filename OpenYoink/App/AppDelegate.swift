@@ -38,6 +38,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         tempFileService: tempFileService,
         shelfStore: shelfStore,
         managedMoveJournal: managedMoveJournal,
+        additionalProtectedPaths: { [weak self] in
+            self?.deliveryCoordinator.protectedMaterializedPaths ?? []
+        },
         prepareRestoredItems: { [weak self] items in
             guard let self else { return items }
             return items.map { self.refreshedByResolvingBookmark($0) ?? $0 }
@@ -45,6 +48,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
     /// S5: 最近拖出历史（内存 + recents.json；S10 已接入菜单栏「最近项目」）。
     private let recentItemsService = RecentItemsService()
+    /// v1.2: shared drag-out acceptance/promise-delivery coordinator. Storage
+    /// cleanup consults its runtime file leases.
+    private lazy var deliveryCoordinator = DeliveryCoordinator(
+        store: shelfStore,
+        recents: recentItemsService,
+        tempFileService: tempFileService,
+        transferStore: dropImportCoordinator.transferStore
+    )
     /// Sparkle 2 自动更新封装（懒加载：首次 start/手动检查时创建
     /// SPUStandardUpdaterController；terminate 无需显式释放——XPC 连接与
     /// 调度器随进程终止，无后台常驻资源）。
@@ -56,6 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                                                    tempFileService: tempFileService,
                                                                    settings: settingsStore,
                                                                    recents: recentItemsService,
+                                                                   deliveryCoordinator: deliveryCoordinator,
                                                                    dragStartMonitor: dragStartMonitor)
     private lazy var settingsWindowController = SettingsWindowController(settings: settingsStore,
                                                                          hotKeyMonitor: hotKeyMonitor,

@@ -53,10 +53,12 @@ final class FilePromiseProvider: NSFilePromiseProvider {
          bookmarkService: BookmarkService,
          advertisesDirectFileURL: Bool = true,
          tiffDataProvider: (@Sendable () -> Data?)? = nil,
+         onPromiseRequested: (@Sendable () -> Void)? = nil,
          onDelivered: (@Sendable (URL) -> Void)? = nil,
          onError: (@Sendable (Error) -> Void)? = nil) {
         let delegate = FilePromiseDelegate(payload: payload,
                                            bookmarkService: bookmarkService,
+                                           onPromiseRequested: onPromiseRequested,
                                            onDelivered: onDelivered,
                                            onError: onError)
         self.promiseDelegate = delegate
@@ -141,6 +143,8 @@ final class FilePromiseProvider: NSFilePromiseProvider {
 nonisolated final class FilePromiseDelegate: NSObject, NSFilePromiseProviderDelegate {
     private let payload: FilePromiseProvider.Payload
     private let bookmarkService: BookmarkService
+    /// Called when the destination selects the promised-file representation.
+    private let onPromiseRequested: (@Sendable () -> Void)?
     /// F-05: 写入完成（交付确认）回调，参数为目标 URL。剪切项据此移出
     /// shelf 并删除保管副本；回调在写队列上触发，订阅方需自行切 actor。
     private let onDelivered: (@Sendable (URL) -> Void)?
@@ -150,10 +154,12 @@ nonisolated final class FilePromiseDelegate: NSObject, NSFilePromiseProviderDele
 
     init(payload: FilePromiseProvider.Payload,
          bookmarkService: BookmarkService,
+         onPromiseRequested: (@Sendable () -> Void)? = nil,
          onDelivered: (@Sendable (URL) -> Void)? = nil,
          onError: (@Sendable (Error) -> Void)?) {
         self.payload = payload
         self.bookmarkService = bookmarkService
+        self.onPromiseRequested = onPromiseRequested
         self.onDelivered = onDelivered
         self.onError = onError
         let queue = OperationQueue()
@@ -165,7 +171,7 @@ nonisolated final class FilePromiseDelegate: NSObject, NSFilePromiseProviderDele
 
     /// 目标侧建议文件名：displayName 原文件名（接收应用据此命名物化文件）。
     func filePromiseProvider(_ provider: NSFilePromiseProvider, fileNameForType fileType: String) -> String {
-        payload.suggestedName
+        return payload.suggestedName
     }
 
     /// 写入发生的后台队列（计划 §2.3：userInitiated，不阻塞主线程）。
@@ -179,6 +185,10 @@ nonisolated final class FilePromiseDelegate: NSObject, NSFilePromiseProviderDele
     func filePromiseProvider(_ provider: NSFilePromiseProvider,
                              writePromiseTo url: URL,
                              completionHandler: @escaping (Error?) -> Void) {
+        // This is the first reliable fact that the destination selected the
+        // promise representation. `fileNameForType` may be queried while the
+        // pasteboard is merely being prepared.
+        onPromiseRequested?()
         do {
             try FilePromiseProvider.writeCopy(of: payload, to: url, bookmarkService: bookmarkService)
             onDelivered?(url)

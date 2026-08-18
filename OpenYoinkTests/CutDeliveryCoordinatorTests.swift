@@ -2,17 +2,17 @@ import Foundation
 import XCTest
 @testable import OpenYoink
 
-/// F-05: CutDeliveryCoordinator 的交付确认状态机 —— 「会话结果 × 交付确认」
-/// 两个事件任一先到的组合、取消保留、失败保留 + notice、stack 子项移除。
+/// DeliveryCoordinator 的交付确认状态机 —— 「目标接受 × promise 交付」
+/// 两个事实任一先到的组合、取消保留、失败回插、stack 子项与文件 lease。
 @MainActor
-final class CutDeliveryCoordinatorTests: XCTestCase {
+final class DeliveryCoordinatorTests: XCTestCase {
     @MainActor
     private struct Context {
         let store: ShelfStore
         let recents: RecentItemsService
         let tempFileService: TempFileService
-        let noticeCenter = ShelfNoticeModel()
-        let coordinator: CutDeliveryCoordinator
+        let transferStore = TransferStore()
+        let coordinator: DeliveryCoordinator
         var temporaryURLs: [URL] = []
 
         init(items: [ShelfItem] = []) {
@@ -21,10 +21,10 @@ final class CutDeliveryCoordinatorTests: XCTestCase {
             tempFileService = TempFileService(directoryURL: root.appendingPathComponent("Materialized", isDirectory: true))
             recents = RecentItemsService(directoryURL: root)
             store = ShelfStore(items: items)
-            coordinator = CutDeliveryCoordinator(store: store,
-                                                 recents: recents,
-                                                 tempFileService: tempFileService,
-                                                 noticeCenter: noticeCenter)
+            coordinator = DeliveryCoordinator(store: store,
+                                              recents: recents,
+                                              tempFileService: tempFileService,
+                                              transferStore: transferStore)
             temporaryURLs.append(root)
         }
 
@@ -53,6 +53,12 @@ final class CutDeliveryCoordinatorTests: XCTestCase {
         DragOutContents(items: items, topLevelIDs: Set(items.map(\.id)))
     }
 
+    private func beginSession(_ context: Context, items: [ShelfItem]) -> UUID {
+        let id = UUID()
+        context.coordinator.noteSessionBegan(id: id, contents: contents(for: items))
+        return id
+    }
+
     // MARK: - 交付闭环
 
     /// 常规时序：会话成功结束 → promise 写入完成 → 移出 shelf + 删保管文件 + 记历史。
@@ -62,10 +68,13 @@ final class CutDeliveryCoordinatorTests: XCTestCase {
         let item = try makeCutItem(in: &context)
         context.store.add(item)
         let destination = FileManager.default.temporaryDirectory.appendingPathComponent("delivered-\(UUID().uuidString).txt")
+        let sessionID = beginSession(context, items: [item])
 
-        context.coordinator.noteSessionEnded(contents: contents(for: [item]), succeeded: true)
+        context.coordinator.noteSessionEnded(id: sessionID, accepted: true)
         XCTAssertNotNil(context.store.item(withID: item.id), "交付确认前不移除")
-        context.coordinator.noteDelivered(itemID: item.id, destination: destination)
+        context.coordinator.noteDelivered(sessionID: sessionID,
+                                          itemID: item.id,
+                                          destination: destination)
 
         XCTAssertNil(context.store.item(withID: item.id), "交付后 item 必须离架")
         XCTAssertFalse(FileManager.default.fileExists(atPath: item.fileURL!.path),
@@ -82,10 +91,13 @@ final class CutDeliveryCoordinatorTests: XCTestCase {
         let item = try makeCutItem(in: &context)
         context.store.add(item)
         let destination = FileManager.default.temporaryDirectory.appendingPathComponent("delivered-\(UUID().uuidString).txt")
+        let sessionID = beginSession(context, items: [item])
 
-        context.coordinator.noteDelivered(itemID: item.id, destination: destination)
+        context.coordinator.noteDelivered(sessionID: sessionID,
+                                          itemID: item.id,
+                                          destination: destination)
         XCTAssertNotNil(context.store.item(withID: item.id), "会话未成功结束前不移除")
-        context.coordinator.noteSessionEnded(contents: contents(for: [item]), succeeded: true)
+        context.coordinator.noteSessionEnded(id: sessionID, accepted: true)
 
         XCTAssertNil(context.store.item(withID: item.id))
         XCTAssertFalse(FileManager.default.fileExists(atPath: item.fileURL!.path))
@@ -98,31 +110,40 @@ final class CutDeliveryCoordinatorTests: XCTestCase {
         defer { context.cleanup() }
         let item = try makeCutItem(in: &context)
         context.store.add(item)
+        let sessionID = beginSession(context, items: [item])
 
-        context.coordinator.noteSessionEnded(contents: contents(for: [item]), succeeded: false)
+        context.coordinator.noteSessionEnded(id: sessionID, accepted: false)
 
         XCTAssertNotNil(context.store.item(withID: item.id))
         XCTAssertTrue(FileManager.default.fileExists(atPath: item.fileURL!.path))
         XCTAssertTrue(context.recents.entries.isEmpty)
         // 防御：取消后来路不明的迟到交付不改变任何状态。
-        context.coordinator.noteDelivered(itemID: item.id, destination: URL(fileURLWithPath: "/tmp/x.txt"))
+        context.coordinator.noteDelivered(sessionID: sessionID,
+                                          itemID: item.id,
+                                          destination: URL(fileURLWithPath: "/tmp/x.txt"))
         XCTAssertNotNil(context.store.item(withID: item.id))
         XCTAssertTrue(FileManager.default.fileExists(atPath: item.fileURL!.path))
     }
 
-    /// 交付失败：item 与保管文件保留（可重试），发 notice。
-    func testDeliveryFailure_keepsItemAndShowsNotice() throws {
+    /// 交付失败：item 与保管文件保留（可重试），状态条给出真实失败。
+    func testDeliveryFailure_keepsItemAndShowsTransferFailure() throws {
         var context = makeContext()
         defer { context.cleanup() }
         let item = try makeCutItem(in: &context)
         context.store.add(item)
+        let sessionID = beginSession(context, items: [item])
 
-        context.coordinator.noteSessionEnded(contents: contents(for: [item]), succeeded: true)
-        context.coordinator.noteFailed(itemID: item.id)
+        context.coordinator.noteSessionEnded(id: sessionID, accepted: true)
+        context.coordinator.noteFailed(sessionID: sessionID, itemID: item.id)
 
         XCTAssertNotNil(context.store.item(withID: item.id))
         XCTAssertTrue(FileManager.default.fileExists(atPath: item.fileURL!.path))
-        XCTAssertNotNil(context.noticeCenter.message)
+        if case .failed(let failure) = context.transferStore.currentTask?.phase {
+            XCTAssertEqual(failure.reason, .deliveryFailed)
+            XCTAssertEqual(failure.recoveryAction, .retryByDraggingOut(itemID: item.id))
+        } else {
+            XCTFail("交付失败必须进入 failed 状态")
+        }
         XCTAssertTrue(context.recents.entries.isEmpty)
     }
 
@@ -136,9 +157,13 @@ final class CutDeliveryCoordinatorTests: XCTestCase {
         context.store.add(stack)
         // 浮层子项拖出：topLevelIDs 为空（不移除顶层 stack 本身）。
         let childContents = DragOutContents(items: [cutChild], topLevelIDs: [])
+        let sessionID = UUID()
+        context.coordinator.noteSessionBegan(id: sessionID, contents: childContents)
 
-        context.coordinator.noteSessionEnded(contents: childContents, succeeded: true)
-        context.coordinator.noteDelivered(itemID: cutChild.id, destination: URL(fileURLWithPath: "/tmp/out-child.txt"))
+        context.coordinator.noteSessionEnded(id: sessionID, accepted: true)
+        context.coordinator.noteDelivered(sessionID: sessionID,
+                                          itemID: cutChild.id,
+                                          destination: URL(fileURLWithPath: "/tmp/out-child.txt"))
 
         XCTAssertNil(context.store.item(withID: stack.id), "剩 1 子项时 stack 自动解散")
         let survivor = try XCTUnwrap(context.store.items.first)
@@ -152,10 +177,13 @@ final class CutDeliveryCoordinatorTests: XCTestCase {
         defer { context.cleanup() }
         let item = try makeCutItem(in: &context)
         context.store.add(item)
+        let sessionID = beginSession(context, items: [item])
 
-        context.coordinator.noteSessionEnded(contents: contents(for: [item]), succeeded: true)
+        context.coordinator.noteSessionEnded(id: sessionID, accepted: true)
         context.store.remove(ids: [item.id]) // 用户手动移除
-        context.coordinator.noteDelivered(itemID: item.id, destination: URL(fileURLWithPath: "/tmp/out.txt"))
+        context.coordinator.noteDelivered(sessionID: sessionID,
+                                          itemID: item.id,
+                                          destination: URL(fileURLWithPath: "/tmp/out.txt"))
 
         XCTAssertNil(context.store.item(withID: item.id))
         XCTAssertFalse(FileManager.default.fileExists(atPath: item.fileURL!.path),
@@ -163,19 +191,66 @@ final class CutDeliveryCoordinatorTests: XCTestCase {
         XCTAssertEqual(context.recents.entries.first?.displayName, item.displayName)
     }
 
-    /// 混合拖出：同批非剪切项的策略移除与剪切项互不影响（.remove 策略下
-    /// 非剪切项照常由 DragSessionController 处理 —— 此处验证编排器只认
-    /// isCut 项，普通项的会话结束通报是 no-op）。
-    func testNonCutItems_areIgnoredByCoordinator() throws {
-        var context = makeContext()
+    /// 普通文件未请求 promise 时，只能表达「目标已接受」。
+    func testOrdinaryDirectRepresentationReportsTargetAccepted() throws {
+        let context = makeContext()
         defer { context.cleanup() }
         let normal = ShelfItem(kind: .file, path: "/tmp/normal.txt", displayName: "normal.txt")
         context.store.add(normal)
+        let sessionID = beginSession(context, items: [normal])
 
-        context.coordinator.noteSessionEnded(contents: contents(for: [normal]), succeeded: true)
-        context.coordinator.noteDelivered(itemID: normal.id, destination: URL(fileURLWithPath: "/tmp/out.txt"))
+        context.coordinator.noteSessionEnded(id: sessionID, accepted: true)
 
-        XCTAssertNotNil(context.store.item(withID: normal.id), "普通项不受交付编排影响")
+        XCTAssertNotNil(context.store.item(withID: normal.id))
+        XCTAssertEqual(context.transferStore.currentTask?.phase, .targetAccepted)
         XCTAssertTrue(context.recents.entries.isEmpty, "普通项的历史由 DragSessionController 策略路径记录")
+    }
+
+    /// `.remove` 策略可能先移除普通物化项；若目标随后请求 promise 且写入
+    /// 失败，必须从会话快照回插，并在这段窗口内保护唯一的物化文件。
+    func testLatePromiseFailureReinsertsRemovedOrdinaryItemAndProtectsLease() throws {
+        let context = makeContext()
+        defer { context.cleanup() }
+        let managedURL = try context.tempFileService.uniqueFileURL(suggestedName: "kept.txt")
+        try "only copy".write(to: managedURL, atomically: true, encoding: .utf8)
+        let item = ShelfItem(kind: .file,
+                             path: managedURL.path,
+                             displayName: "kept.txt")
+        context.store.add(item)
+        let sessionID = beginSession(context, items: [item])
+
+        context.store.remove(ids: [item.id])
+        context.coordinator.noteSessionEnded(id: sessionID, accepted: true)
+        XCTAssertTrue(context.coordinator.protectedMaterializedPaths.contains(managedURL.path))
+
+        context.coordinator.notePromiseRequested(sessionID: sessionID, itemID: item.id)
+        context.coordinator.noteFailed(sessionID: sessionID, itemID: item.id)
+
+        XCTAssertEqual(context.store.item(withID: item.id), item)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: managedURL.path))
+        XCTAssertFalse(context.coordinator.protectedMaterializedPaths.contains(managedURL.path),
+                       "回插后的 shelf 引用已接管保护")
+    }
+
+    func testEarlyPromiseFailureReinsertsAfterRemovalPolicyRuns() {
+        let context = makeContext()
+        defer { context.cleanup() }
+        let item = ShelfItem(kind: .file,
+                             path: "/tmp/early-failure.txt",
+                             displayName: "early-failure.txt")
+        context.store.add(item)
+        let sessionID = beginSession(context, items: [item])
+
+        context.coordinator.notePromiseRequested(sessionID: sessionID, itemID: item.id)
+        context.coordinator.noteFailed(sessionID: sessionID, itemID: item.id)
+        context.store.remove(ids: [item.id])
+        context.coordinator.noteSessionEnded(id: sessionID, accepted: true)
+
+        XCTAssertEqual(context.store.item(withID: item.id), item)
+        if case .failed(let failure) = context.transferStore.currentTask?.phase {
+            XCTAssertEqual(failure.reason, .deliveryFailed)
+        } else {
+            XCTFail("早到失败必须在会话确认后呈现")
+        }
     }
 }

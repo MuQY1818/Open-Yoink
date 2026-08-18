@@ -1078,6 +1078,13 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "原文件保持不变。" } }
       }
     },
+    "Items stay on the shelf if delivery fails." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Items stay on the shelf if delivery fails." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "如果交付失败，项目会保留在暂存架中。" } }
+      }
+    },
     "Managed copies are protected while originals move to the Trash." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1104,6 +1111,27 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Preparing content…" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在准备内容…" } }
+      }
+    },
+    "Preparing items to deliver…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Preparing items to deliver…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在准备交付项目…" } }
+      }
+    },
+    "Delivering items… %lld of %lld finished" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delivering items… %lld of %lld finished" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在交付… 已完成 %lld/%lld 项" } }
+      }
+    },
+    "Delivering item…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delivering item…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在交付项目…" } }
       }
     },
     "Receiving content… %lld of %lld" : {
@@ -1141,11 +1169,39 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "目标位置已接受这些项目。" } }
       }
     },
+    "Destination accepted %lld items" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Destination accepted %lld items" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "目标已接受 %lld 项" } }
+      }
+    },
+    "The destination may still be copying the items." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The destination may still be copying the items." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "目标可能仍在复制这些项目。" } }
+      }
+    },
     "%lld items added" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld items added" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已加入 %lld 项" } }
+      }
+    },
+    "%lld items delivered" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld items delivered" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已交付 %lld 项" } }
+      }
+    },
+    "%lld items delivered, %lld not delivered" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld items delivered, %lld not delivered" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已交付 %lld 项，%lld 项未交付" } }
       }
     },
     "%lld items added, %lld not added" : {
@@ -1174,6 +1230,13 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn't add this content" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未能加入此内容" } }
+      }
+    },
+    "Couldn't deliver this content" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn't deliver this content" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未能交付此内容" } }
       }
     },
     "Transfer cancelled" : {

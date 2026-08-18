@@ -23,9 +23,9 @@ final class DragOutController {
     private let settings: SettingsStore
     private let recents: RecentItemsService
     private let bookmarkService: BookmarkService
-    /// F-05: 剪切项交付确认编排（长生命周期 —— promise 写入常在拖拽会话
-    /// 结束后才完成，会话级的 DragSessionController 活不到那时）。
-    private let cutDeliveryCoordinator: CutDeliveryCoordinator
+    /// Long-lived delivery state survives the AppKit drag session because file
+    /// promise callbacks may arrive before or after `endedAt`.
+    private let deliveryCoordinator: DeliveryCoordinator
 
     /// S8: 拖出成功（`operation` 非空）后的回调，由 ShelfWindowController
     /// 在 init 完成后接线以实现 autoHide（init 期无法捕获未完成的 self）。
@@ -36,46 +36,58 @@ final class DragOutController {
          settings: SettingsStore,
          recents: RecentItemsService,
          bookmarkService: BookmarkService,
-         tempFileService: TempFileService,
-         noticeCenter: ShelfNoticeModel = ShelfNoticeModel()) {
+         deliveryCoordinator: DeliveryCoordinator) {
         self.store = store
         self.settings = settings
         self.recents = recents
         self.bookmarkService = bookmarkService
-        self.cutDeliveryCoordinator = CutDeliveryCoordinator(store: store,
-                                                             recents: recents,
-                                                             tempFileService: tempFileService,
-                                                             noticeCenter: noticeCenter)
+        self.deliveryCoordinator = deliveryCoordinator
     }
 
     /// 拖拽启动入口：`CardDragSourceAnchorView` 在 mouseDragged 超阈值时经卡片
     /// 回调调用。必须在主线程、且 `event` 为当前手势的 mouseDown/mouseDragged
     /// 事件（`beginDraggingSession` 的硬性要求）。
     func beginDrag(contents: DragOutContents, from sourceView: NSView, event: NSEvent) {
-        // F-05: 剪切项的交付确认通道（promise 写队列 → MainActor 编排器）。
-        let cutDeliveryCoordinator = cutDeliveryCoordinator
-        cutDeliveryCoordinator.noteSessionBegan(contents: contents)
-        let sink = CutDeliverySink(
+        let sessionID = UUID()
+        let deliveryCoordinator = deliveryCoordinator
+        deliveryCoordinator.noteSessionBegan(id: sessionID, contents: contents)
+        let sink = DeliverySink(
+            promiseRequested: { itemID in
+                Task { @MainActor in
+                    deliveryCoordinator.notePromiseRequested(sessionID: sessionID,
+                                                             itemID: itemID)
+                }
+            },
             delivered: { itemID, url in
-                Task { @MainActor in cutDeliveryCoordinator.noteDelivered(itemID: itemID, destination: url) }
+                Task { @MainActor in
+                    deliveryCoordinator.noteDelivered(sessionID: sessionID,
+                                                      itemID: itemID,
+                                                      destination: url)
+                }
             },
             failed: { itemID in
-                Task { @MainActor in cutDeliveryCoordinator.noteFailed(itemID: itemID) }
+                Task { @MainActor in
+                    deliveryCoordinator.noteFailed(sessionID: sessionID, itemID: itemID)
+                }
             }
         )
         let draggingItems = DragPayloadBuilder.makeDraggingItems(
             for: contents.items,
             frame: sourceView.bounds,
             bookmarkService: bookmarkService,
-            cutDelivery: sink
+            delivery: sink
         )
-        guard !draggingItems.isEmpty else { return }
+        guard !draggingItems.isEmpty else {
+            deliveryCoordinator.noteSessionEnded(id: sessionID, accepted: false)
+            return
+        }
         // 每次会话独立的 NSDraggingSource：无复用状态，结果处理只依赖本次 contents。
         let source = DragSessionController(contents: contents,
+                                           sessionID: sessionID,
                                            store: store,
                                            settings: settings,
                                            recents: recents,
-                                           cutDelivery: cutDeliveryCoordinator,
+                                           delivery: deliveryCoordinator,
                                            onSuccessfulDrop: onSuccessfulDrop)
         sourceView.beginDraggingSession(with: draggingItems, event: event, source: source)
     }
@@ -85,24 +97,26 @@ final class DragOutController {
 @MainActor
 final class DragSessionController: NSObject, NSDraggingSource {
     private let contents: DragOutContents
+    private let sessionID: UUID
     private let store: ShelfStore
     private let settings: SettingsStore
     private let recents: RecentItemsService
-    /// F-05: 剪切项交付确认编排（nil 时剪切项退化为普通复制语义，测试用）。
-    private let cutDelivery: CutDeliveryCoordinator?
+    private let delivery: DeliveryCoordinator?
     private let onSuccessfulDrop: (@MainActor () -> Void)?
 
     init(contents: DragOutContents,
+         sessionID: UUID = UUID(),
          store: ShelfStore,
          settings: SettingsStore,
          recents: RecentItemsService,
-         cutDelivery: CutDeliveryCoordinator? = nil,
+         delivery: DeliveryCoordinator? = nil,
          onSuccessfulDrop: (@MainActor () -> Void)? = nil) {
         self.contents = contents
+        self.sessionID = sessionID
         self.store = store
         self.settings = settings
         self.recents = recents
-        self.cutDelivery = cutDelivery
+        self.delivery = delivery
         self.onSuccessfulDrop = onSuccessfulDrop
         super.init()
     }
@@ -124,14 +138,16 @@ final class DragSessionController: NSObject, NSDraggingSource {
     /// 弹确认框。成功 drop 后先回调 onSuccessfulDrop（autoHide 接线处）。
     ///
     /// F-05: 剪切（isCut）项不参与上述策略 —— 剪切语义即移走，交付确认
-    /// （promise 写入完成）后由 `CutDeliveryCoordinator` 移出 shelf 并删除
+    /// （promise 写入完成）后由 `DeliveryCoordinator` 移出 shelf 并删除
     /// 保管副本，不受 dragOutRemovalPolicy 影响。会话取消（operation == []）
     /// 时 cut 项与保管文件原样保留。
     func draggingSession(_ session: NSDraggingSession,
                          endedAt screenPoint: NSPoint,
                          operation: NSDragOperation) {
-        cutDelivery?.noteSessionEnded(contents: contents, succeeded: operation != [])
-        guard operation != [] else { return }
+        guard operation != [] else {
+            delivery?.noteSessionEnded(id: sessionID, accepted: false)
+            return
+        }
         onSuccessfulDrop?()
         switch settings.dragOutRemovalPolicy {
         case .keep:
@@ -141,6 +157,10 @@ final class DragSessionController: NSObject, NSDraggingSource {
         case .ask:
             askWhetherToRemove()
         }
+        // Report acceptance after the removal policy has run. If a promise
+        // failure arrived early, the coordinator can now safely reinsert the
+        // failed snapshot instead of having this method remove it afterwards.
+        delivery?.noteSessionEnded(id: sessionID, accepted: true)
     }
 
     /// F-05: 剔除剪切项后的顶层 id 集合（策略移除/询问只作用于非剪切项）。
@@ -153,7 +173,7 @@ final class DragSessionController: NSObject, NSDraggingSource {
     }
 
     /// F-05: 剔除剪切项后的展开项目集合（最近历史只记非剪切项；剪切项在
-    /// 交付确认时由 CutDeliveryCoordinator 单独记录）。
+    /// 交付确认时由 DeliveryCoordinator 单独记录）。
     private var nonCutFlattenedItems: [ShelfItem] {
         DragPayloadBuilder.flattenedItems(contents.items).filter { !$0.isCut }
     }
@@ -224,136 +244,220 @@ enum DragOutRemovalDecision {
     }
 }
 
-// MARK: - Cut delivery coordination (F-05)
+// MARK: - Delivery coordination
 
-/// 剪切项拖出的交付确认编排（MainActor，由 DragOutController 持有，
-/// 生命周期跨越拖拽会话）。
-///
-/// 为什么需要它：file promise 的写入（`FilePromiseDelegate.writePromiseTo`）
-/// 发生在后台队列、通常在 `draggingSession(endedAt:)` 之后；会话级的
-/// DragSessionController 等不到交付确认。本编排器跟踪「会话结果 × 交付
-/// 确认」两个事件的到达顺序（任一先到都可以）：
-///
-/// - 会话成功（operation != []）+ 交付确认 → **交付**：删保管副本、
-///   把该项移出 shelf（顶层或 stack 子项）、记 RecentItemsService。
-///   这是剪切的移动语义，不受 dragOutRemovalPolicy 影响。
-/// - 会话取消（operation == []）→ 保留 shelf 项与保管文件，丢弃等待状态。
-/// - 交付失败 → 保留 shelf 项与保管文件（可重试），发 notice。
-///
-/// 交付确认以 item 快照为准（不依赖 store 里此刻的状态）：用户若在交付
-/// 到达前手动移除了该项，保管文件仍会被正确删除（store 移除为 no-op）。
+/// Reconciles the two independent facts involved in drag-out delivery:
+/// AppKit's session result says a destination accepted the drag, while a file
+/// promise callback says bytes were actually written. Session snapshots are
+/// retained so a late promise failure can restore an item removed by the
+/// user's drag-out policy. Managed-move items are finalized only after both
+/// acceptance and confirmed promise delivery.
 @MainActor
-final class CutDeliveryCoordinator {
-    /// 等待交付闭环的剪切项状态。
-    private struct PendingCut {
-        /// 会话结束时的项目快照（path/displayName/bookmark 据此定稿）。
-        var item: ShelfItem
-        /// 会话已成功结束（operation 非空）。
-        var sessionEndedSuccessfully = false
-        /// promise 写入完成后的目标 URL（交付确认）。
-        var destinationURL: URL?
+final class DeliveryCoordinator {
+    private enum PromiseState {
+        case notRequested
+        case requested
+        case delivered(URL)
+        case failed
     }
 
-    private var pendingCuts: [UUID: PendingCut] = [:]
-    /// 先于会话结束到达的写入失败（见 noteFailed）。
-    private var earlyFailures: Set<UUID> = []
+    private struct PendingItem {
+        let item: ShelfItem
+        let insertionIndex: Int
+        let supportsFilePromise: Bool
+        var promiseState: PromiseState
+    }
+
+    private struct PendingSession {
+        let id: UUID
+        let startedAt: Date
+        let orderedItemIDs: [UUID]
+        var itemsByID: [UUID: PendingItem]
+        var accepted: Bool?
+    }
+
+    private var sessions: [UUID: PendingSession] = [:]
+    private var latestSessionByItemID: [UUID: UUID] = [:]
 
     private let store: ShelfStore
     private let recents: RecentItemsService
     private let tempFileService: TempFileService
-    private let noticeCenter: ShelfNoticeModel
-    private let logger = Logger(subsystem: "com.weijue.OpenYoink", category: "CutDelivery")
+    private let transferStore: TransferStore
+    private let logger = Logger(subsystem: "com.weijue.OpenYoink", category: "Delivery")
 
     init(store: ShelfStore,
          recents: RecentItemsService,
          tempFileService: TempFileService,
-         noticeCenter: ShelfNoticeModel) {
+         transferStore: TransferStore) {
         self.store = store
         self.recents = recents
         self.tempFileService = tempFileService
-        self.noticeCenter = noticeCenter
+        self.transferStore = transferStore
     }
 
-    /// DragSessionController 会话结束回调。`succeeded == false`（取消/目标
-    /// 拒绝）时保留一切并清除等待状态。
-    func noteSessionEnded(contents: DragOutContents, succeeded: Bool) {
-        for item in DragPayloadBuilder.flattenedItems(contents.items) where item.isCut {
-            guard succeeded else {
-                pendingCuts.removeValue(forKey: item.id)
-                earlyFailures.remove(item.id)
-                continue
+    func noteSessionBegan(id: UUID, contents: DragOutContents) {
+        let flattened = DragPayloadBuilder.flattenedItems(contents.items)
+            .filter(DragPayloadBuilder.canMakePasteboardWriter)
+        var itemsByID: [UUID: PendingItem] = [:]
+        var orderedItemIDs: [UUID] = []
+        for item in flattened where itemsByID[item.id] == nil {
+            let strategy = DragPayloadBuilder.strategy(for: item)
+            let supportsPromise = strategy == .fileBacked || strategy == .fileBackedImage
+            itemsByID[item.id] = PendingItem(
+                item: item,
+                insertionIndex: insertionIndex(for: item.id),
+                supportsFilePromise: supportsPromise,
+                promiseState: .notRequested
+            )
+            orderedItemIDs.append(item.id)
+            latestSessionByItemID[item.id] = id
+        }
+        guard !orderedItemIDs.isEmpty else { return }
+        sessions[id] = PendingSession(id: id,
+                                      startedAt: Date(),
+                                      orderedItemIDs: orderedItemIDs,
+                                      itemsByID: itemsByID,
+                                      accepted: nil)
+        transferStore.beginExport(id: id, itemIDs: orderedItemIDs)
+        trimRetainedSessions()
+    }
+
+    func notePromiseRequested(sessionID: UUID, itemID: UUID) {
+        guard latestSessionByItemID[itemID] == sessionID,
+              var session = sessions[sessionID],
+              var pending = session.itemsByID[itemID],
+              pending.supportsFilePromise else { return }
+        switch pending.promiseState {
+        case .notRequested:
+            pending.promiseState = .requested
+            session.itemsByID[itemID] = pending
+            sessions[sessionID] = session
+            transferStore.recordExportPromiseRequested(taskID: sessionID, itemID: itemID)
+        case .requested, .delivered, .failed:
+            break
+        }
+    }
+
+    func noteDelivered(sessionID: UUID, itemID: UUID, destination: URL) {
+        guard latestSessionByItemID[itemID] == sessionID,
+              var session = sessions[sessionID],
+              var pending = session.itemsByID[itemID] else { return }
+        switch pending.promiseState {
+        case .delivered, .failed:
+            return
+        case .notRequested, .requested:
+            pending.promiseState = .delivered(destination)
+            session.itemsByID[itemID] = pending
+            sessions[sessionID] = session
+        }
+        guard session.accepted == true else { return }
+        transferStore.recordExportDelivered(taskID: sessionID, itemID: itemID)
+        if pending.item.isCut {
+            finalizeManagedItem(pending.item, destination: destination)
+        }
+    }
+
+    func noteFailed(sessionID: UUID, itemID: UUID) {
+        guard latestSessionByItemID[itemID] == sessionID,
+              var session = sessions[sessionID],
+              var pending = session.itemsByID[itemID] else { return }
+        switch pending.promiseState {
+        case .delivered, .failed:
+            return
+        case .notRequested, .requested:
+            pending.promiseState = .failed
+            session.itemsByID[itemID] = pending
+            sessions[sessionID] = session
+        }
+        guard session.accepted == true else { return }
+        registerFailure(pending.item,
+                        insertionIndex: pending.insertionIndex,
+                        sessionID: sessionID)
+    }
+
+    func noteSessionEnded(id: UUID, accepted: Bool) {
+        guard var session = sessions[id] else { return }
+        guard accepted else {
+            transferStore.finishExportSession(taskID: id, accepted: false)
+            discardSession(id)
+            return
+        }
+
+        session.accepted = true
+        sessions[id] = session
+        let directlyAccepted = Set(session.orderedItemIDs.compactMap { itemID -> UUID? in
+            guard let pending = session.itemsByID[itemID] else { return nil }
+            if !pending.supportsFilePromise { return itemID }
+            if !pending.item.isCut, case .notRequested = pending.promiseState {
+                return itemID
             }
-            if earlyFailures.remove(item.id) != nil {
-                // 写入失败先于会话结束到达：drop 已成功但交付失败——保留可重试。
-                noticeCenter.show(String(localized: "Couldn't deliver \(item.displayName) — the item stays on the shelf."))
-                continue
-            }
-            var pending = pendingCuts[item.id] ?? PendingCut(item: item)
-            pending.item = item
-            pending.sessionEndedSuccessfully = true
-            pendingCuts[item.id] = pending
-            if pending.destinationURL != nil {
-                finalize(itemID: item.id)
-            }
-        }
-    }
+            return nil
+        })
+        transferStore.finishExportSession(taskID: id,
+                                          accepted: true,
+                                          directlyAcceptedItemIDs: directlyAccepted)
 
-    /// promise 写入完成（经 CutDeliverySink 从写队列桥回）。
-    func noteDelivered(itemID: UUID, destination: URL) {
-        if var pending = pendingCuts[itemID] {
-            pending.destinationURL = destination
-            pendingCuts[itemID] = pending
-            if pending.sessionEndedSuccessfully {
-                finalize(itemID: itemID)
-            }
-        } else if let item = lookupCutItem(itemID) {
-            // 逆时序：交付先于会话结束到达（快速小文件）。此刻 item 还在架上，
-            // 以 store 中的当前快照建账，等 noteSessionEnded 到来后定稿。
-            var pending = PendingCut(item: item)
-            pending.destinationURL = destination
-            pendingCuts[itemID] = pending
-        }
-    }
-
-    /// promise 写入失败：item 与保管文件保留（用户可重试拖出），发 notice。
-    func noteFailed(itemID: UUID) {
-        if let pending = pendingCuts.removeValue(forKey: itemID) {
-            noticeCenter.show(String(localized: "Couldn't deliver \(pending.item.displayName) — the item stays on the shelf."))
-        } else {
-            // 失败先于会话结束到达：交由 noteSessionEnded 裁决（会话取消则静默）。
-            earlyFailures.insert(itemID)
-        }
-    }
-
-    /// 新拖出会话开始（DragOutController.beginDrag 调用）：清除相关剪切项
-    /// 的上一轮残留状态（如取消会话后迟到的交付确认），防止陈旧交付在新
-    /// 会话上误触发定稿。
-    func noteSessionBegan(contents: DragOutContents) {
-        for item in DragPayloadBuilder.flattenedItems(contents.items) where item.isCut {
-            pendingCuts.removeValue(forKey: item.id)
-            earlyFailures.remove(item.id)
-        }
-    }
-
-    /// store 中查找剪切项（顶层或 stack 子项），供逆时序交付建账。
-    private func lookupCutItem(_ itemID: UUID) -> ShelfItem? {
-        if let item = store.item(withID: itemID) {
-            return item.isCut ? item : nil
-        }
-        for stack in store.items where stack.kind == .stack {
-            if let child = stack.children?.first(where: { $0.id == itemID }) {
-                return child.isCut ? child : nil
+        // Promise callbacks may have beaten the AppKit session callback.
+        for itemID in session.orderedItemIDs {
+            guard let pending = session.itemsByID[itemID] else { continue }
+            switch pending.promiseState {
+            case .delivered(let destination):
+                transferStore.recordExportDelivered(taskID: id, itemID: itemID)
+                if pending.item.isCut {
+                    finalizeManagedItem(pending.item, destination: destination)
+                }
+            case .failed:
+                registerFailure(pending.item,
+                                insertionIndex: pending.insertionIndex,
+                                sessionID: id)
+            case .notRequested, .requested:
+                break
             }
         }
-        return nil
     }
 
-    /// 交付闭环：删保管副本 → 移出 shelf → 记最近历史。
-    private func finalize(itemID: UUID) {
-        guard let pending = pendingCuts.removeValue(forKey: itemID) else { return }
-        let item = pending.item
-        // 删除保管副本（removeMaterializedFile 只接受保管目录内 URL，
-        // 理论上永远删不到保管目录之外的东西）。
+    /// Runtime file leases used by Storage settings. A direct drop can remove
+    /// a materialized card before a target makes a late promise request; these
+    /// snapshots prevent manual cleanup from deleting the only retained bytes.
+    var protectedMaterializedPaths: Set<String> {
+        let root = tempFileService.directoryURL.standardizedFileURL.path
+        let prefix = root.hasSuffix("/") ? root : root + "/"
+        var result = Set<String>()
+        for session in sessions.values where session.accepted == true {
+            for pending in session.itemsByID.values {
+                guard case .delivered = pending.promiseState else {
+                    if !containsItem(pending.item.id),
+                       let path = pending.item.path {
+                        let standardized = URL(fileURLWithPath: path).standardizedFileURL.path
+                        if standardized.hasPrefix(prefix) {
+                            result.insert(standardized)
+                        }
+                    }
+                    continue
+                }
+            }
+        }
+        return result
+    }
+
+    private func registerFailure(_ item: ShelfItem,
+                                 insertionIndex: Int,
+                                 sessionID: UUID) {
+        if !containsItem(item.id) {
+            store.add(item, at: insertionIndex)
+        }
+        transferStore.recordExportFailure(
+            taskID: sessionID,
+            itemID: item.id,
+            failure: TransferFailure(
+                reason: .deliveryFailed,
+                itemName: item.displayName,
+                recoveryAction: .retryByDraggingOut(itemID: item.id)
+            )
+        )
+    }
+
+    private func finalizeManagedItem(_ item: ShelfItem, destination: URL) {
         if let path = item.path {
             do {
                 try tempFileService.removeMaterializedFile(at: URL(fileURLWithPath: path))
@@ -361,19 +465,68 @@ final class CutDeliveryCoordinator {
                 logger.error("Failed to delete managed cut file \(path, privacy: .public): \(error.localizedDescription, privacy: .public)")
             }
         }
-        // 从 shelf 移除（顶层项或 stack 子项；用户已手动移除时为 no-op）。
-        if store.item(withID: itemID) != nil {
-            store.remove(ids: [itemID])
-        } else if let stack = store.items.first(where: { $0.children?.contains(where: { $0.id == itemID }) == true }) {
-            store.removeChild(itemID, fromStack: stack.id)
+        if store.item(withID: item.id) != nil {
+            store.remove(ids: [item.id])
+        } else if let stack = store.items.first(where: {
+            containsItem(item.id, in: $0.children ?? [])
+        }) {
+            store.removeChild(item.id, fromStack: stack.id)
         }
-        // 记最近拖出；path 改写为交付目标（保管副本随即删除，目标路径才对
-        // 「在 Finder 显示」/重新入架有意义）。
         var entry = item
-        if let destination = pending.destinationURL {
-            entry.path = destination.path
-        }
+        entry.path = destination.path
         recents.record([entry])
+    }
+
+    private func insertionIndex(for itemID: UUID) -> Int {
+        if let index = store.index(ofItemWithID: itemID) {
+            return index
+        }
+        return store.items.firstIndex { containsItem(itemID, in: $0.children ?? []) }
+            ?? store.items.count
+    }
+
+    private func containsItem(_ itemID: UUID) -> Bool {
+        store.items.contains { item in
+            item.id == itemID || containsItem(itemID, in: item.children ?? [])
+        }
+    }
+
+    private func containsItem(_ itemID: UUID, in items: [ShelfItem]) -> Bool {
+        items.contains { item in
+            item.id == itemID || containsItem(itemID, in: item.children ?? [])
+        }
+    }
+
+    private func discardSession(_ id: UUID) {
+        guard let session = sessions.removeValue(forKey: id) else { return }
+        for itemID in session.orderedItemIDs where latestSessionByItemID[itemID] == id {
+            latestSessionByItemID.removeValue(forKey: itemID)
+        }
+    }
+
+    /// Bound runtime snapshots while keeping current/incomplete sessions. The
+    /// oldest completed ordinary sessions are the first candidates; active
+    /// managed deliveries are never evicted.
+    private func trimRetainedSessions() {
+        guard sessions.count > 128 else { return }
+        let removable = sessions.values
+            .filter { session in
+                guard session.accepted != nil else { return false }
+                return session.itemsByID.values.allSatisfy { pending in
+                    !pending.item.isCut && {
+                        switch pending.promiseState {
+                        case .requested: false
+                        case .notRequested, .delivered, .failed: true
+                        }
+                    }()
+                }
+            }
+            .sorted { $0.startedAt < $1.startedAt }
+            .prefix(sessions.count - 128)
+            .map(\.id)
+        for id in removable {
+            discardSession(id)
+        }
     }
 }
 

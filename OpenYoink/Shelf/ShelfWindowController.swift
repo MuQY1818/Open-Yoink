@@ -130,6 +130,7 @@ final class ShelfWindowController: NSObject {
          tempFileService: TempFileService,
          settings: SettingsStore,
          recents: RecentItemsService,
+         deliveryCoordinator: DeliveryCoordinator,
          dragStartMonitor: DragStartMonitor) {
         self.appState = appState
         self.store = store
@@ -142,8 +143,7 @@ final class ShelfWindowController: NSObject {
             settings: settings,
             recents: recents,
             bookmarkService: importCoordinator.bookmarkService,
-            tempFileService: tempFileService,
-            noticeCenter: importCoordinator.noticeCenter
+            deliveryCoordinator: deliveryCoordinator
         )
         self.quickLookCoordinator = QuickLookCoordinator(
             store: store,

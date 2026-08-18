@@ -62,6 +62,21 @@ final class DragPayloadBuilderTests: XCTestCase {
                      "stack 不整体拖出，由 flattenedItems 展开")
     }
 
+    func testCanMakePasteboardWriterRejectsMalformedCards() {
+        XCTAssertFalse(DragPayloadBuilder.canMakePasteboardWriter(
+            for: ShelfItem(kind: .file, displayName: "missing-path")
+        ))
+        XCTAssertFalse(DragPayloadBuilder.canMakePasteboardWriter(
+            for: ShelfItem(kind: .text, displayName: "empty", text: "")
+        ))
+        XCTAssertFalse(DragPayloadBuilder.canMakePasteboardWriter(
+            for: ShelfItem(kind: .url, displayName: "bad", urlString: nil)
+        ))
+        XCTAssertTrue(DragPayloadBuilder.canMakePasteboardWriter(
+            for: ShelfItem(kind: .text, displayName: "ok", text: "hello")
+        ))
+    }
+
     // MARK: - 纯函数：stack 展开
 
     func testFlattenedItems_expandsStacksPreservingOrder() {
@@ -257,7 +272,8 @@ final class DragPayloadBuilderTests: XCTestCase {
 
         let deliveredID = Mutex<UUID?>(nil)
         let deliveredURL = Mutex<URL?>(nil)
-        let sink = CutDeliverySink(
+        let sink = DeliverySink(
+            promiseRequested: { _ in },
             delivered: { id, url in
                 deliveredID.withLock { $0 = id }
                 deliveredURL.withLock { $0 = url }
@@ -265,7 +281,7 @@ final class DragPayloadBuilderTests: XCTestCase {
             failed: { _ in XCTFail("写入应成功") }
         )
         let writer = try XCTUnwrap(DragPayloadBuilder.makePasteboardWriter(
-            for: item, bookmarkService: bookmarkService, cutDelivery: sink))
+            for: item, bookmarkService: bookmarkService, delivery: sink))
         let provider = try XCTUnwrap(writer as? FilePromiseProvider)
         let destination = directory.appendingPathComponent("delivered/cut.txt")
         try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(),

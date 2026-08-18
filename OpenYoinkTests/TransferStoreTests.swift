@@ -124,4 +124,90 @@ final class TransferStoreTests: XCTestCase {
         XCTAssertEqual(store.currentTask?.phase, .delivered)
         XCTAssertEqual(store.currentTask?.itemIDs.count, 2)
     }
+
+    func testDirectExportEndsAsTargetAcceptedNotDelivered() {
+        let store = TransferStore()
+        let itemID = UUID()
+        let taskID = store.beginExport(itemIDs: [itemID])
+
+        store.finishExportSession(taskID: taskID,
+                                  accepted: true,
+                                  directlyAcceptedItemIDs: [itemID])
+
+        XCTAssertEqual(store.currentTask?.direction, .exportFromShelf)
+        XCTAssertEqual(store.currentTask?.phase, .targetAccepted)
+        XCTAssertEqual(store.currentTask?.itemIDs, [itemID])
+    }
+
+    func testPromisedExportWaitsForSessionAcceptanceThenBecomesDelivered() {
+        let store = TransferStore()
+        let itemID = UUID()
+        let taskID = store.beginExport(itemIDs: [itemID])
+
+        store.recordExportPromiseRequested(taskID: taskID, itemID: itemID)
+        store.recordExportDelivered(taskID: taskID, itemID: itemID)
+        XCTAssertEqual(store.currentTask?.phase, .preparing)
+
+        store.finishExportSession(taskID: taskID, accepted: true)
+        XCTAssertEqual(store.currentTask?.phase, .delivered)
+    }
+
+    func testPromisedExportFailureBeforeSessionEndBecomesFailureOnlyAfterAcceptedDrop() {
+        let store = TransferStore()
+        let itemID = UUID()
+        let taskID = store.beginExport(itemIDs: [itemID])
+        let failure = TransferFailure(reason: .deliveryFailed,
+                                      itemName: "report.pdf",
+                                      recoveryAction: .retryByDraggingOut(itemID: itemID))
+
+        store.recordExportFailure(taskID: taskID, itemID: itemID, failure: failure)
+        XCTAssertEqual(store.currentTask?.phase, .preparing)
+
+        store.finishExportSession(taskID: taskID, accepted: true)
+        XCTAssertEqual(store.currentTask?.phase, .failed(failure))
+    }
+
+    func testLatePromiseRequestRevokesDirectAcceptanceAndCancelsAutoDismissal() async throws {
+        let store = TransferStore(successDisplayDuration: .milliseconds(10))
+        let itemID = UUID()
+        let taskID = store.beginExport(itemIDs: [itemID])
+        store.finishExportSession(taskID: taskID,
+                                  accepted: true,
+                                  directlyAcceptedItemIDs: [itemID])
+
+        store.recordExportPromiseRequested(taskID: taskID, itemID: itemID)
+        try await Task.sleep(for: .milliseconds(30))
+
+        XCTAssertTrue(store.hasVisibleActivity)
+        XCTAssertEqual(store.currentTask?.phase,
+                       .receiving(receivedCount: 0, expectedCount: 1))
+    }
+
+    func testMixedExportReportsDeliveredAndFailedCounts() {
+        let store = TransferStore()
+        let deliveredID = UUID()
+        let failedID = UUID()
+        let taskID = store.beginExport(itemIDs: [deliveredID, failedID])
+        let failure = TransferFailure(reason: .deliveryFailed,
+                                      itemName: "broken.zip",
+                                      recoveryAction: .retryByDraggingOut(itemID: failedID))
+
+        store.recordExportDelivered(taskID: taskID, itemID: deliveredID)
+        store.recordExportFailure(taskID: taskID, itemID: failedID, failure: failure)
+        store.finishExportSession(taskID: taskID, accepted: true)
+
+        XCTAssertEqual(store.currentTask?.phase,
+                       .partiallySucceeded(successCount: 1, failures: [failure]))
+        XCTAssertEqual(store.currentTask?.itemIDs, [deliveredID])
+    }
+
+    func testCancelledExportDoesNotShowAnError() {
+        let store = TransferStore()
+        let taskID = store.beginExport(itemIDs: [UUID()])
+
+        store.finishExportSession(taskID: taskID, accepted: false)
+
+        XCTAssertFalse(store.hasVisibleActivity)
+        XCTAssertEqual(store.tasks.first?.phase, .cancelled)
+    }
 }

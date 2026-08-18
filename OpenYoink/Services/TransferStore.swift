@@ -90,6 +90,14 @@ struct TransferTask: Identifiable, Equatable, Sendable {
 @MainActor
 @Observable
 final class TransferStore {
+    private struct ExportProgress {
+        let expectedItemIDs: [UUID]
+        var acceptedItemIDs: Set<UUID> = []
+        var deliveredItemIDs: Set<UUID> = []
+        var failuresByItemID: [UUID: TransferFailure] = [:]
+        var sessionAccepted = false
+    }
+
     private(set) var tasks: [TransferTask] = []
     private(set) var visibleTaskIDs: Set<UUID> = []
 
@@ -98,6 +106,7 @@ final class TransferStore {
     @ObservationIgnored var onVisibilityDidChange: (@MainActor () -> Void)?
 
     @ObservationIgnored private var failuresByTaskID: [UUID: [TransferFailure]] = [:]
+    @ObservationIgnored private var exportProgressByTaskID: [UUID: ExportProgress] = [:]
     @ObservationIgnored private var dismissalTasks: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private let successDisplayDuration: Duration
 
@@ -144,6 +153,104 @@ final class TransferStore {
         notifyVisibilityChange(ifPreviously: wasVisible)
         completeIfReady(id: id)
         return id
+    }
+
+    /// Starts one drag-out session. The task does not claim success until the
+    /// destination accepts the drag, and it distinguishes direct
+    /// representations from file promises whose write completion is known.
+    @discardableResult
+    func beginExport(id: UUID = UUID(),
+                     itemIDs: [UUID],
+                     safetyMessage: String = String(localized: "Items stay on the shelf if delivery fails.")) -> UUID {
+        guard taskIndex(id: id) == nil else { return id }
+        let uniqueItemIDs = itemIDs.reduce(into: [UUID]()) { result, itemID in
+            if !result.contains(itemID) {
+                result.append(itemID)
+            }
+        }
+        guard !uniqueItemIDs.isEmpty else { return id }
+
+        let wasVisible = hasVisibleActivity
+        tasks.append(TransferTask(
+            id: id,
+            direction: .exportFromShelf,
+            startedAt: Date(),
+            itemIDs: [],
+            phase: .preparing,
+            safetyMessage: safetyMessage,
+            expectedCount: uniqueItemIDs.count
+        ))
+        visibleTaskIDs.insert(id)
+        failuresByTaskID[id] = []
+        exportProgressByTaskID[id] = ExportProgress(expectedItemIDs: uniqueItemIDs)
+        trimHistory()
+        notifyVisibilityChange(ifPreviously: wasVisible)
+        return id
+    }
+
+    /// A destination asked the provider to materialize a promised file. A
+    /// late request revokes an earlier direct-representation assumption until
+    /// the provider reports delivered or failed.
+    func recordExportPromiseRequested(taskID: UUID, itemID: UUID) {
+        guard var progress = exportProgressByTaskID[taskID],
+              progress.expectedItemIDs.contains(itemID) else { return }
+        dismissalTasks[taskID]?.cancel()
+        dismissalTasks[taskID] = nil
+        makeVisible(taskID)
+        progress.acceptedItemIDs.remove(itemID)
+        exportProgressByTaskID[taskID] = progress
+        refreshExportTask(taskID: taskID)
+    }
+
+    func recordExportDelivered(taskID: UUID, itemID: UUID) {
+        guard var progress = exportProgressByTaskID[taskID],
+              progress.expectedItemIDs.contains(itemID) else { return }
+        dismissalTasks[taskID]?.cancel()
+        dismissalTasks[taskID] = nil
+        makeVisible(taskID)
+        progress.acceptedItemIDs.remove(itemID)
+        progress.failuresByItemID.removeValue(forKey: itemID)
+        progress.deliveredItemIDs.insert(itemID)
+        exportProgressByTaskID[taskID] = progress
+        refreshExportTask(taskID: taskID)
+    }
+
+    func recordExportFailure(taskID: UUID,
+                             itemID: UUID,
+                             failure: TransferFailure) {
+        guard var progress = exportProgressByTaskID[taskID],
+              progress.expectedItemIDs.contains(itemID) else { return }
+        dismissalTasks[taskID]?.cancel()
+        dismissalTasks[taskID] = nil
+        makeVisible(taskID)
+        progress.acceptedItemIDs.remove(itemID)
+        progress.deliveredItemIDs.remove(itemID)
+        progress.failuresByItemID[itemID] = failure
+        exportProgressByTaskID[taskID] = progress
+        refreshExportTask(taskID: taskID)
+    }
+
+    /// Closes the AppKit drag session. A non-empty drag operation means only
+    /// that the destination accepted it; direct representations therefore end
+    /// at `.targetAccepted`, while promised files still wait for their writer
+    /// callbacks.
+    func finishExportSession(taskID: UUID,
+                             accepted: Bool,
+                             directlyAcceptedItemIDs: Set<UUID> = []) {
+        guard var progress = exportProgressByTaskID[taskID] else { return }
+        guard accepted else {
+            cancel(taskID: taskID)
+            return
+        }
+        progress.sessionAccepted = true
+        for itemID in directlyAcceptedItemIDs
+        where progress.expectedItemIDs.contains(itemID)
+            && !progress.deliveredItemIDs.contains(itemID)
+            && progress.failuresByItemID[itemID] == nil {
+            progress.acceptedItemIDs.insert(itemID)
+        }
+        exportProgressByTaskID[taskID] = progress
+        refreshExportTask(taskID: taskID)
     }
 
     /// Adds work discovered while traversing a heterogeneous fallback batch.
@@ -255,6 +362,46 @@ final class TransferStore {
         }
     }
 
+    private func refreshExportTask(taskID: UUID) {
+        guard let index = taskIndex(id: taskID),
+              let progress = exportProgressByTaskID[taskID] else { return }
+
+        let successfulIDs = progress.acceptedItemIDs.union(progress.deliveredItemIDs)
+        tasks[index].itemIDs = progress.expectedItemIDs.filter(successfulIDs.contains)
+        let failures = progress.expectedItemIDs.compactMap { progress.failuresByItemID[$0] }
+        failuresByTaskID[taskID] = failures
+
+        let outcomeCount = successfulIDs.count + failures.count
+        guard progress.sessionAccepted,
+              outcomeCount >= progress.expectedItemIDs.count else {
+            if progress.sessionAccepted {
+                tasks[index].phase = .receiving(
+                    receivedCount: outcomeCount,
+                    expectedCount: progress.expectedItemIDs.count
+                )
+            } else {
+                tasks[index].phase = .preparing
+            }
+            return
+        }
+
+        if failures.isEmpty {
+            if progress.deliveredItemIDs.count == progress.expectedItemIDs.count {
+                tasks[index].phase = .delivered
+            } else {
+                tasks[index].phase = .targetAccepted
+            }
+            scheduleSuccessDismissal(taskID: taskID)
+        } else if !successfulIDs.isEmpty {
+            tasks[index].phase = .partiallySucceeded(
+                successCount: successfulIDs.count,
+                failures: failures
+            )
+        } else {
+            tasks[index].phase = .failed(failures[0])
+        }
+    }
+
     private func updateReceivingPhase(at index: Int) {
         let task = tasks[index]
         tasks[index].phase = .receiving(
@@ -311,6 +458,7 @@ final class TransferStore {
         tasks.removeAll { ids.contains($0.id) }
         for id in ids {
             failuresByTaskID.removeValue(forKey: id)
+            exportProgressByTaskID.removeValue(forKey: id)
             dismissalTasks[id]?.cancel()
             dismissalTasks.removeValue(forKey: id)
         }

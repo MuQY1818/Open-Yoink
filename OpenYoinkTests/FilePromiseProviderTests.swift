@@ -118,6 +118,29 @@ final class FilePromiseProviderTests: XCTestCase {
                        "报告 2026.txt")
     }
 
+    func testDelegate_writePromiseTo_reportsPromiseRepresentationRequested() throws {
+        let directory = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = directory.appendingPathComponent("hello.txt")
+        try "hello".write(to: source, atomically: true, encoding: .utf8)
+        let requestCount = Mutex(0)
+        let provider = FilePromiseProvider(
+            payload: makePayload(sourceURL: source),
+            bookmarkService: BookmarkService(),
+            onPromiseRequested: { requestCount.withLock { $0 += 1 } }
+        )
+
+        _ = provider.delegate?.filePromiseProvider(provider, fileNameForType: "public.data")
+        XCTAssertEqual(requestCount.withLock { $0 }, 0,
+                       "询问文件名不代表目标已经请求写入")
+        provider.delegate?.filePromiseProvider(
+            provider,
+            writePromiseTo: directory.appendingPathComponent("out.txt")
+        ) { _ in }
+
+        XCTAssertEqual(requestCount.withLock { $0 }, 1)
+    }
+
     func testDelegate_operationQueue_isUserInitiated() {
         let provider = FilePromiseProvider(
             payload: makePayload(sourceURL: URL(fileURLWithPath: "/tmp/hello.txt")),

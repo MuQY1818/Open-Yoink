@@ -18,17 +18,20 @@ final class StorageManagementController {
     private let tempFileService: TempFileService
     private let shelfStore: ShelfStore
     private let managedMoveJournal: ManagedMoveJournal?
+    private let additionalProtectedPaths: @MainActor () -> Set<String>
     private let prepareRestoredItems: @MainActor ([ShelfItem]) -> [ShelfItem]
 
     init(persistence: PersistenceController,
          tempFileService: TempFileService,
          shelfStore: ShelfStore,
          managedMoveJournal: ManagedMoveJournal? = nil,
+         additionalProtectedPaths: @escaping @MainActor () -> Set<String> = { [] },
          prepareRestoredItems: @escaping @MainActor ([ShelfItem]) -> [ShelfItem] = { $0 }) {
         self.persistence = persistence
         self.tempFileService = tempFileService
         self.shelfStore = shelfStore
         self.managedMoveJournal = managedMoveJournal
+        self.additionalProtectedPaths = additionalProtectedPaths
         self.prepareRestoredItems = prepareRestoredItems
         refresh()
     }
@@ -101,6 +104,7 @@ final class StorageManagementController {
         let protectedItems = shelfStore.items + persistence.recoverableSnapshotItems()
         var protectedPaths = materializedPaths(in: protectedItems)
         protectedPaths.formUnion(managedMoveJournal?.protectedManagedPaths() ?? [])
+        protectedPaths.formUnion(additionalProtectedPaths())
         let result = tempFileService.cleanupOrphans(keepingPaths: protectedPaths)
         if result.removedItemCount == 0 {
             statusMessage = String(localized: "No unused files were found.")

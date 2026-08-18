@@ -100,6 +100,29 @@ final class StorageManagementControllerTests: XCTestCase {
         XCTAssertNil(controller.errorMessage)
     }
 
+    func testCleanupProtectsRuntimeDeliveryLease() throws {
+        let root = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let persistence = PersistenceController(directoryURL: root)
+        let materialized = root.appendingPathComponent("Materialized", isDirectory: true)
+        let temp = TempFileService(directoryURL: materialized)
+        let leasedURL = try temp.uniqueFileURL(suggestedName: "delivering.dat")
+        let orphanURL = try temp.uniqueFileURL(suggestedName: "orphan.dat")
+        try Data([1]).write(to: leasedURL)
+        try Data([2]).write(to: orphanURL)
+        let controller = StorageManagementController(
+            persistence: persistence,
+            tempFileService: temp,
+            shelfStore: ShelfStore(items: [], persistence: persistence),
+            additionalProtectedPaths: { [leasedURL.path] }
+        )
+
+        controller.cleanUnusedFiles()
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: leasedURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: orphanURL.path))
+    }
+
     func testDamagedManagedMoveJournalDisablesCleanup() throws {
         let root = try makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
