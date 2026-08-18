@@ -94,7 +94,10 @@ struct ShelfItemCard: View {
                     guard let dragOutController else { return }
                     let contents = dragContentsProvider?(item)
                         ?? DragOutContents(items: [item], topLevelIDs: [item.id])
-                    dragOutController.beginDrag(contents: contents, from: sourceView, event: event)
+                    dragOutController.beginDrag(contents: contents,
+                                                originatingItemID: item.id,
+                                                from: sourceView,
+                                                event: event)
                 }
             )
         }

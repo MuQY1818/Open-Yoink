@@ -15,6 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let managedMoveJournal = ManagedMoveJournal()
     /// S10: 拖入/物化失败的内联提示（shelf 标题栏下方短暂胶囊，自动消失）。
     private let shelfNotice = ShelfNoticeModel()
+    /// 仅承载活动 tutorial item 的 token，避免 shelf 与 onboarding lazy init 成环。
+    private let onboardingDragContext = OnboardingDragContext()
     private let logger = Logger(subsystem: "com.weijue.OpenYoink", category: "App")
     /// shelf.json 在整个启动链路中只读取一次。读取失败会隔离损坏文件；若再读
     /// 一次就会得到 `.missing`，从而错误放行 Materialized 孤儿清理。
@@ -68,7 +70,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                                                    settings: settingsStore,
                                                                    recents: recentItemsService,
                                                                    deliveryCoordinator: deliveryCoordinator,
-                                                                   dragStartMonitor: dragStartMonitor)
+                                                                   dragStartMonitor: dragStartMonitor,
+                                                                   tutorialTokenForItem: { [weak self] itemID in
+                                                                       self?.onboardingDragContext.token(for: itemID)
+                                                                   })
+    private lazy var onboardingController = OnboardingController(
+        settings: settingsStore,
+        shelfStore: shelfStore,
+        shelfWindowController: shelfWindowController,
+        importCoordinator: dropImportCoordinator,
+        dragContext: onboardingDragContext
+    )
     private lazy var settingsWindowController = SettingsWindowController(settings: settingsStore,
                                                                          hotKeyMonitor: hotKeyMonitor,
                                                                          launchAtLoginController: launchAtLoginController,
@@ -85,6 +97,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         },
         onShowSettings: { [weak self] in
             self?.settingsWindowController.show()
+        },
+        onShowQuickStart: { [weak self] in
+            self?.onboardingController.replay()
         },
         onCheckForUpdates: { [weak self] in
             self?.updateController.checkForUpdates()
@@ -191,6 +206,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        // 必须在 Sparkle start 或任何新版本偏好写入之前采样，才能区分真正
+        // 全新安装与没有 onboardingVersion 键的旧版本升级。
+        let hasLegacyInstallEvidence = legacyInstallEvidence()
         _ = menuBarController
         // EdgeTab: 拉环随启动就位（shelf 初始隐藏，拉环立即在边缘就位）。
         _ = edgeTabController
@@ -227,9 +245,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 评审 P1：promise 共享 staging 的按龄清理（与 shelf 加载结果无关，
         // 只删 1 小时前的 PromiseStaging-* 残留，刚完成的拖入不受影响）。
         tempFileService.cleanupStaleStagingDirectories()
+        // 引导必须排在 shelf 读取、事务恢复、bookmark 解析和安全清理之后，
+        // 此时「空架」才是可信事实。
+        onboardingController.startAtLaunch(
+            hasLegacyInstallEvidence: hasLegacyInstallEvidence
+        )
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        onboardingController.applicationWillTerminate()
         do {
             try persistence.saveNow(shelfStore.items)
             reconcileCommittedManagedMoves()
@@ -242,6 +266,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         mouseShakeMonitor.stop()
         edgeTriggerMonitor.stop()
         dragStartMonitor.stop()
+    }
+
+    /// 旧版没有 onboardingVersion，需从本版本写入前的持久化痕迹判断升级。
+    /// 注册域默认值不算证据；bundle 的持久化 domain 与 Application Support
+    /// 中既有数据任一存在即可。Tutorial 自身被排除，避免中断 session 被误判。
+    private func legacyInstallEvidence() -> Bool {
+        switch initialShelfLoadResult {
+        case .loaded, .failed:
+            return true
+        case .missing:
+            break
+        }
+
+        if let names = try? FileManager.default.contentsOfDirectory(
+            atPath: persistence.directoryURL.path
+        ), names.contains(where: { $0 != "Tutorial" }) {
+            return true
+        }
+
+        let domainName = Bundle.main.bundleIdentifier ?? "com.weijue.OpenYoink"
+        let persistent = UserDefaults.standard.persistentDomain(forName: domainName) ?? [:]
+        return persistent.keys.contains { key in
+            key != "OpenYoink.onboardingVersion"
+        }
     }
 
     func toggleShelf() {

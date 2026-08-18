@@ -48,11 +48,15 @@ final class FilePromiseProvider: NSFilePromiseProvider {
     private let advertisesDirectFileURL: Bool
     /// 图片项的 `public.tiff` 位图回退（惰性：目标请求时才读文件）。
     private let tiffDataProvider: (@Sendable () -> Data?)?
+    /// 快速上手练习卡的会话令牌。仅活动 tutorial item 非 nil；目标面板据此
+    /// 拒绝任何其他拖放，同时 writer 仍保留真实 file URL / promise 表示。
+    private let tutorialSessionToken: String?
 
     init(payload: Payload,
          bookmarkService: BookmarkService,
          advertisesDirectFileURL: Bool = true,
          tiffDataProvider: (@Sendable () -> Data?)? = nil,
+         tutorialSessionToken: String? = nil,
          onPromiseRequested: (@Sendable () -> Void)? = nil,
          onDelivered: (@Sendable (URL) -> Void)? = nil,
          onError: (@Sendable (Error) -> Void)? = nil) {
@@ -65,6 +69,7 @@ final class FilePromiseProvider: NSFilePromiseProvider {
         self.directFileURL = payload.sourceURL
         self.advertisesDirectFileURL = advertisesDirectFileURL
         self.tiffDataProvider = tiffDataProvider
+        self.tutorialSessionToken = tutorialSessionToken
         // 不用 `super.init(fileType:delegate:)`：NSFilePromiseProvider 是 ObjC
         // 类簇，该初始化器内部回调动态类型的 `init()`，对 Swift 子类会触发
         // "unimplemented initializer" 陷阱（探针实测）。改为指定初始化器
@@ -86,6 +91,9 @@ final class FilePromiseProvider: NSFilePromiseProvider {
         if tiffDataProvider != nil {
             result.append(PasteboardTypes.tiff)
         }
+        if tutorialSessionToken != nil {
+            result.append(PasteboardTypes.tutorialSession)
+        }
         for type in super.writableTypes(for: pasteboard) where !result.contains(type) {
             result.append(type)
         }
@@ -101,6 +109,8 @@ final class FilePromiseProvider: NSFilePromiseProvider {
             return directFileURL.absoluteString as NSString
         case PasteboardTypes.tiff where tiffDataProvider != nil:
             return tiffDataProvider?()
+        case PasteboardTypes.tutorialSession where tutorialSessionToken != nil:
+            return tutorialSessionToken as NSString?
         default:
             return super.pasteboardPropertyList(forType: type)
         }

@@ -27,4 +27,36 @@ final class DragOutRemovalDecisionTests: XCTestCase {
         XCTAssertFalse(verdict.shouldRemove)
         XCTAssertEqual(verdict.policyToPersist, .keep)
     }
+
+    func testTutorialOriginScopesMultiSelectionToPracticeCardOnly() {
+        let tutorial = ShelfItem(kind: .file, path: "/tmp/tutorial.txt", displayName: "tutorial")
+        let userItem = ShelfItem(kind: .file, path: "/tmp/report.pdf", displayName: "report")
+        let contents = DragOutContents(items: [tutorial, userItem],
+                                       topLevelIDs: [tutorial.id, userItem.id])
+
+        let effective = TutorialDragScope.effectiveContents(
+            contents,
+            originatingItemID: tutorial.id,
+            tutorialItemIDs: [tutorial.id]
+        )
+
+        XCTAssertEqual(effective.items.map(\.id), [tutorial.id])
+        XCTAssertEqual(effective.topLevelIDs, [tutorial.id])
+    }
+
+    func testOrdinaryOriginExcludesSelectedPracticeCardAndItsToken() {
+        let tutorial = ShelfItem(kind: .file, path: "/tmp/tutorial.txt", displayName: "tutorial")
+        let userItem = ShelfItem(kind: .file, path: "/tmp/report.pdf", displayName: "report")
+        let contents = DragOutContents(items: [tutorial, userItem],
+                                       topLevelIDs: [tutorial.id, userItem.id])
+
+        let effective = TutorialDragScope.effectiveContents(
+            contents,
+            originatingItemID: userItem.id,
+            tutorialItemIDs: [tutorial.id]
+        )
+
+        XCTAssertEqual(effective.items.map(\.id), [userItem.id])
+        XCTAssertEqual(effective.topLevelIDs, [userItem.id])
+    }
 }

@@ -1,6 +1,168 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "1 of 2" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "1 of 2" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "第 1 步，共 2 步" } }
+      }
+    },
+    "1. Drag content into the shelf." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "1. Drag content into the shelf." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "1. 把内容拖进暂存架。" } }
+      }
+    },
+    "2 of 2" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "2 of 2" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "第 2 步，共 2 步" } }
+      }
+    },
+    "2. Drag its card out to your destination." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "2. Drag its card out to your destination." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "2. 把对应卡片拖到目的地。" } }
+      }
+    },
+    "Complete" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Complete" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "完成" } }
+      }
+    },
+    "Done" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Done" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "完成" } }
+      }
+    },
+    "Drag the practice card from the shelf back here" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Drag the practice card from the shelf back here" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "把暂存架中的练习卡拖回这里" } }
+      }
+    },
+    "Drag to the shelf" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Drag to the shelf" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖到暂存架" } }
+      }
+    },
+    "Nice work" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Nice work" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "操作完成" } }
+      }
+    },
+    "OpenYoink Quick Start" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "OpenYoink Quick Start" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "OpenYoink 快速上手" } }
+      }
+    },
+    "OpenYoink practice file. Drag to the shelf." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "OpenYoink practice file. Drag to the shelf." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "OpenYoink 练习文件。拖到暂存架。" } }
+      }
+    },
+    "Practice drop target" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Practice drop target" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "练习投放区域" } }
+      }
+    },
+    "Put it in" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Put it in" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "先放进去" } }
+      }
+    },
+    "Quick Start…" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Quick Start…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "快速上手…" } }
+      }
+    },
+    "Quick guide" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Quick guide" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "快速说明" } }
+      }
+    },
+    "Skip" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Skip" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "跳过" } }
+      }
+    },
+    "Take it back out" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Take it back out" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "再拿出来" } }
+      }
+    },
+    "The practice file couldn't be created. You can still follow the two steps below." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The practice file couldn't be created. You can still follow the two steps below." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法创建练习文件，你仍可以参考下面的两步说明。" } }
+      }
+    },
+    "The practice couldn't be closed safely. Your files were not touched." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The practice couldn't be closed safely. Your files were not touched." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法安全关闭练习，你的文件没有受到影响。" } }
+      }
+    },
+    "The practice finished, but its temporary file could not be cleaned up automatically." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The practice finished, but its temporary file could not be cleaned up automatically." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "练习已完成，但临时文件未能自动清理。" } }
+      }
+    },
+    "The practice state couldn't be saved. Your files were not touched." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The practice state couldn't be saved. Your files were not touched." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法保存练习进度，你的文件没有受到影响。" } }
+      }
+    },
+    "The previous practice couldn't be cleaned up safely. Your files were not touched." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The previous practice couldn't be cleaned up safely. Your files were not touched." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法安全清理上一次练习，你的文件没有受到影响。" } }
+      }
+    },
+    "The same gesture works after switching windows, Spaces, or full-screen apps." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The same gesture works after switching windows, Spaces, or full-screen apps." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "切换窗口、桌面空间或全屏应用后，操作方式也完全相同。" } }
+      }
+    },
+    "This file was created by OpenYoink. It won't read, move, or upload your files." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This file was created by OpenYoink. It won't read, move, or upload your files." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这个文件由 OpenYoink 创建，不会读取、移动或上传你的文件。" } }
+      }
+    },
+    "This practice file was created by OpenYoink. You can delete it safely." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This practice file was created by OpenYoink. You can delete it safely." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这是 OpenYoink 创建的练习文件，可以放心删除。" } }
+      }
+    },
+    "Two simple steps" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Two simple steps" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "只需两步" } }
+      }
+    },
+    "You're ready. OpenYoink will appear when you start dragging, and ⌘⇧Space shows or hides it anytime." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "You're ready. OpenYoink will appear when you start dragging, and ⌘⇧Space shows or hides it anytime." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已经学会了。开始拖拽时 OpenYoink 会自动出现，按 ⌘⇧Space 可随时显示或隐藏。" } }
+      }
+    },
     "%lld items" : {
       "extractionState" : "manual",
       "localizations" : {

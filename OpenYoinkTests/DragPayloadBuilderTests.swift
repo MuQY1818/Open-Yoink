@@ -257,6 +257,25 @@ final class DragPayloadBuilderTests: XCTestCase {
         XCTAssertTrue(advertised.contains { NSFilePromiseReceiver.readableDraggedTypes.contains($0) })
     }
 
+    func testTutorialFileWriterCarriesPrivateTokenAlongsideRealFileRepresentations() throws {
+        let item = ShelfItem(kind: .file,
+                             path: "/tmp/OpenYoink 练习文件.txt",
+                             displayName: "OpenYoink 练习文件.txt")
+        let token = UUID().uuidString
+        let writer = try XCTUnwrap(DragPayloadBuilder.makePasteboardWriter(
+            for: item,
+            bookmarkService: bookmarkService,
+            tutorialSessionToken: token
+        ))
+
+        let advertised = advertisedTypes(of: writer)
+        XCTAssertTrue(advertised.contains(PasteboardTypes.fileURL.rawValue))
+        XCTAssertTrue(advertised.contains(PasteboardTypes.tutorialSession.rawValue))
+        XCTAssertTrue(advertised.contains { NSFilePromiseReceiver.readableDraggedTypes.contains($0) })
+        XCTAssertEqual(writer.pasteboardPropertyList(forType: PasteboardTypes.tutorialSession) as? String,
+                       token)
+    }
+
     /// 交付确认挂接：剪切项 writer 的 promise 写入完成后经 sink 上报 item id。
     func testCutItem_deliverySink_reportsItemID() throws {
         let bookmarkService = BookmarkService()

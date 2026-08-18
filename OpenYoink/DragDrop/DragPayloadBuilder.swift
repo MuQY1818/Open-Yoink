@@ -130,10 +130,14 @@ enum DragPayloadBuilder {
     @MainActor
     static func makePasteboardWriter(for item: ShelfItem,
                                      bookmarkService: BookmarkService,
-                                     delivery: DeliverySink? = nil) -> NSPasteboardWriting? {
+                                     delivery: DeliverySink? = nil,
+                                     tutorialSessionToken: String? = nil) -> NSPasteboardWriting? {
         switch strategy(for: item) {
         case .fileBacked, .fileBackedImage:
-            return makeFileBackedWriter(for: item, bookmarkService: bookmarkService, delivery: delivery)
+            return makeFileBackedWriter(for: item,
+                                        bookmarkService: bookmarkService,
+                                        delivery: delivery,
+                                        tutorialSessionToken: tutorialSessionToken)
         case .plainText:
             return makeTextItem(for: item)
         case .webURL:
@@ -150,9 +154,15 @@ enum DragPayloadBuilder {
     static func makeDraggingItems(for items: [ShelfItem],
                                   frame: NSRect,
                                   bookmarkService: BookmarkService,
-                                  delivery: DeliverySink? = nil) -> [NSDraggingItem] {
+                                  delivery: DeliverySink? = nil,
+                                  tutorialTokensByItemID: [UUID: String] = [:]) -> [NSDraggingItem] {
         flattenedItems(items).compactMap { item in
-            guard let writer = makePasteboardWriter(for: item, bookmarkService: bookmarkService, delivery: delivery) else {
+            guard let writer = makePasteboardWriter(
+                for: item,
+                bookmarkService: bookmarkService,
+                delivery: delivery,
+                tutorialSessionToken: tutorialTokensByItemID[item.id]
+            ) else {
                 return nil
             }
             let draggingItem = NSDraggingItem(pasteboardWriter: writer)
@@ -198,7 +208,8 @@ enum DragPayloadBuilder {
     @MainActor
     private static func makeFileBackedWriter(for item: ShelfItem,
                                              bookmarkService: BookmarkService,
-                                             delivery: DeliverySink?) -> NSPasteboardWriting? {
+                                             delivery: DeliverySink?,
+                                             tutorialSessionToken: String?) -> NSPasteboardWriting? {
         guard let path = item.path else { return nil }
         // 拖拽开始时解析 bookmark 取最新路径（文件可能在 shelf 停留期间被
         // 移动）；解析失败回退存储路径，promise 写入时会再尝试解析一次。
@@ -239,6 +250,7 @@ enum DragPayloadBuilder {
             bookmarkService: bookmarkService,
             advertisesDirectFileURL: !item.isCut,
             tiffDataProvider: tiffDataProvider,
+            tutorialSessionToken: tutorialSessionToken,
             onPromiseRequested: onPromiseRequested,
             onDelivered: onDelivered,
             onError: onError

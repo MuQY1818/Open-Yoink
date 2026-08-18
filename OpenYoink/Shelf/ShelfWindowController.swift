@@ -78,6 +78,12 @@ final class ShelfWindowController: NSObject {
     /// 任务二：拖拽进行中状态（`DragStartMonitor.isDragInProgress`），供给
     /// 空架自动隐藏的门控 —— 拖拽期间任何自动显隐不得收起已可见的 shelf。
     private let dragStartMonitor: DragStartMonitor
+    /// 快速上手期间只暂停自动隐藏，不改写用户的 autoHide 设置。
+    private var onboardingPresentationCount = 0
+
+    struct OnboardingPresentationSnapshot: Equatable, Sendable {
+        fileprivate let wasVisible: Bool
+    }
 
     private lazy var panel: ShelfPanel = {
         let panel = ShelfPanel(
@@ -131,7 +137,8 @@ final class ShelfWindowController: NSObject {
          settings: SettingsStore,
          recents: RecentItemsService,
          deliveryCoordinator: DeliveryCoordinator,
-         dragStartMonitor: DragStartMonitor) {
+         dragStartMonitor: DragStartMonitor,
+         tutorialTokenForItem: @escaping @MainActor (UUID) -> String? = { _ in nil }) {
         self.appState = appState
         self.store = store
         self.importCoordinator = importCoordinator
@@ -143,7 +150,8 @@ final class ShelfWindowController: NSObject {
             settings: settings,
             recents: recents,
             bookmarkService: importCoordinator.bookmarkService,
-            deliveryCoordinator: deliveryCoordinator
+            deliveryCoordinator: deliveryCoordinator,
+            tutorialTokenForItem: tutorialTokenForItem
         )
         self.quickLookCoordinator = QuickLookCoordinator(
             store: store,
@@ -162,7 +170,9 @@ final class ShelfWindowController: NSObject {
         // 回调在 DragSessionController.draggingSession(endedAt:) 里按
         // 「实际发生 drop」判定后触发；隐藏与否在此处按最新设置裁决。
         dragOutController.onSuccessfulDrop = { [weak self] in
-            guard let self, self.settings.autoHide else { return }
+            guard let self,
+                  self.onboardingPresentationCount == 0,
+                  self.settings.autoHide else { return }
             self.hideShelf(animated: true)
         }
         // S6: QL 面板关闭后让 ShelfPanel 重新成为 key（nonactivating：只接
@@ -227,6 +237,31 @@ final class ShelfWindowController: NSObject {
             panel.animator().alphaValue = 1
             panel.animator().setFrame(targetFrame, display: true)
         }
+    }
+
+    /// 快速上手获得一个显示租约：记录进入前可见性、暂停所有自动隐藏并显示
+    /// shelf。租约结束时恢复原可见性，不写任何用户设置。
+    func beginOnboardingPresentation() -> OnboardingPresentationSnapshot {
+        let snapshot = OnboardingPresentationSnapshot(wasVisible: appState.isShelfVisible)
+        onboardingPresentationCount += 1
+        if !appState.isShelfVisible {
+            showShelf(animated: !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+        }
+        return snapshot
+    }
+
+    func endOnboardingPresentation(_ snapshot: OnboardingPresentationSnapshot) {
+        onboardingPresentationCount = max(0, onboardingPresentationCount - 1)
+        guard onboardingPresentationCount == 0,
+              !snapshot.wasVisible,
+              appState.isShelfVisible else { return }
+        hideShelf(animated: !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+    }
+
+    /// 引导面板布局使用。隐藏时返回当前设置对应的目标 frame，不要求先创建
+    /// 或展示 NSPanel。
+    var visibleOrTargetFrame: CGRect {
+        appState.isShelfVisible ? panel.frame : targetFrame()
     }
 
     /// 向贴附缘滑出并淡出，结束后 orderOut。
@@ -386,7 +421,7 @@ final class ShelfWindowController: NSObject {
         let shouldAutoHide = emptyAutoHideRule.evaluate(
             itemCount: store.items.count,
             isVisible: appState.isShelfVisible,
-            isEnabled: settings.autoHideWhenEmpty,
+            isEnabled: settings.autoHideWhenEmpty && onboardingPresentationCount == 0,
             isDragInProgress: dragStartMonitor.isDragInProgress
         )
         if appState.isShelfVisible {

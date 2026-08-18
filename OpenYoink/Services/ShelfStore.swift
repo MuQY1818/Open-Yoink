@@ -101,6 +101,21 @@ final class ShelfStore {
         return removed
     }
 
+    /// 先同步持久化“已移除”的完整快照，再更新运行期状态。教程清理等随后
+    /// 会删除应用自有文件的路径必须走这个边界，避免崩溃时 shelf.json 仍
+    /// 引用已经删除的文件。无 persistence 的测试/预览等价于普通移除。
+    @discardableResult
+    func removeAndPersistNow(ids: Set<UUID>) throws -> [ShelfItem] {
+        let removed = items.filter { ids.contains($0.id) }
+        guard !removed.isEmpty else { return [] }
+        let updatedItems = items.filter { !ids.contains($0.id) }
+        try persistence?.saveNow(updatedItems)
+        items = updatedItems
+        selection.subtract(ids)
+        onItemsDidChange?()
+        return removed
+    }
+
     /// Removes the current selection.
     @discardableResult
     func removeSelection() -> [ShelfItem] {

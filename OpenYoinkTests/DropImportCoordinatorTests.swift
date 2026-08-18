@@ -140,6 +140,32 @@ final class DropImportCoordinatorTests: XCTestCase {
         XCTAssertEqual(result.items.map(\.displayName), [first.lastPathComponent, second.lastPathComponent])
     }
 
+    func testTutorialTokenAllowsOnlyCurrentInternalSessionAndReportsRealImportedItem() throws {
+        var context = makeContext()
+        defer { context.cleanup() }
+        let fileURL = try makeTempFile(in: &context, named: "OpenYoink 练习文件.txt")
+        let token = UUID().uuidString
+        let pasteboard = makePasteboard()
+        pasteboard.writeObjects([fileURL as NSURL])
+        pasteboard.addTypes([PasteboardTypes.tutorialSession], owner: nil)
+        pasteboard.setString(token, forType: PasteboardTypes.tutorialSession)
+        context.coordinator.isActiveTutorialToken = { $0 == token }
+
+        XCTAssertTrue(context.coordinator.acceptsInternalTutorialDrag(pasteboard))
+        var callback: (String, [ShelfItem])?
+        context.coordinator.onTutorialItemsImported = { callback = ($0, $1) }
+        let result = context.coordinator.importItems(from: pasteboard,
+                                                     onAsyncItemReady: ignoringAsyncItems())
+        context.coordinator.noteSynchronousTutorialImport(from: pasteboard,
+                                                          items: result.items)
+
+        XCTAssertEqual(callback?.0, token)
+        XCTAssertEqual(callback?.1.only?.path, fileURL.path)
+
+        context.coordinator.isActiveTutorialToken = { _ in false }
+        XCTAssertFalse(context.coordinator.acceptsInternalTutorialDrag(pasteboard))
+    }
+
     // MARK: - File promise kind inference
 
     func testInferFileKind_actualExtensionWinsOverReceiverTypeCollection() throws {

@@ -15,6 +15,8 @@ final class MenuBarController: NSObject {
     private let onReaddRecent: (RecentEntry) -> Void
     /// 打开设置窗口（由 AppDelegate 的 SettingsWindowController 提供）。
     private let onShowSettings: () -> Void
+    /// 可重播的两步真实拖放练习。
+    private let onShowQuickStart: () -> Void
     /// Sparkle 手动检查更新（由 AppDelegate 的 UpdateController 提供）。
     private let onCheckForUpdates: () -> Void
     /// 自动安装失败时可直接打开 GitHub Releases 手动下载。
@@ -30,6 +32,7 @@ final class MenuBarController: NSObject {
          onToggleShelf: @escaping () -> Void,
          onReaddRecent: @escaping (RecentEntry) -> Void,
          onShowSettings: @escaping () -> Void,
+         onShowQuickStart: @escaping () -> Void,
          onCheckForUpdates: @escaping () -> Void,
          onOpenManualUpdate: @escaping () -> Void) {
         self.appState = appState
@@ -37,6 +40,7 @@ final class MenuBarController: NSObject {
         self.onToggleShelf = onToggleShelf
         self.onReaddRecent = onReaddRecent
         self.onShowSettings = onShowSettings
+        self.onShowQuickStart = onShowQuickStart
         self.onCheckForUpdates = onCheckForUpdates
         self.onOpenManualUpdate = onOpenManualUpdate
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -70,6 +74,12 @@ final class MenuBarController: NSObject {
         menu.addItem(recentParentItem)
 
         menu.addItem(.separator())
+
+        let quickStartItem = NSMenuItem(title: String(localized: "Quick Start…"),
+                                        action: #selector(showQuickStart(_:)),
+                                        keyEquivalent: "")
+        quickStartItem.target = self
+        menu.addItem(quickStartItem)
 
         // S8: 打开 SwiftUI Settings scene（见 showSettings(_:)）。
         let settingsItem = NSMenuItem(title: String(localized: "Settings…"),
@@ -113,6 +123,10 @@ final class MenuBarController: NSObject {
     /// 焦点处理（activate 前置）由 SettingsWindowController.show() 负责。
     @objc private func showSettings(_ sender: Any?) {
         onShowSettings()
+    }
+
+    @objc private func showQuickStart(_ sender: Any?) {
+        onShowQuickStart()
     }
 
     /// 手动检查更新（Sparkle；空 feed 时走「已是最新」安全路径）。

@@ -44,6 +44,20 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertFalse(store.autoHide)
         XCTAssertEqual(store.dragOutRemovalPolicy, .keep)
         XCTAssertEqual(store.language, .system)
+        XCTAssertEqual(store.onboardingVersion, 0)
+        XCTAssertFalse(store.hadPersistedOnboardingVersion)
+    }
+
+    func testOnboardingVersionPersistsAndKeepsExplicitState() throws {
+        let (defaults, name) = try makeSuite()
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let store = SettingsStore(defaults: defaults)
+        store.onboardingVersion = 1
+
+        let reloaded = SettingsStore(defaults: defaults)
+        XCTAssertEqual(reloaded.onboardingVersion, 1)
+        XCTAssertTrue(reloaded.hadPersistedOnboardingVersion)
     }
 
     // MARK: - Custom shelf frame (S9)

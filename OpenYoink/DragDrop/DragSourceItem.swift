@@ -13,6 +13,25 @@ struct DragOutContents: Equatable, Sendable {
     var topLevelIDs: Set<UUID>
 }
 
+/// Tutorial 卡与普通多选拖拽之间的隔离规则（纯函数，避免练习 token 搭便车）。
+enum TutorialDragScope {
+    static func effectiveContents(_ contents: DragOutContents,
+                                  originatingItemID: UUID,
+                                  tutorialItemIDs: Set<UUID>) -> DragOutContents {
+        let tutorialOrigin = tutorialItemIDs.contains(originatingItemID)
+        return DragOutContents(
+            items: contents.items.filter { item in
+                tutorialOrigin
+                    ? item.id == originatingItemID
+                    : !tutorialItemIDs.contains(item.id)
+            },
+            topLevelIDs: tutorialOrigin
+                ? contents.topLevelIDs.intersection([originatingItemID])
+                : contents.topLevelIDs.subtracting(tutorialItemIDs)
+        )
+    }
+}
+
 /// 拖出总控（MainActor）：把卡片 mouseDragged 转成 AppKit 拖拽会话。
 ///
 /// 经 SwiftUI 环境（`\.dragOutController`）注入卡片；Preview/测试中环境缺省
@@ -26,6 +45,9 @@ final class DragOutController {
     /// Long-lived delivery state survives the AppKit drag session because file
     /// promise callbacks may arrive before or after `endedAt`.
     private let deliveryCoordinator: DeliveryCoordinator
+    /// 活动练习卡的运行时令牌。令牌只随该卡本次拖出写入 pasteboard；普通
+    /// 项目返回 nil。闭包避免把 tutorial 状态写进 ShelfItem schema。
+    private let tutorialTokenForItem: @MainActor (UUID) -> String?
 
     /// S8: 拖出成功（`operation` 非空）后的回调，由 ShelfWindowController
     /// 在 init 完成后接线以实现 autoHide（init 期无法捕获未完成的 self）。
@@ -36,21 +58,37 @@ final class DragOutController {
          settings: SettingsStore,
          recents: RecentItemsService,
          bookmarkService: BookmarkService,
-         deliveryCoordinator: DeliveryCoordinator) {
+         deliveryCoordinator: DeliveryCoordinator,
+         tutorialTokenForItem: @escaping @MainActor (UUID) -> String? = { _ in nil }) {
         self.store = store
         self.settings = settings
         self.recents = recents
         self.bookmarkService = bookmarkService
         self.deliveryCoordinator = deliveryCoordinator
+        self.tutorialTokenForItem = tutorialTokenForItem
     }
 
     /// 拖拽启动入口：`CardDragSourceAnchorView` 在 mouseDragged 超阈值时经卡片
     /// 回调调用。必须在主线程、且 `event` 为当前手势的 mouseDown/mouseDragged
     /// 事件（`beginDraggingSession` 的硬性要求）。
-    func beginDrag(contents: DragOutContents, from sourceView: NSView, event: NSEvent) {
+    func beginDrag(contents: DragOutContents,
+                   originatingItemID: UUID,
+                   from sourceView: NSView,
+                   event: NSEvent) {
+        // 练习 token 绝不能搭便车混进普通多选拖拽：从练习卡起拖时只拖
+        // 练习卡；从普通卡起拖时剔除可能被选中的练习卡。这样教程目标接受
+        // token 时不会连带触发其他用户卡片的移除/最近项目策略。
+        let tutorialIDs = Set(contents.items.compactMap { item in
+            tutorialTokenForItem(item.id) == nil ? nil : item.id
+        })
+        let effectiveContents = TutorialDragScope.effectiveContents(
+            contents,
+            originatingItemID: originatingItemID,
+            tutorialItemIDs: tutorialIDs
+        )
         let sessionID = UUID()
         let deliveryCoordinator = deliveryCoordinator
-        deliveryCoordinator.noteSessionBegan(id: sessionID, contents: contents)
+        deliveryCoordinator.noteSessionBegan(id: sessionID, contents: effectiveContents)
         let sink = DeliverySink(
             promiseRequested: { itemID in
                 Task { @MainActor in
@@ -72,22 +110,32 @@ final class DragOutController {
             }
         )
         let draggingItems = DragPayloadBuilder.makeDraggingItems(
-            for: contents.items,
+            for: effectiveContents.items,
             frame: sourceView.bounds,
             bookmarkService: bookmarkService,
-            delivery: sink
+            delivery: sink,
+            tutorialTokensByItemID: Dictionary(
+                uniqueKeysWithValues: DragPayloadBuilder.flattenedItems(effectiveContents.items).compactMap { item in
+                    tutorialTokenForItem(item.id).map { (item.id, $0) }
+                }
+            )
         )
         guard !draggingItems.isEmpty else {
             deliveryCoordinator.noteSessionEnded(id: sessionID, accepted: false)
             return
         }
         // 每次会话独立的 NSDraggingSource：无复用状态，结果处理只依赖本次 contents。
-        let source = DragSessionController(contents: contents,
+        let source = DragSessionController(contents: effectiveContents,
                                            sessionID: sessionID,
                                            store: store,
                                            settings: settings,
                                            recents: recents,
                                            delivery: deliveryCoordinator,
+                                           policyExcludedItemIDs: Set(
+                                               DragPayloadBuilder.flattenedItems(effectiveContents.items).compactMap { item in
+                                                   tutorialTokenForItem(item.id) == nil ? nil : item.id
+                                               }
+                                           ),
                                            onSuccessfulDrop: onSuccessfulDrop)
         sourceView.beginDraggingSession(with: draggingItems, event: event, source: source)
     }
@@ -102,6 +150,9 @@ final class DragSessionController: NSObject, NSDraggingSource {
     private let settings: SettingsStore
     private let recents: RecentItemsService
     private let delivery: DeliveryCoordinator?
+    /// Tutorial 项由 OnboardingController 在真实目标确认后清理，不受用户的
+    /// 常规拖出策略影响，也绝不能进入「最近项目」。
+    private let policyExcludedItemIDs: Set<UUID>
     private let onSuccessfulDrop: (@MainActor () -> Void)?
 
     init(contents: DragOutContents,
@@ -110,6 +161,7 @@ final class DragSessionController: NSObject, NSDraggingSource {
          settings: SettingsStore,
          recents: RecentItemsService,
          delivery: DeliveryCoordinator? = nil,
+         policyExcludedItemIDs: Set<UUID> = [],
          onSuccessfulDrop: (@MainActor () -> Void)? = nil) {
         self.contents = contents
         self.sessionID = sessionID
@@ -117,6 +169,7 @@ final class DragSessionController: NSObject, NSDraggingSource {
         self.settings = settings
         self.recents = recents
         self.delivery = delivery
+        self.policyExcludedItemIDs = policyExcludedItemIDs
         self.onSuccessfulDrop = onSuccessfulDrop
         super.init()
     }
@@ -168,14 +221,17 @@ final class DragSessionController: NSObject, NSDraggingSource {
     /// 文件成孤儿（下次启动被 cleanupOrphans 删除），移动中的数据丢失。
     private var nonCutTopLevelIDs: Set<UUID> {
         contents.topLevelIDs.filter { id in
-            contents.items.first(where: { $0.id == id })?.isCut != true
+            !policyExcludedItemIDs.contains(id)
+                && contents.items.first(where: { $0.id == id })?.isCut != true
         }
     }
 
     /// F-05: 剔除剪切项后的展开项目集合（最近历史只记非剪切项；剪切项在
     /// 交付确认时由 DeliveryCoordinator 单独记录）。
     private var nonCutFlattenedItems: [ShelfItem] {
-        DragPayloadBuilder.flattenedItems(contents.items).filter { !$0.isCut }
+        DragPayloadBuilder.flattenedItems(contents.items).filter {
+            !$0.isCut && !policyExcludedItemIDs.contains($0.id)
+        }
     }
 
     /// 移除顶层项目并记入最近历史（.remove 策略与 .ask 确认移除共用）。

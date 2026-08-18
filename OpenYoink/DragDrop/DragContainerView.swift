@@ -80,7 +80,10 @@ final class DragContainerView: NSView {
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
         // S5: 来自本应用卡片的拖出（draggingSource 非空）不接受回落到自身，
         // 避免「拖出又放回 shelf」产生重复引用。跨应用拖入 draggingSource 为 nil。
-        guard sender.draggingSource == nil else { return [] }
+        guard sender.draggingSource == nil
+                || coordinator.acceptsInternalTutorialDrag(sender.draggingPasteboard) else {
+            return []
+        }
         guard Self.hasImportableContent(sender.draggingPasteboard) else { return [] }
         dropTargetState.isTargeted = true
         updateDropMode(sender)
@@ -89,7 +92,10 @@ final class DragContainerView: NSView {
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
-        guard sender.draggingSource == nil else { return [] }
+        guard sender.draggingSource == nil
+                || coordinator.acceptsInternalTutorialDrag(sender.draggingPasteboard) else {
+            return []
+        }
         guard Self.hasImportableContent(sender.draggingPasteboard) else { return [] }
         // F-05: ⌘ 状态在拖动期间可能变化，实时刷新模式（高亮色调/提示随之切换）。
         updateDropMode(sender)
@@ -112,8 +118,12 @@ final class DragContainerView: NSView {
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
         // F-05: 落下瞬间以实时修饰键判定模式（⌘ = 剪切移入）。
-        let mode = DropImportCoordinator.dropMode(for: sender.draggingPasteboard,
-                                                  modifiers: NSEvent.modifierFlags)
+        // 教程文件永远走引用导入；即使用户此刻按住 ⌘，也不能把应用自己
+        // 创建的练习文件移入废纸篓/托管目录。
+        let mode: DropInMode = coordinator.acceptsInternalTutorialDrag(sender.draggingPasteboard)
+            ? .copy
+            : DropImportCoordinator.dropMode(for: sender.draggingPasteboard,
+                                              modifiers: NSEvent.modifierFlags)
         let result = coordinator.importItems(
             from: sender.draggingPasteboard,
             mode: mode,
@@ -127,6 +137,8 @@ final class DragContainerView: NSView {
         guard result.handled else { return false }
         // C6: 同步项目插入到指示线所示位置（无指示线时追加到末尾）。
         store.add(contentsOf: result.items, at: dropTargetState.insertionIndex)
+        coordinator.noteSynchronousTutorialImport(from: sender.draggingPasteboard,
+                                                   items: result.items)
         return true
     }
 

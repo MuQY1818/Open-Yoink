@@ -63,6 +63,11 @@ final class DropImportCoordinator {
     /// 拖拽自动唤出会话「本轮已有内容落入」，拖结束时不再自动收回。
     var onImportHandled: (@MainActor () -> Void)?
 
+    /// 快速上手的运行时令牌验证与导入回调。只有当前 session 的随机令牌
+    /// 才能让本应用内部拖拽穿过 shelf 的「拒绝自身回落」防线。
+    var isActiveTutorialToken: (@MainActor (String) -> Bool)?
+    var onTutorialItemsImported: (@MainActor (String, [ShelfItem]) -> Void)?
+
     /// 共享的书签服务（ShelfWindowController 把它注入 SwiftUI 环境，
     /// 供卡片缩略图/打开操作经 bookmark 解析文件访问权）。
     let bookmarkService: BookmarkService
@@ -128,15 +133,44 @@ final class DropImportCoordinator {
                      onManagedMoveReady: (@MainActor (ShelfItem) -> Bool)? = nil,
                      onAsyncItemReady: @escaping @MainActor (ShelfItem) -> Void) -> DropImportResult {
         let batchID = UUID()
+        let tutorialToken = activeTutorialToken(in: pasteboard)
+        let wrappedAsyncReady: @MainActor (ShelfItem) -> Void = { [weak self] item in
+            onAsyncItemReady(item)
+            guard let self, let tutorialToken else { return }
+            self.onTutorialItemsImported?(tutorialToken, [item])
+        }
         let result = dispatchImport(from: pasteboard,
                                     batchID: batchID,
                                     mode: mode,
                                     onManagedMoveReady: onManagedMoveReady,
-                                    onAsyncItemReady: onAsyncItemReady)
+                                    onAsyncItemReady: wrappedAsyncReady)
         if result.handled {
             onImportHandled?()
         }
         return result
+    }
+
+    /// `NSDraggingDestination` 用于判定同进程来源是否是当前练习，而不是普通
+    /// shelf 卡片回落。令牌不匹配时严格拒绝。
+    func acceptsInternalTutorialDrag(_ pasteboard: NSPasteboard) -> Bool {
+        activeTutorialToken(in: pasteboard) != nil
+    }
+
+    /// 同步 file URL 项由调用方先放进 ShelfStore，再调用本方法推进引导，
+    /// 保证面板切到第二步时练习卡已经真实存在于 shelf。
+    func noteSynchronousTutorialImport(from pasteboard: NSPasteboard,
+                                       items: [ShelfItem]) {
+        guard !items.isEmpty, let token = activeTutorialToken(in: pasteboard) else { return }
+        onTutorialItemsImported?(token, items)
+    }
+
+    private func activeTutorialToken(in pasteboard: NSPasteboard) -> String? {
+        guard let token = pasteboard.string(forType: PasteboardTypes.tutorialSession),
+              !token.isEmpty,
+              isActiveTutorialToken?(token) == true else {
+            return nil
+        }
+        return token
     }
 
     /// 实际的分派逻辑（`importItems` 的薄包装之下，便于统一触发导入回调）。

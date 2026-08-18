@@ -332,6 +332,40 @@ final class ShelfStoreTests: XCTestCase {
         XCTAssertEqual(store.items.map(\.id), [existing.id])
     }
 
+    func testRemoveAndPersistNowCommitsBeforePublishingRemoval() throws {
+        let directory = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let persistence = PersistenceController(directoryURL: directory)
+        let keep = makeItem("keep")
+        let remove = makeItem("tutorial")
+        let store = ShelfStore(items: [keep, remove], persistence: persistence)
+        try persistence.saveNow(store.items)
+        var callbackSawDurableRemoval = false
+        store.onItemsDidChange = {
+            callbackSawDurableRemoval = !persistence.load().contains { $0.id == remove.id }
+        }
+
+        let removed = try store.removeAndPersistNow(ids: [remove.id])
+
+        XCTAssertEqual(removed.map(\.id), [remove.id])
+        XCTAssertEqual(store.items.map(\.id), [keep.id])
+        XCTAssertEqual(persistence.load().map(\.id), [keep.id])
+        XCTAssertTrue(callbackSawDurableRemoval)
+    }
+
+    func testRemoveAndPersistNowLeavesRuntimeUntouchedWhenSaveFails() throws {
+        let root = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let notADirectory = root.appendingPathComponent("blocked")
+        try Data([1]).write(to: notADirectory)
+        let persistence = PersistenceController(directoryURL: notADirectory)
+        let item = makeItem("tutorial")
+        let store = ShelfStore(items: [item], persistence: persistence)
+
+        XCTAssertThrowsError(try store.removeAndPersistNow(ids: [item.id]))
+        XCTAssertEqual(store.items.map(\.id), [item.id])
+    }
+
     func testMutations_triggerDebouncedPersistence() throws {
         let directory = try makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

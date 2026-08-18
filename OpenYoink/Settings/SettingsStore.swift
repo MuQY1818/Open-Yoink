@@ -102,6 +102,16 @@ final class SettingsStore {
         didSet { defaults.set(autoUpdateCheckEnabled, forKey: Keys.autoUpdateCheckEnabled) }
     }
 
+    /// 已完成/跳过的快速上手版本。0 表示尚未完成；新增流程时递增该值，
+    /// 不需要修改 shelf 持久化 schema。
+    var onboardingVersion: Int {
+        didSet { defaults.set(onboardingVersion, forKey: Keys.onboardingVersion) }
+    }
+
+    /// 启动时该键是否真实存在于持久化偏好中。它刻意不进入
+    /// `register(defaults:)`，从而能区分「全新安装」与「已经明确处理过引导」。
+    let hadPersistedOnboardingVersion: Bool
+
     /// EdgeTab: vertical placement of the shelf (and its edge tab) along the
     /// attached edge — 0 pins to the bottom of the visible area, 1 to the top.
     /// Default: 0.5 (vertically centered, matching the pre-EdgeTab look).
@@ -245,6 +255,7 @@ final class SettingsStore {
         static let dragOutRemovalPolicy = prefix + "dragOutRemovalPolicy"
         static let language = prefix + "language"
         static let autoUpdateCheckEnabled = prefix + "autoUpdateCheckEnabled"
+        static let onboardingVersion = prefix + "onboardingVersion"
         static let customShelfFrame = prefix + "customShelfFrame"
         static let hotKeyEnabled = prefix + "hotKeyEnabled"
         static let hotKeyDoublePressSavesClipboard = prefix + "hotKeyDoublePressSavesClipboard"
@@ -259,6 +270,7 @@ final class SettingsStore {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        hadPersistedOnboardingVersion = defaults.object(forKey: Keys.onboardingVersion) != nil
         // UX1 迁移必须在注册默认值之前读取：注册域会让「从未设置」与
         // 「显式存过 immediate」无法区分（且 NSRegistrationDomain 进程内
         // 共享，跨 UserDefaults 实例可见）。旧版布尔 edgeTriggerEnabled（悬停
@@ -300,6 +312,7 @@ final class SettingsStore {
         language = LanguagePreference(rawValue: defaults.string(forKey: Keys.language) ?? "")
             ?? .system
         autoUpdateCheckEnabled = defaults.bool(forKey: Keys.autoUpdateCheckEnabled)
+        onboardingVersion = defaults.object(forKey: Keys.onboardingVersion) as? Int ?? 0
         if let data = defaults.data(forKey: Keys.customShelfFrame) {
             // 解码失败视为无自定义位置（下次选 custom 从右缘默认起步）。
             customShelfFrame = try? JSONDecoder().decode(CGRect.self, from: data)
