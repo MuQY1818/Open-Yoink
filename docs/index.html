@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenYoink — 随手一拖，先放一下</title>
+<meta name="description" content="OpenYoink：极简的 macOS 拖拽暂存架。把文件、文本、图片、链接先放进屏幕边缘，再拖到任何地方。开源 · MIT。">
+<meta property="og:title" content="OpenYoink — 随手一拖，先放一下">
+<meta property="og:description" content="极简的 macOS 拖拽暂存架：从任何地方拖入，再拖到任何地方取回。">
+<meta property="og:image" content="images/banner.jpg">
+<meta property="og:type" content="website">
+<link rel="icon" href="images/icon.png">
+<style>
+  :root {
+    --bg: #f5f7fc;
+    --text: #1c2333;
+    --text-2: #5b6472;
+    --accent: #2f6bf0;
+    --accent-2: #5b8cff;
+    --card: rgba(255, 255, 255, 0.72);
+    --card-border: rgba(20, 40, 80, 0.09);
+    --card-shadow: 0 10px 34px rgba(30, 50, 110, 0.09);
+    --code-bg: #eef1f8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1220;
+      --text: #e9edf6;
+      --text-2: #97a1b4;
+      --accent: #5b8cff;
+      --accent-2: #7ba3ff;
+      --card: rgba(255, 255, 255, 0.055);
+      --card-border: rgba(255, 255, 255, 0.09);
+      --card-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+      --code-bg: #1a2030;
+    }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ---------- hero ---------- */
+  .hero {
+    position: relative;
+    padding: 96px 24px 84px;
+    text-align: center;
+    overflow: hidden;
+    background: linear-gradient(160deg, #e8efff 0%, #f6f8ff 48%, #edf1ff 100%);
+  }
+  @media (prefers-color-scheme: dark) {
+    .hero { background: linear-gradient(160deg, #101a33 0%, #0e1220 55%, #141c34 100%); }
+  }
+  .hero::before, .hero::after {
+    content: "";
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(70px);
+    pointer-events: none;
+  }
+  .hero::before {
+    width: 480px; height: 480px;
+    top: -160px; right: -120px;
+    background: rgba(59, 110, 246, 0.16);
+  }
+  .hero::after {
+    width: 380px; height: 380px;
+    bottom: -140px; left: -100px;
+    background: rgba(130, 100, 246, 0.12);
+  }
+  .hero > * { position: relative; }
+  .hero img.logo {
+    width: 104px; height: 104px;
+    border-radius: 24px;
+    box-shadow: 0 14px 40px rgba(30, 60, 130, 0.22);
+    margin-bottom: 26px;
+  }
+  .hero h1 {
+    font-size: 56px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+  .hero h1 span { color: var(--accent); }
+  .hero .slogan {
+    margin-top: 10px;
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+  .hero .sub {
+    margin-top: 10px;
+    font-size: 17px;
+    color: var(--text-2);
+  }
+  .cta {
+    margin-top: 36px;
+    display: flex;
+    gap: 14px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 13px 26px;
+    border-radius: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+  }
+  .btn:hover { text-decoration: none; transform: translateY(-2px); }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 10px 26px rgba(47, 107, 240, 0.35);
+  }
+  .btn-primary:hover { background: var(--accent-2); }
+  .btn-ghost {
+    background: var(--card);
+    color: var(--text);
+    border-color: var(--card-border);
+    backdrop-filter: blur(10px);
+  }
+  .badges {
+    margin-top: 26px;
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+    font-size: 13px;
+    color: var(--text-2);
+  }
+  .badges span {
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+  }
+
+  /* ---------- sections ---------- */
+  section { max-width: 1080px; margin: 0 auto; padding: 72px 24px 0; }
+  section h2 {
+    font-size: 30px;
+    font-weight: 750;
+    text-align: center;
+    letter-spacing: -0.01em;
+  }
+  section .hint {
+    text-align: center;
+    color: var(--text-2);
+    margin-top: 8px;
+    font-size: 15px;
+  }
+
+  .grid {
+    margin-top: 38px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+  }
+  @media (max-width: 860px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 18px;
+    box-shadow: var(--card-shadow);
+    backdrop-filter: blur(14px);
+    padding: 22px 22px 20px;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  }
+  .card:hover { transform: translateY(-4px); }
+  .card .ic {
+    width: 42px; height: 42px;
+    display: grid;
+    place-items: center;
+    font-size: 22px;
+    border-radius: 12px;
+    background: rgba(47, 107, 240, 0.12);
+    margin-bottom: 14px;
+  }
+  .card h3 { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+  .card p { font-size: 14px; color: var(--text-2); line-height: 1.6; }
+
+  .shot {
+    margin-top: 38px;
+    border-radius: 20px;
+    overflow: hidden;
+    border: 1px solid var(--card-border);
+    box-shadow: var(--card-shadow);
+    background: var(--card);
+  }
+  .shot .bar {
+    display: flex;
+    gap: 7px;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--card-border);
+  }
+  .shot .bar i {
+    width: 11px; height: 11px;
+    border-radius: 50%;
+    display: block;
+  }
+  .shot .bar i:nth-child(1) { background: #ff5f57; }
+  .shot .bar i:nth-child(2) { background: #febc2e; }
+  .shot .bar i:nth-child(3) { background: #28c840; }
+  .shot img { display: block; width: 100%; }
+
+  .install {
+    margin-top: 38px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+  @media (max-width: 720px) { .install { grid-template-columns: 1fr; } }
+  .install h3 { font-size: 16px; font-weight: 700; margin-bottom: 12px; }
+  .cmd {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    background: var(--code-bg);
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13.5px;
+    overflow-x: auto;
+  }
+  .cmd button {
+    flex: none;
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .install p { margin-top: 12px; font-size: 13.5px; color: var(--text-2); }
+  .install code {
+    background: var(--code-bg);
+    padding: 2px 7px;
+    border-radius: 6px;
+    font-size: 12.5px;
+  }
+
+  footer {
+    margin-top: 84px;
+    padding: 30px 24px 44px;
+    text-align: center;
+    font-size: 13.5px;
+    color: var(--text-2);
+    border-top: 1px solid var(--card-border);
+  }
+  footer .links { margin-bottom: 8px; }
+  footer .links a { margin: 0 10px; }
+
+  /* ---------- reveal ---------- */
+  .reveal {
+    opacity: 0;
+    transform: translateY(22px);
+    transition: opacity 0.55s ease, transform 0.55s ease;
+  }
+  .reveal.on {
+    opacity: 1;
+    transform: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .reveal { opacity: 1; transform: none; transition: none; }
+    .btn:hover { transform: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <img class="logo" src="images/icon.png" alt="OpenYoink 图标">
+  <h1>Open<span>Yoink</span></h1>
+  <div class="slogan">随手一拖，先放一下</div>
+  <div class="sub">极简的 macOS 拖拽暂存架 —— 从任何地方拖入，再拖到任何地方取回</div>
+  <div class="cta">
+    <a class="btn btn-primary" href="https://github.com/MuQY1818/OpenYoink/releases/latest">下载最新版</a>
+    <a class="btn btn-ghost" href="https://github.com/MuQY1818/OpenYoink">GitHub 仓库</a>
+    <button class="btn btn-ghost" id="brewBtn" type="button">复制 brew 安装命令</button>
+  </div>
+  <div class="badges">
+    <span>macOS 26+</span><span>Swift 6</span><span>MIT 开源</span><span>Sparkle 自动更新</span>
+  </div>
+</header>
+
+<section class="reveal">
+  <h2>一个随叫随到的暂存架</h2>
+  <div class="hint">开始拖拽，它就出现；用完，它自己收起来。</div>
+  <div class="grid">
+    <div class="card"><div class="ic">📥</div><h3>几乎什么都能拖入</h3><p>文件、文件夹、文本、富文本、图片、链接，连邮件、日历事件、联系人也会自动物化成正规文件。</p></div>
+    <div class="card"><div class="ic">🚀</div><h3>拖到任何地方</h3><p>fileURL + file promise 双表示，浏览器上传区也能用；拖到 Finder 永远只复制，原文件纹丝不动。</p></div>
+    <div class="card"><div class="ic">⚡️</div><h3>需要时它就在</h3><p>一拖自动出现，也可用边缘拉环、⌘⇧Space（双击存剪贴板）或摇动唤出，还能按应用忽略。</p></div>
+    <div class="card"><div class="ic">🧺</div><h3>不添乱</h3><p>高度贴合内容，空了自己收起；Quick Look、多选、Stack、框选、最近项目，全都顺手。</p></div>
+    <div class="card"><div class="ic">🖥</div><h3>跟着你的工作区走</h3><p>多屏、多 Space、全屏应用都适配；可贴左右缘或自由摆放，中英文界面。</p></div>
+    <div class="card"><div class="ic">🔒</div><h3>隐私优先</h3><p>App Sandbox、无统计上报；唯一的联网是更新检查（Sparkle 签名分发，可在设置关闭）。</p></div>
+  </div>
+</section>
+
+<section class="reveal">
+  <h2>看一眼就会用</h2>
+  <div class="hint">从文件管理器拖到暂存架，再拖到目标位置。</div>
+  <div class="shot">
+    <div class="bar"><i></i><i></i><i></i></div>
+    <img src="images/usage-demo.gif" alt="OpenYoink 使用演示" loading="lazy">
+  </div>
+</section>
+
+<section class="reveal">
+  <h2>安装</h2>
+  <div class="hint">两种方式，任选其一。</div>
+  <div class="install">
+    <div class="card">
+      <h3>Homebrew（推荐）</h3>
+      <div class="cmd"><span>brew install --cask muqy1818/tap/openyoink</span><button type="button" data-copy="brew install --cask muqy1818/tap/openyoink">复制</button></div>
+      <p>brew 安装不触发 Gatekeeper 弹窗，装完直接能用。</p>
+    </div>
+    <div class="card">
+      <h3>DMG 手动安装</h3>
+      <p>从 <a href="https://github.com/MuQY1818/OpenYoink/releases/latest">Releases</a> 下载 DMG，把 OpenYoink 拖进 Applications。首次打开在终端执行一次：</p>
+      <div class="cmd" style="margin-top:12px"><span>xattr -dr com.apple.quarantine /Applications/OpenYoink.app</span><button type="button" data-copy="xattr -dr com.apple.quarantine /Applications/OpenYoink.app">复制</button></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="links">
+    <a href="https://github.com/MuQY1818/OpenYoink">GitHub</a>·
+    <a href="https://github.com/MuQY1818/OpenYoink/releases">Releases</a>·
+    <a href="https://github.com/MuQY1818/homebrew-tap">Homebrew Tap</a>·
+    <a href="appcast.xml">更新 Feed</a>
+  </div>
+  <div>MIT License · 净室实现（内含 Sparkle 用于更新） · © <span id="y"></span> weijue</div>
+</footer>
+
+<script>
+  document.getElementById('y').textContent = new Date().getFullYear();
+
+  const io = new IntersectionObserver(entries => {
+    for (const e of entries) if (e.isIntersecting) { e.target.classList.add('on'); io.unobserve(e.target); }
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+  async function copyText(text, btn) {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (_) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+    const old = btn.textContent;
+    btn.textContent = '已复制 ✓';
+    setTimeout(() => { btn.textContent = old; }, 1500);
+  }
+  document.querySelectorAll('[data-copy]').forEach(btn =>
+    btn.addEventListener('click', () => copyText(btn.dataset.copy, btn)));
+  document.getElementById('brewBtn').addEventListener('click', e =>
+    copyText('brew install --cask muqy1818/tap/openyoink', e.currentTarget));
+</script>
+</body>
+</html>

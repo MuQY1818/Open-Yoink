@@ -65,11 +65,15 @@ final class FilePromiseReceiver {
             dispatched += 1
             // 回调在 operationQueue（后台）执行：只捕获 Sendable 的服务与值类型，
             // 不捕获 MainActor 隔离的 self；成功/失败均经闭包内 Task 跳回 MainActor。
+            // 闭包必须显式 `@Sendable`（SE-0420：@Sendable 闭包恒为 nonisolated）——
+            // 否则在 MainActor 上下文形成的闭包会携带 MainActor 隔离，被后台队列
+            // 调用时触发 `_dispatch_assert_queue_fail`（SIGTRAP 闪退：从浏览器
+            // 拖图片/GIF 经 promise 物化时必现）。
             receiver.receivePromisedFiles(
                 atDestination: stagingURL,
                 options: [:],
                 operationQueue: operationQueue
-            ) { [tempFileService, bookmarkService, noticeCenter, logger] fileURL, error in
+            ) { @Sendable [tempFileService, bookmarkService, noticeCenter, logger] fileURL, error in
                 Self.handleMaterializedPromise(
                     fileURL: fileURL,
                     error: error,
