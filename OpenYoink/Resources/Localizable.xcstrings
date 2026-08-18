@@ -1701,6 +1701,76 @@
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Press Space for Quick Look or Return to open." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "按空格键快速查看，或按回车键打开。" } }
       }
+    },
+    "Receiving…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Receiving…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在接收…" } }
+      }
+    },
+    "Delivering…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delivering…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在交付…" } }
+      }
+    },
+    "Not delivered" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Not delivered" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未能交付" } }
+      }
+    },
+    "Managed copy · Original in Trash" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Managed copy · Original in Trash" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "托管副本 · 原文件在废纸篓" } }
+      }
+    },
+    "Managed copy; original file moved to Trash" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Managed copy; original file moved to Trash" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "托管副本，原文件已移到废纸篓" } }
+      }
+    },
+    "Open Recovery" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open Recovery" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开恢复" } }
+      }
+    },
+    "Opens Storage settings to review recovery data." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Opens Storage settings to review recovery data." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开存储设置以查看恢复数据。" } }
+      }
+    },
+    "Choose the original file to reconnect the shelf item." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose the original file to reconnect the shelf item." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择原文件以重新连接暂存架项目。" } }
+      }
+    },
+    "Select Item" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Select Item" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选中项目" } }
+      }
+    },
+    "Selects the retained item so you can drag it out again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Selects the retained item so you can drag it out again." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选中仍保留的项目，以便再次拖出。" } }
+      }
     }
   },
   "version" : "1.0"

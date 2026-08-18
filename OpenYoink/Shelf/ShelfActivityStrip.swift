@@ -7,6 +7,10 @@ struct ShelfActivityStrip: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
+    /// Executes only recovery actions for which OpenYoink still has enough
+    /// information. Source-session failures deliberately remain dismiss-only.
+    var onPerformRecovery: ((RecoveryAction) -> Void)?
+
     var body: some View {
         if let task = transferStore.currentTask {
             HStack(spacing: 8) {
@@ -29,6 +33,16 @@ struct ShelfActivityStrip: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityElement(children: .combine)
+
+                if let recovery = Self.primaryRecovery(for: task),
+                   onPerformRecovery != nil {
+                    Button(recovery.title) {
+                        onPerformRecovery?(recovery.action)
+                    }
+                    .controlSize(.small)
+                    .accessibilityIdentifier("activity.recovery")
+                    .accessibilityHint(Text(recovery.hint))
+                }
 
                 if canDismiss(task) {
                     Button {
@@ -175,7 +189,7 @@ struct ShelfActivityStrip: View {
         case .preparing, .receiving, .finalizing:
             return task.safetyMessage
         case .partiallySucceeded(_, let failures):
-            return recoveryDetail(for: failures.first)
+            return recoveryDetail(for: Self.prominentFailure(in: failures))
         case .failed(let failure):
             return recoveryDetail(for: failure)
         case .targetAccepted:
@@ -224,5 +238,58 @@ struct ShelfActivityStrip: View {
             return "\(title(for: task)). \(detail)"
         }
         return title(for: task)
+    }
+
+    struct RecoveryPresentation: Equatable {
+        let action: RecoveryAction
+        let title: String
+        let hint: String
+    }
+
+    /// Selects one truthful, executable action for the visible batch. The
+    /// action order follows the first affected item, matching the detail text.
+    static func primaryRecovery(for task: TransferTask) -> RecoveryPresentation? {
+        let failures: [TransferFailure]
+        switch task.phase {
+        case .partiallySucceeded(_, let partialFailures):
+            failures = partialFailures
+        case .failed(let failure):
+            failures = [failure]
+        default:
+            return nil
+        }
+
+        guard let failure = prominentFailure(in: failures) else { return nil }
+        switch failure.recoveryAction {
+        case .openStorageRecovery:
+            return RecoveryPresentation(
+                action: failure.recoveryAction,
+                title: String(localized: "Open Recovery"),
+                hint: String(localized: "Opens Storage settings to review recovery data.")
+            )
+        case .locateExternalFile:
+            return RecoveryPresentation(
+                action: failure.recoveryAction,
+                title: String(localized: "Locate…"),
+                hint: String(localized: "Choose the original file to reconnect the shelf item.")
+            )
+        case .retryByDraggingOut:
+            return RecoveryPresentation(
+                action: failure.recoveryAction,
+                title: String(localized: "Select Item"),
+                hint: String(localized: "Selects the retained item so you can drag it out again.")
+            )
+        case .dragAgainFromSource, .dismiss:
+            return nil
+        }
+    }
+
+    private static func prominentFailure(in failures: [TransferFailure]) -> TransferFailure? {
+        failures.first(where: { failure in
+            switch failure.recoveryAction {
+            case .openStorageRecovery, .locateExternalFile, .retryByDraggingOut: true
+            case .dragAgainFromSource, .dismiss: false
+            }
+        }) ?? failures.first
     }
 }

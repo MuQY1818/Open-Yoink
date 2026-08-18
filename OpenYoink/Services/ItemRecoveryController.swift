@@ -54,6 +54,21 @@ final class ItemRecoveryController {
         }
     }
 
+    /// Executes recovery actions that are backed by durable application state.
+    /// Drag-session retries are intentionally handled by ShelfView because
+    /// selecting a retained card is the only honest next step.
+    func perform(_ action: RecoveryAction) {
+        switch action {
+        case .openStorageRecovery:
+            openStorageRecovery()
+        case .locateExternalFile(let itemID):
+            guard let item = store.itemRecursively(withID: itemID) else { return }
+            recover(item)
+        case .retryByDraggingOut, .dragAgainFromSource, .dismiss:
+            break
+        }
+    }
+
     private func beginRelocation(for item: ShelfItem) {
         guard activePanel == nil, !item.isCut else { return }
         let panel = NSOpenPanel()

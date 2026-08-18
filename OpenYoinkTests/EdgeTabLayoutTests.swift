@@ -270,13 +270,13 @@ final class EdgeTabLayoutTests: XCTestCase {
     }
 
     func testTargetFrame_edgeOffsetFlowsThrough() {
-        // 1 项 → 两行标题卡片紧凑高 160；offset 0 → 主屏右缘贴底。
+        // 1 项 → 标题与语义状态行的卡片紧凑高 192；offset 0 → 主屏右缘贴底。
         XCTAssertEqual(
             ShelfLayoutEngine.targetFrame(position: .right, width: 320, itemCount: 1,
                                           mouseLocation: CGPoint(x: 500, y: 500),
                                           screens: [mainScreen], persistedCustomFrame: nil,
                                           edgeOffset: 0),
-            CGRect(x: 1600, y: 60, width: 320, height: 160)
+            CGRect(x: 1600, y: 60, width: 320, height: 192)
         )
         // offset 1 → 贴顶：y = 60 + 860 = 920。
         XCTAssertEqual(
@@ -284,17 +284,17 @@ final class EdgeTabLayoutTests: XCTestCase {
                                           mouseLocation: CGPoint(x: 500, y: 500),
                                           screens: [mainScreen], persistedCustomFrame: nil,
                                           edgeOffset: 1),
-            CGRect(x: 0, y: 920, width: 320, height: 160)
+            CGRect(x: 0, y: 888, width: 320, height: 192)
         )
     }
 
     func testTargetFrame_defaultOffsetKeepsLegacyCentering() {
-        // 不传 edgeOffset：两行标题卡片垂直居中 y = 490。
+        // 不传 edgeOffset：含语义状态行的卡片垂直居中 y = 474。
         XCTAssertEqual(
             ShelfLayoutEngine.targetFrame(position: .left, width: 300, itemCount: 1,
                                           mouseLocation: CGPoint(x: 500, y: 500),
                                           screens: [mainScreen], persistedCustomFrame: nil),
-            CGRect(x: 0, y: 490, width: 300, height: 160)
+            CGRect(x: 0, y: 474, width: 300, height: 192)
         )
     }
 }

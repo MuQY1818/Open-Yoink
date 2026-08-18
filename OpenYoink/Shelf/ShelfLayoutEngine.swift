@@ -32,9 +32,9 @@ enum ShelfLayoutEngine {
     static let headerHeight: CGFloat = 28
     /// ActivityStrip 自身与 VStack 间距。只在状态可见时预留，避免覆盖卡片。
     static let activityStripHeight: CGFloat = 86
-    /// 两行语义标题的卡片高度估算：缩略图区 52 + 间距 5 + 名称行 ~30 +
-    /// 卡片 padding 12。实际内容仍可纵向扩展并在达到屏幕上限后滚动。
-    static let cardRowHeight: CGFloat = 100
+    /// 两行标题 + 一行可见状态的卡片高度估算。传输完成后 Ready 卡片保持
+    /// 安静；托管副本、进行中和失败状态需要真实文字，不能只靠角标或颜色。
+    static let cardRowHeight: CGFloat = 132
     /// 空架时的紧凑总高度（让 `ShelfEmptyState` 插画居中即可，不撑满）。
     static let emptyStateHeight: CGFloat = 200
     /// 高度上限：屏幕可见高度的 80%（超出部分由网格 ScrollView 滚动）。

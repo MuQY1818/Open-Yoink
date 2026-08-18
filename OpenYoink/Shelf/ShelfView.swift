@@ -102,7 +102,7 @@ struct ShelfView: View {
         VStack(spacing: 4) {
             header
             if transferStore.hasVisibleActivity {
-                ShelfActivityStrip()
+                ShelfActivityStrip(onPerformRecovery: performRecovery)
                     .transition(reduceMotion
                         ? .opacity
                         : .opacity.combined(with: .move(edge: .top)))
@@ -454,6 +454,36 @@ struct ShelfView: View {
         if statuses.contains(.delivered) { return .delivered }
         if statuses.contains(.added) { return .added }
         return nil
+    }
+
+    /// Executes only actions that remain possible after the source drag
+    /// session ends. A failed export is focused instead of claiming that a
+    /// retry happened; the user still performs the real drag-out gesture.
+    private func performRecovery(_ action: RecoveryAction) {
+        switch action {
+        case .openStorageRecovery, .locateExternalFile:
+            itemRecoveryController?.perform(action)
+        case .retryByDraggingOut(let itemID):
+            focusRetainedItem(itemID)
+        case .dragAgainFromSource, .dismiss:
+            break
+        }
+    }
+
+    private func focusRetainedItem(_ itemID: UUID) {
+        if store.item(withID: itemID) != nil {
+            interaction.exitStack()
+            interaction.focusedItemID = itemID
+            store.select(itemID)
+            return
+        }
+        guard let stack = store.items.first(where: {
+            $0.kind == .stack && ($0.children ?? []).contains { $0.id == itemID }
+        }) else { return }
+        store.select(stack.id)
+        interaction.enterStack(stack)
+        interaction.focusedItemID = itemID
+        interaction.childSelection = [itemID]
     }
 
     // MARK: - Marquee selection (C5)

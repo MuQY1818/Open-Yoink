@@ -2,7 +2,58 @@ import AppKit
 import QuickLookThumbnailing
 import SwiftUI
 
-/// 单项目卡片（实施计划 §3：12pt 圆角、缩略图区、单行截断名称 + 来源应用小图标）。
+/// Visible, non-color-only card state. Completed transfers deliberately resolve
+/// to nil so the normal ready card remains quiet.
+enum ShelfCardVisualStatus: Equatable {
+    case receiving
+    case delivering
+    case destinationAccepted
+    case deliveryFailed
+    case managedCopy
+
+    static func resolve(item: ShelfItem,
+                        transferStatus: TransferItemAccessibilityStatus?) -> Self? {
+        switch transferStatus {
+        case .receiving: return .receiving
+        case .delivering: return .delivering
+        case .destinationAccepted: return .destinationAccepted
+        case .deliveryFailed: return .deliveryFailed
+        case .added, .delivered: break
+        case nil: break
+        }
+        return item.isCut ? .managedCopy : nil
+    }
+
+    var title: String {
+        switch self {
+        case .receiving: String(localized: "Receiving…")
+        case .delivering: String(localized: "Delivering…")
+        case .destinationAccepted: String(localized: "Destination accepted")
+        case .deliveryFailed: String(localized: "Not delivered")
+        case .managedCopy: String(localized: "Managed copy · Original in Trash")
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .receiving: "arrow.down.circle"
+        case .delivering: "arrow.up.circle"
+        case .destinationAccepted: "checkmark.circle"
+        case .deliveryFailed: "exclamationmark.triangle.fill"
+        case .managedCopy: "shippingbox.fill"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .receiving, .delivering, .destinationAccepted: .secondary
+        case .deliveryFailed: .red
+        case .managedCopy: .orange
+        }
+    }
+}
+
+/// 单项目卡片（12pt 圆角、缩略图区、两行名称、语义状态 + 来源应用小图标）。
 ///
 /// 缩略图策略：file/folder/image 异步走 `QLThumbnailGenerator` 真实缩略图，
 /// 失败或加载中回退 `NSWorkspace.icon(forFile:)`；text 显示文本片段预览；
@@ -96,6 +147,10 @@ struct ShelfItemCard: View {
                 availabilityArea
             }
             nameRow
+            if let status = ShelfCardVisualStatus.resolve(item: item,
+                                                          transferStatus: transferStatus) {
+                statusRow(status)
+            }
         }
         .padding(6)
         .frame(maxWidth: .infinity)
@@ -105,8 +160,6 @@ struct ShelfItemCard: View {
         .overlay { availabilityBorder }
         .overlay { keyboardFocusRing }
         .overlay(alignment: .topLeading) { selectionBadge }
-        // F-05: 剪切项角标（左下剪刀，与左上 stale 角标不同位置/颜色）。
-        .overlay(alignment: .bottomLeading) { cutBadge }
         // S5 拖出事件层：透明 NSView 覆盖整卡，成为左键事件权威
         //（mouseDown 记录 → mouseDragged 超阈值开始拖拽；mouseUp 无拖拽回落为
         // 点击选择 / 双击 Quick Look）。右键（contextMenu）与滚动透传给 SwiftUI。
@@ -216,7 +269,7 @@ struct ShelfItemCard: View {
             label += ", " + String(localized: "\(count) items")
         }
         if item.isCut {
-            label += ", " + String(localized: "Will move on drag out")
+            label += ", " + String(localized: "Managed copy; original file moved to Trash")
         }
         label += isSelected
             ? ", " + String(localized: "Selected")
@@ -422,6 +475,21 @@ struct ShelfItemCard: View {
         .frame(maxWidth: .infinity)
     }
 
+    /// One concise semantic state line. Active transfer/failure takes
+    /// precedence over the persistent managed-copy label; completed transfers
+    /// return to the quiet ready state.
+    private func statusRow(_ status: ShelfCardVisualStatus) -> some View {
+        Label(status.title, systemImage: status.symbolName)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(status.tint)
+            .lineLimit(2)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityHidden(true)
+            .accessibilityIdentifier("shelf.item.\(item.id.uuidString).status")
+    }
+
     // MARK: - Surfaces & badges
 
     /// 卡片底色与选中态（§3：accent 描边 + 浅色填充）；非选中用语义色弱底 + 细描边。
@@ -471,23 +539,6 @@ struct ShelfItemCard: View {
                 .padding(5)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
-        }
-    }
-
-    /// F-05: 剪切项角标（SF Symbol scissors，橙色，左下）—— 表示「原文件已
-    /// 移入 shelf 保管，拖出时交付并离架」。卡片整体是单个可访问性元素，
-    /// 语义并入 `cardAccessibilityLabel`，此处不再单独暴露。
-    @ViewBuilder
-    private var cutBadge: some View {
-        if item.isCut {
-            Image(systemName: "scissors")
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(.white)
-                .padding(4)
-                .background { Circle().fill(.orange) }
-                .padding(6)
-                .help("Moved into the shelf — will be delivered on drag out")
-                .allowsHitTesting(false)
         }
     }
 

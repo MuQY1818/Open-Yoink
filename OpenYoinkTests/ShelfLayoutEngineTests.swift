@@ -153,19 +153,19 @@ final class ShelfLayoutEngineTests: XCTestCase {
 
     func testTargetFrame_edgePositionsFollowMouseScreen() {
         let screens = [mainScreen, secondaryScreen]
-        // 鼠标在副屏 → 贴副屏右缘；两行标题卡片 1 项 1 行 = 160，垂直居中。
+        // 鼠标在副屏 → 贴副屏右缘；含语义状态行的卡片 1 项 1 行 = 192，垂直居中。
         XCTAssertEqual(
             ShelfLayoutEngine.targetFrame(position: .right, width: 320, itemCount: 1,
                                           mouseLocation: CGPoint(x: 2000, y: 100),
                                           screens: screens, persistedCustomFrame: nil),
-            CGRect(x: 4160, y: 652.5, width: 320, height: 160)
+            CGRect(x: 4160, y: 636.5, width: 320, height: 192)
         )
         // 鼠标在主屏 → 贴主屏左缘。
         XCTAssertEqual(
             ShelfLayoutEngine.targetFrame(position: .left, width: 300, itemCount: 1,
                                           mouseLocation: CGPoint(x: 500, y: 500),
                                           screens: screens, persistedCustomFrame: nil),
-            CGRect(x: 0, y: 490, width: 300, height: 160)
+            CGRect(x: 0, y: 474, width: 300, height: 192)
         )
     }
 
@@ -244,25 +244,25 @@ final class ShelfLayoutEngineTests: XCTestCase {
     // MARK: - UX5 紧凑高度：行数 / 上限 / 空架
 
     func testContentHeight_singleRowForUpToFullRowOfItems() {
-        // 3 列：1~3 项同为 1 行 → 28 + 100 + 32 = 160。
+        // 3 列：1~3 项同为 1 行 → 28 + 132 + 32 = 192。
         for count in 1...3 {
             XCTAssertEqual(ShelfLayoutEngine.contentHeight(itemCount: count, panelWidth: 320,
-                                                           visibleHeight: 1020), 160)
+                                                           visibleHeight: 1020), 192)
         }
     }
 
     func testContentHeight_growsByRow() {
-        // 4 项 2 行 → 28 + (100×2 + 12) + 32 = 272；7 项 3 行 → 384。
+        // 4 项 2 行 → 28 + (132×2 + 12) + 32 = 336；7 项 3 行 → 480。
         XCTAssertEqual(ShelfLayoutEngine.contentHeight(itemCount: 4, panelWidth: 320,
-                                                       visibleHeight: 1020), 272)
+                                                       visibleHeight: 1020), 336)
         XCTAssertEqual(ShelfLayoutEngine.contentHeight(itemCount: 7, panelWidth: 320,
-                                                       visibleHeight: 1020), 384)
+                                                       visibleHeight: 1020), 480)
     }
 
     func testContentHeight_narrowerPanelFitsFewerColumnsHenceMoreRows() {
-        // 宽 240 → 2 列：3 项即 2 行 → 272。
+        // 宽 240 → 2 列：3 项即 2 行 → 336。
         XCTAssertEqual(ShelfLayoutEngine.contentHeight(itemCount: 3, panelWidth: 240,
-                                                       visibleHeight: 1020), 272)
+                                                       visibleHeight: 1020), 336)
     }
 
     func testContentHeight_capsAtEightyPercentOfVisibleHeight() {
