@@ -54,7 +54,7 @@ OpenYoink lives in your menu bar (no Dock icon). When you start dragging somethi
 
 ## Install
 
-**Download** — grab `OpenYoink-x.y.dmg` from [Releases](https://github.com/<you>/Open-Yoink/releases), open it, and drag OpenYoink to Applications:
+**Download** — grab `OpenYoink-x.y.dmg` from [Releases](https://github.com/MuQY1818/Open-Yoink/releases), open it, and drag OpenYoink to Applications:
 
 <p align="center">
   <img src="docs/screenshots/dmg-installer.png" width="330" alt="Drag OpenYoink to Applications">
@@ -69,7 +69,7 @@ xattr -dr com.apple.quarantine /Applications/OpenYoink.app
 **Build from source** — requirements: macOS 26+, Xcode 26+.
 
 ```bash
-git clone https://github.com/<you>/Open-Yoink.git
+git clone https://github.com/MuQY1818/Open-Yoink.git
 cd Open-Yoink
 open Open-Yoink.xcodeproj        # or build headless:
 xcodebuild -project Open-Yoink.xcodeproj -scheme OpenYoink -destination 'platform=macOS' build

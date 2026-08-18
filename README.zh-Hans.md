@@ -52,7 +52,7 @@ OpenYoink 常驻菜单栏（无 Dock 图标）。开始拖拽时，紧凑的暂�
 
 ## 安装
 
-**下载** —— 从 [Releases](https://github.com/<you>/Open-Yoink/releases) 获取 `OpenYoink-x.y.dmg`，打开后把 OpenYoink 拖进 Applications：
+**下载** —— 从 [Releases](https://github.com/MuQY1818/Open-Yoink/releases) 获取 `OpenYoink-x.y.dmg`，打开后把 OpenYoink 拖进 Applications：
 
 <p align="center">
   <img src="docs/screenshots/dmg-installer.png" width="330" alt="拖到 Applications 安装">
@@ -67,7 +67,7 @@ xattr -dr com.apple.quarantine /Applications/OpenYoink.app
 **从源码构建** —— 需要 macOS 26+ 与 Xcode 26+。
 
 ```bash
-git clone https://github.com/<you>/Open-Yoink.git
+git clone https://github.com/MuQY1818/Open-Yoink.git
 cd Open-Yoink
 open Open-Yoink.xcodeproj        # 或命令行构建：
 xcodebuild -project Open-Yoink.xcodeproj -scheme OpenYoink -destination 'platform=macOS' build
