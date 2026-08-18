@@ -25,10 +25,10 @@ final class DropTargetState {
 ///
 /// 职责（实施计划 §2.3「拖入」）：
 /// - 注册 `PasteboardTypes.dragInTypes` 全部类型（fileURL / file promise /
-///   文本族 / 图片族 / URL）；
+///   文本族 / 图片族 / URL + 任务一的宽兜底泛型，「万能拖入」）；
 /// - 悬停时把高亮与插入位置桥给 `DropTargetState` → ShelfView；
 /// - `performDragOperation` 调 `DropImportCoordinator` 分派，同步 items 直接
-///   入架，异步物化（promise / 图片数据）完成后经回调逐个入架。
+///   入架，异步物化（promise / 图片数据 / 通用数据）完成后经回调逐个入架。
 ///
 /// 插入位置（S10/C6）：`draggingEntered/Updated` 把鼠标位置（本视图坐标，
 /// 左下原点）翻转到窗口 .global（左上原点）坐标，与 `ShelfGridGeometry`
@@ -153,7 +153,9 @@ final class DragContainerView: NSView {
         )
     }
 
+    /// 「Drop everything」语义（任务一）：宽兜底注册后能抵达这里的拖放几乎
+    /// 总能由兜底链物化出内容，故只要声明了任意类型即接受高亮；零类型才拒绝。
     private static func hasImportableContent(_ pasteboard: NSPasteboard) -> Bool {
-        PasteboardTypes.preferredCategory(in: pasteboard.types ?? []) != nil
+        PasteboardTypes.hasImportableContent(in: pasteboard.types ?? [])
     }
 }

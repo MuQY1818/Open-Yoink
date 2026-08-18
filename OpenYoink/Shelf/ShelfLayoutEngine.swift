@@ -178,6 +178,33 @@ enum ShelfLayoutEngine {
         }
     }
 
+    // MARK: - 内缘收起把手（任务三）
+
+    /// 把手宽度（点）。14pt ≤ 面板边距带（外层 8 + 内容 8 = 16pt）——把手以
+    /// 覆盖层形式放在边距带内，不挤占网格宽度，因此列数推算
+    /// （`columnCount(forPanelWidth:)`）与 `ShelfGridGeometry` 上报的卡片
+    /// 坐标系完全不受把手影响（任务三的硬性约束）。
+    static let innerEdgeHandleWidth: CGFloat = 14
+
+    /// 内缘收起把手的贴附侧。
+    enum InnerEdgeHandleSide: Sendable, Equatable {
+        /// 把手在面板左缘（右锚 shelf：把手朝屏幕中心，chevron 指向右缘）。
+        case leading
+        /// 把手在面板右缘（左锚 shelf）。
+        case trailing
+    }
+
+    /// 把手侧判定（纯函数）：把手总在 shelf 朝向屏幕中心的内缘 ——
+    /// 右锚 → 面板左缘（leading）；左锚 → 右缘（trailing）。
+    /// custom 自由位置无贴附缘 → nil（不显示把手，标题栏拖动把手已覆盖）。
+    static func innerEdgeHandleSide(for position: SettingsStore.ShelfPosition) -> InnerEdgeHandleSide? {
+        switch position {
+        case .right: return .leading
+        case .left: return .trailing
+        case .custom: return nil
+        }
+    }
+
     // MARK: - 夹取与校验
 
     /// 把任意 frame 夹取进 visibleFrame：先按可用区域收缩超出尺寸，

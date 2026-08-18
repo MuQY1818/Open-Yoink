@@ -32,6 +32,8 @@ struct ShelfView: View {
     @Environment(ShelfGridGeometry.self) private var gridGeometry
     /// D10: 拖入/物化失败内联提示。
     @Environment(ShelfNoticeModel.self) private var notices
+    /// 任务三：内缘收起把手的收起动作（ShelfWindowController 注入；Preview 为 nil 空操作）。
+    @Environment(\.shelfHideAction) private var shelfHideAction
     /// 当前展开的 Stack id（同时只展开一个）。
     @State private var expandedStackID: UUID?
 
@@ -58,6 +60,7 @@ struct ShelfView: View {
             }
             .overlay { content }
             .overlay { dropTargetHighlight }
+            .overlay(alignment: collapseHandleAlignment) { collapseHandle }
             .overlay { expandedStackOverlay }
             .overlay(alignment: .top) { noticeBanner }
             .overlay(alignment: .bottom) { dropModeHint }
@@ -260,6 +263,30 @@ struct ShelfView: View {
                 .padding(.bottom, 10)
                 .transition(.opacity)
                 .allowsHitTesting(false)
+        }
+    }
+
+    // MARK: - 内缘收起把手（任务三）
+
+    /// 把手贴附侧（纯逻辑在 `ShelfLayoutEngine.innerEdgeHandleSide`）；
+    /// custom 自由位置模式为 nil —— 不显示把手。
+    private var collapseHandleSide: ShelfLayoutEngine.InnerEdgeHandleSide? {
+        ShelfLayoutEngine.innerEdgeHandleSide(for: settings.shelfPosition)
+    }
+
+    private var collapseHandleAlignment: Alignment {
+        collapseHandleSide == .trailing ? .trailing : .leading
+    }
+
+    /// 把手覆盖在面板边距带内（overlay 挂在 `.padding(8)` 之前，对齐的是
+    /// vibrancy 面板形状的边缘），不占网格宽度 —— 卡片 frame 上报（C5/C6）、
+    /// 框选与拖入插入定位的坐标系均不受把手影响。
+    @ViewBuilder
+    private var collapseHandle: some View {
+        if let side = collapseHandleSide {
+            ShelfCollapseHandle(side: side) {
+                shelfHideAction?()
+            }
         }
     }
 

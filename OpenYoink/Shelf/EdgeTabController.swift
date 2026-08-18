@@ -489,8 +489,9 @@ final class EdgeTabView: NSView {
     }
 
     private static func isAcceptableDrop(_ sender: NSDraggingInfo) -> Bool {
+        // 「Drop everything」语义同 DragContainerView（任务一）。
         sender.draggingSource == nil
-            && PasteboardTypes.preferredCategory(in: sender.draggingPasteboard.types ?? []) != nil
+            && PasteboardTypes.hasImportableContent(in: sender.draggingPasteboard.types ?? [])
     }
 
     // MARK: - Appearance

@@ -36,12 +36,20 @@ enum DropInMode: String, Equatable, Sendable {
 /// 类型但实际读不到内容时（极少数来源的怪异行为），按顺序回退到下一类别，
 /// 不会直接丢弃整个拖放。
 ///
-/// 已知限制（v1，注释而非实现）：
-/// - HTML/RTF 原文不存储；文本族只取 plain text 表示。仅含 HTML/RTF 而无
-///   plain text 的拖放本步不产出项目。
+/// 任务一「万能拖入」：主链全部零产出时进入兜底链（`fallbackImport`），
+/// 逐 pasteboard item 独立处理（混合多 item 各自寻找最佳出口）：
+/// a. `text/uri-list` → URL 项；b. 仅 HTML/RTF（无 plain text）→ 物化
+/// .html/.rtf 文件项；c. 通用数据物化（最佳类型挑选见
+/// `PasteboardTypes.materializationCandidates`）；d. 任何类型读出非空
+/// 字符串 → 文本项；e. 逐项日志，整次零产出 → notice 提示 + 不接收拖放。
+///
+/// 已知限制：
 /// - 来源应用：跨应用拖拽时 `NSDraggingInfo.draggingSource` 为 nil，本层
 ///   只看到 pasteboard，v1 统一留 `sourceApp = nil`。
 /// - 目录拖入按单项目处理（`kind = .folder`），不展开递归。
+/// - 主链保持「整板优先类别胜出」语义（fileURL+text 混合拖放只取 fileURL，
+///   见既有单测 `testImport_fileURLAndText_fileURLWins`）；逐 item 独立处理
+///   仅在兜底链内进行。
 @MainActor
 final class DropImportCoordinator {
     /// 物化图片项目的默认显示名（落盘文件名带 UUID 前缀，显示名保持干净）。
@@ -160,8 +168,208 @@ final class DropImportCoordinator {
             }
         }
 
-        logger.warning("Drop contained no importable content; declared types: \(types.map(\.rawValue), privacy: .public)")
-        return .unhandled
+        // 6. 兜底链（任务一）：主链零产出时逐 item 处理，尽可能物化出内容。
+        let fallback = fallbackImport(from: pasteboard, onAsyncItemReady: onAsyncItemReady)
+        guard !fallback.items.isEmpty || fallback.pending > 0 else {
+            logger.warning("Drop contained no importable content; declared types: \(types.map(\.rawValue), privacy: .public)")
+            noticeCenter.show(String(localized: "That content can't be added to the shelf yet."))
+            return .unhandled
+        }
+        return DropImportResult(items: fallback.items, pendingMaterializations: fallback.pending)
+    }
+
+    // MARK: - Fallback chain (任务一「万能拖入」)
+
+    /// 兜底链：主链（promise→fileURL→image→url→text）全部零产出时调用。
+    /// 逐 pasteboard item 独立走 a→b→c→d 分支；同步产出的项目直接返回，
+    /// 通用数据物化（payload 可能很大）走后台写盘、计入 pending。
+    private func fallbackImport(from pasteboard: NSPasteboard,
+                                onAsyncItemReady: @escaping @MainActor (ShelfItem) -> Void)
+        -> (items: [ShelfItem], pending: Int) {
+        var items: [ShelfItem] = []
+        var pending = 0
+
+        // a. URL 变体：text/uri-list。探针结论：该 flavor 在 item 级被桥接为
+        //    dyn.* 动态类型（item.string(forType: "text/uri-list") 读不到），
+        //    只能在 pasteboard 级按原始 flavor 字符串读取，故本分支是整板级的；
+        //    每行一个 URI（# 开头为注释行），逐行产出 URL 项。
+        let urlListItems = urlListVariantItems(from: pasteboard)
+        items.append(contentsOf: urlListItems)
+
+        for pasteboardItem in pasteboard.pasteboardItems ?? [] {
+            // uri-list 已产出 URL 项时，跳过「全是 dyn.* 桥接类型」的 item ——
+            // 它就是 uri-list 在 item 级的投影（探针 A），再走 b/c/d 会用同一份
+            // 内容重复产出 .dat/文本项。
+            if !urlListItems.isEmpty,
+               pasteboardItem.types.allSatisfy({ $0.rawValue.hasPrefix("dyn.") }) {
+                continue
+            }
+            // b. 仅 HTML/RTF（无 plain text 才会到达兜底链）：物化富文本文件项，
+            //    拖出到 Pages/浏览器仍是富文本。payload 为文本级大小，同步落盘。
+            if let richItem = richTextFileItem(from: pasteboardItem) {
+                items.append(richItem)
+                continue
+            }
+            // c. 通用数据物化：最佳类型挑选（tier 排序见
+            //    `PasteboardTypes.materializationCandidates`），后台写盘。
+            if scheduleDataMaterialization(from: pasteboardItem, onItemReady: onAsyncItemReady) {
+                pending += 1
+                continue
+            }
+            // d. 字符串兜底：任何类型能 string(forType:) 出非空内容 → 文本项。
+            if let textItem = fallbackTextItem(from: pasteboardItem) {
+                items.append(textItem)
+                continue
+            }
+            // e. 逐项失败日志（不静默）。
+            logger.info("Fallback import skipped an item; declared types: \(pasteboardItem.types.map(\.rawValue), privacy: .public)")
+        }
+        return (items, pending)
+    }
+
+    /// 分支 a：text/uri-list → URL 项（每行一个 URI，# 注释行跳过；首个无效行
+    /// 不影响其余行）。粘贴板级读取（桥接原因见 `fallbackImport` 注释）。
+    private func urlListVariantItems(from pasteboard: NSPasteboard) -> [ShelfItem] {
+        guard (pasteboard.types ?? []).contains(PasteboardTypes.uriList),
+              let payload = pasteboard.string(forType: PasteboardTypes.uriList),
+              !payload.isEmpty else {
+            return []
+        }
+        return payload.components(separatedBy: .newlines).compactMap { line in
+            let candidate = line.trimmingCharacters(in: .whitespaces)
+            guard !candidate.isEmpty, !candidate.hasPrefix("#"),
+                  let url = URL(string: candidate), url.scheme != nil else {
+                return nil
+            }
+            return ShelfItem(kind: .url,
+                             displayName: url.host() ?? candidate,
+                             urlString: candidate)
+        }
+    }
+
+    /// 分支 b：仅 HTML/RTF 的 item → 物化为 .html/.rtf 文件项（kind=.file，
+    /// 拖出仍是富文本）。displayName 用 NSAttributedString 提取的纯文本首行
+    /// 截断；提取为空时用本地化兜底名。HTML 解析必须在主线程（本类即在
+    /// MainActor 上运行），勿移入后台任务。
+    private func richTextFileItem(from pasteboardItem: NSPasteboardItem) -> ShelfItem? {
+        if pasteboardItem.types.contains(PasteboardTypes.html),
+           let data = pasteboardItem.data(forType: PasteboardTypes.html), !data.isEmpty {
+            let plainText = NSAttributedString(html: data, documentAttributes: nil)?.string ?? ""
+            return writeRichTextFile(data: data,
+                                     fileExtension: "html",
+                                     plainText: plainText,
+                                     fallbackBaseName: String(localized: "Dropped HTML"))
+        }
+        if pasteboardItem.types.contains(PasteboardTypes.rtf),
+           let data = pasteboardItem.data(forType: PasteboardTypes.rtf), !data.isEmpty {
+            let plainText = NSAttributedString(rtf: data, documentAttributes: nil)?.string ?? ""
+            return writeRichTextFile(data: data,
+                                     fileExtension: "rtf",
+                                     plainText: plainText,
+                                     fallbackBaseName: String(localized: "Dropped RTF"))
+        }
+        return nil
+    }
+
+    /// 富文本物化落盘（b 分支共用）。写盘失败不静默：日志 + notice，返回 nil
+    /// 让调用方继续尝试后续分支（字符串兜底仍可能产出文本项）。
+    private func writeRichTextFile(data: Data, fileExtension: String,
+                                   plainText: String, fallbackBaseName: String) -> ShelfItem? {
+        // 提取的纯文本为空时用兜底名。探针结论：仅含 <img> 等嵌入对象的 HTML
+        // 提取结果是 U+FFFC（object replacement character），先剥掉再判空；
+        // 非空复用文本项命名规则（首行截断）。
+        let stripped = plainText.replacingOccurrences(of: "\u{FFFC}", with: "")
+        let hasText = !stripped.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let baseName = hasText ? Self.displayName(forText: stripped) : fallbackBaseName
+        let fileName = "\(Self.sanitizedFileNameComponent(baseName)).\(fileExtension)"
+        do {
+            let destination = try tempFileService.uniqueFileURL(suggestedName: fileName)
+            try data.write(to: destination, options: .atomic)
+            return Self.makeFileBackedItem(for: destination,
+                                           displayName: fileName,
+                                           forcedKind: .file,
+                                           bookmarkService: bookmarkService,
+                                           logger: logger)
+        } catch {
+            logger.error("Failed to materialize dropped rich text: \(error.localizedDescription, privacy: .public)")
+            noticeCenter.show(String(localized: "Couldn't add the dropped item."))
+            return nil
+        }
+    }
+
+    /// 分支 c：通用数据物化。按 `materializationCandidates` 的 tier 顺序取第一个
+    /// 能读出非空 data 的类型，后台写盘（payload 可能很大，与图片物化同模式），
+    /// kind 按 UTI 推断（image→.image，其余 .file）。返回是否已派发。
+    private func scheduleDataMaterialization(from pasteboardItem: NSPasteboardItem,
+                                             onItemReady: @escaping @MainActor (ShelfItem) -> Void) -> Bool {
+        for candidate in PasteboardTypes.materializationCandidates(in: pasteboardItem.types) {
+            // tier3（动态/桥接/泛型）且能读出「有意义的文本」→ 文本项比 .dat
+            // 更有用，让给 d 分支（如 utf8-external-plain-text 这类 UTType
+            // 解析为 nil 的文本 flavor；探针：string(forType:) 对它们有效）。
+            // 注意必须有意义门槛：string(forType:) 对二进制数据也会做有损解码
+            // （探针：[1,2,3] → "\u{1}\u{2}\u{3}"），无门槛会把二进制变成乱码文本。
+            if candidate.tier == 3,
+               let text = pasteboardItem.string(forType: candidate.type),
+               Self.isMeaningfulText(text) {
+                continue
+            }
+            let type = candidate.type
+            guard let data = pasteboardItem.data(forType: type), !data.isEmpty else { continue }
+            let fileExtension = PasteboardTypes.materializationFileExtension(for: type)
+            let baseName = PasteboardTypes.materializedDisplayBaseName(for: type)
+            let fileName = "\(Self.sanitizedFileNameComponent(baseName)).\(fileExtension)"
+            let kind: ItemKind = UTType(type.rawValue)?.conforms(to: .image) == true ? .image : .file
+            let reportFailure: @MainActor () -> Void = { [noticeCenter] in
+                noticeCenter.show(String(localized: "Couldn't add the dropped item."))
+            }
+            Task.detached { [bookmarkService, tempFileService, logger] in
+                do {
+                    let destination = try tempFileService.uniqueFileURL(suggestedName: fileName)
+                    try data.write(to: destination, options: .atomic)
+                    let item = Self.makeFileBackedItem(for: destination,
+                                                       displayName: fileName,
+                                                       forcedKind: kind,
+                                                       bookmarkService: bookmarkService,
+                                                       logger: logger)
+                    await onItemReady(item)
+                } catch {
+                    logger.error("Failed to materialize dropped data (\(type.rawValue, privacy: .public)): \(error.localizedDescription, privacy: .public)")
+                    await reportFailure()
+                }
+            }
+            return true
+        }
+        return false
+    }
+
+    /// 分支 d：字符串兜底 —— item 的任何类型能读出「有意义的文本」即产出文本项
+    /// （按声明顺序取首个）。`string(forType:)` 对非字符串类类型返回 nil，
+    /// 对二进制数据做有损解码 —— 由 `isMeaningfulText` 挡掉乱码。
+    private func fallbackTextItem(from pasteboardItem: NSPasteboardItem) -> ShelfItem? {
+        for type in pasteboardItem.types {
+            guard let text = pasteboardItem.string(forType: type),
+                  Self.isMeaningfulText(text) else { continue }
+            return ShelfItem(kind: .text, displayName: Self.displayName(forText: text), text: text)
+        }
+        return nil
+    }
+
+    /// 字符串兜底的「有意义文本」门槛：非空且不含控制字符（空白/换行/制表除外）。
+    /// 探针结论：`string(forType:)` 对任意二进制数据可能做有损解码
+    /// （[0x01,0x02,0x03] → "\u{1}\u{2}\u{3}"），无此门槛二进制 payload 会被
+    /// 误判为乱码文本项而不是物化为 .dat。
+    nonisolated static func isMeaningfulText(_ string: String) -> Bool {
+        guard !string.isEmpty else { return false }
+        let controls = CharacterSet.controlCharacters.subtracting(.whitespacesAndNewlines)
+        return string.rangeOfCharacter(from: controls) == nil
+    }
+
+    /// 物化文件名单元清洗：去掉路径分隔符（显示名首行可能含 "/"，
+    /// `TempFileService` 的 lastPathComponent 清洗会把整名前段吃掉）。
+    nonisolated static func sanitizedFileNameComponent(_ name: String) -> String {
+        let sanitized = name.replacingOccurrences(of: "/", with: "-")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return sanitized.isEmpty ? String(localized: "Dropped Item") : sanitized
     }
 
     // MARK: - fileURL

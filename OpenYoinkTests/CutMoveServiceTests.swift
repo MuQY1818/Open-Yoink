@@ -123,7 +123,7 @@ final class CutMoveServiceTests: XCTestCase {
     // MARK: - 失败分支
 
     func testMakeCutItem_copyFailure_keepsOriginalAndFallsBack() throws {
-        var context = makeContext()
+        let context = makeContext()
         defer { context.cleanup() }
         // 源不存在 → copyItem 抛错。
         let missing = FileManager.default.temporaryDirectory
@@ -172,7 +172,7 @@ final class CutMoveServiceTests: XCTestCase {
     }
 
     func testMakeCutItem_sourceInsideContainer_rejected() throws {
-        var context = makeContext()
+        let context = makeContext()
         defer { context.cleanup() }
         // 源在「容器」内（防套娃）。
         let container = context.containerURL

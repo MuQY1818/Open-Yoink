@@ -23,7 +23,8 @@ struct SettingsView: View {
             AboutSettingsTab()
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
-        .frame(width: 480, height: 380)
+        // 用户反馈：480×380 偏小，通用页脚注被裁半行；放大到宽松尺寸。
+        .frame(width: 560, height: 480)
     }
 }
 
@@ -332,7 +333,7 @@ private struct AboutSettingsTab: View {
             }
 
             Section("Acknowledgments") {
-                Text("Open-Yoink is a clean-room implementation that studied the observable behavior of several MIT-licensed open-source shelf apps (HoldMac, DropKit, ShelfMate, NotchPocket, nab, Dropshit). No third-party code is included. See THIRD_PARTY_NOTICES.md in the source repository.")
+                Text("Open-Yoink is an independent clean-room implementation crafted for macOS. Its design was informed by studying the publicly observable behavior of several MIT-licensed open-source projects — HoldMac, DropKit, ShelfMate, NotchPocket, nab, and Dropshit. No third-party code, artwork, or proprietary assets are included. A complete attribution record is available in THIRD_PARTY_NOTICES.md in the source repository.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

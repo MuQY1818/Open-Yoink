@@ -185,12 +185,36 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "把文件拖到这里" } }
       }
     },
+    "Dropped HTML" : {
+      "extractionState" : "manual",
+      "comment" : "Display name for an HTML-only drop materialized as an .html file",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Dropped HTML" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖入的 HTML" } }
+      }
+    },
     "Dropped Image.png" : {
       "extractionState" : "manual",
       "comment" : "Display name for image data materialized from a drop",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Dropped Image.png" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖入的图片.png" } }
+      }
+    },
+    "Dropped Item" : {
+      "extractionState" : "manual",
+      "comment" : "Fallback display name base for generic data materialized from a drop",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Dropped Item" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖入的项目" } }
+      }
+    },
+    "Dropped RTF" : {
+      "extractionState" : "manual",
+      "comment" : "Display name for an RTF-only drop materialized as an .rtf file",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Dropped RTF" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖入的 RTF" } }
       }
     },
     "Dropped image data could not be converted to PNG." : {
@@ -282,9 +306,10 @@
     },
     "Hide Shelf" : {
       "extractionState" : "manual",
+      "comment" : "Menu bar item and inner-edge collapse handle label/tooltip",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Hide Shelf" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "隐藏暂存架" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "收起暂存架" } }
       }
     },
     "High" : {
@@ -422,11 +447,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开" } }
       }
     },
-    "Open-Yoink is a clean-room implementation that studied the observable behavior of several MIT-licensed open-source shelf apps (HoldMac, DropKit, ShelfMate, NotchPocket, nab, Dropshit). No third-party code is included. See THIRD_PARTY_NOTICES.md in the source repository." : {
+    "Open-Yoink is an independent clean-room implementation crafted for macOS. Its design was informed by studying the publicly observable behavior of several MIT-licensed open-source projects — HoldMac, DropKit, ShelfMate, NotchPocket, nab, and Dropshit. No third-party code, artwork, or proprietary assets are included. A complete attribution record is available in THIRD_PARTY_NOTICES.md in the source repository." : {
       "extractionState" : "manual",
+      "comment" : "致谢段：按作者要求两种语言均展示英文原文。",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open-Yoink is a clean-room implementation that studied the observable behavior of several MIT-licensed open-source shelf apps (HoldMac, DropKit, ShelfMate, NotchPocket, nab, Dropshit). No third-party code is included. See THIRD_PARTY_NOTICES.md in the source repository." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Open-Yoink 是一个净室实现，研究了多款 MIT 协议开源 shelf 应用（HoldMac、DropKit、ShelfMate、NotchPocket、nab、Dropshit）的可观察行为，不包含任何第三方代码。详见源码仓库中的 THIRD_PARTY_NOTICES.md。" } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open-Yoink is an independent clean-room implementation crafted for macOS. Its design was informed by studying the publicly observable behavior of several MIT-licensed open-source projects — HoldMac, DropKit, ShelfMate, NotchPocket, nab, and Dropshit. No third-party code, artwork, or proprietary assets are included. A complete attribution record is available in THIRD_PARTY_NOTICES.md in the source repository." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Open-Yoink is an independent clean-room implementation crafted for macOS. Its design was informed by studying the publicly observable behavior of several MIT-licensed open-source projects — HoldMac, DropKit, ShelfMate, NotchPocket, nab, and Dropshit. No third-party code, artwork, or proprietary assets are included. A complete attribution record is available in THIRD_PARTY_NOTICES.md in the source repository." } }
       }
     },
     "Position" : {
@@ -622,6 +648,14 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Takes effect after relaunch." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重启 App 后生效。" } }
+      }
+    },
+    "That content can't be added to the shelf yet." : {
+      "extractionState" : "manual",
+      "comment" : "Inline notice when a drop yields no importable content at all",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "That content can't be added to the shelf yet." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂不支持该内容" } }
       }
     },
     "Text" : {

@@ -7,14 +7,28 @@ import SwiftUI
 /// （移除/拖出导致）→ 应动画隐藏。状态式实现（可见且为空即隐）会把用户
 /// 在空架状态的手动唤出（快捷键/菜单/摇动/边缘 —— 显式意图）立刻收回，
 /// 迁移式天然豁免该场景。首次评估只建立基线，不触发。
+///
+/// 任务二不变式：拖拽进行中（`isDragInProgress`）不自动隐藏已可见的 shelf ——
+/// 真机验收怀疑「拖拽中 shelf 被意外隐藏导致 drop 落空」，典型场景是拖拽
+/// 期间 items 从 >0 变 0（如另一只手按 Delete 清空）。被抑制的隐藏不补发：
+/// 拖结束后 shelf 保持可见（空架），由用户显式收起，安全方向。
 struct EmptyShelfAutoHideRule: Sendable, Equatable {
     private var previousCount: Int?
 
     /// 每次 items 变更时评估。返回 true = 应立即自动隐藏。
     /// 无论结果如何都记录本次数量作为下次基线。
     mutating func evaluate(itemCount: Int, isVisible: Bool, isEnabled: Bool) -> Bool {
+        evaluate(itemCount: itemCount, isVisible: isVisible, isEnabled: isEnabled,
+                 isDragInProgress: false)
+    }
+
+    /// 带拖拽状态门控的评估（任务二）：`isDragInProgress == true` 期间恒不触发，
+    /// 基线照常更新（拖拽结束后的下一次变更以最新数量为基准裁决）。
+    mutating func evaluate(itemCount: Int, isVisible: Bool, isEnabled: Bool,
+                           isDragInProgress: Bool) -> Bool {
         defer { previousCount = itemCount }
         guard let previousCount else { return false }
+        guard !isDragInProgress else { return false }
         return isEnabled && isVisible && previousCount > 0 && itemCount == 0
     }
 
@@ -61,6 +75,9 @@ final class ShelfWindowController: NSObject {
     /// S6: Quick Look 会话（QLPreviewPanel 数据源/代理；空格/双击/右键入口
     /// 汇聚于此，随窗口控制器长期存活）。
     private let quickLookCoordinator: QuickLookCoordinator
+    /// 任务二：拖拽进行中状态（`DragStartMonitor.isDragInProgress`），供给
+    /// 空架自动隐藏的门控 —— 拖拽期间任何自动显隐不得收起已可见的 shelf。
+    private let dragStartMonitor: DragStartMonitor
 
     private lazy var panel: ShelfPanel = {
         let panel = ShelfPanel(
@@ -82,6 +99,10 @@ final class ShelfWindowController: NSObject {
                 .environment(\.dragOutController, dragOutController)
                 .environment(\.quickLookCoordinator, quickLookCoordinator)
                 .environment(\.tempFileService, tempFileService)
+                // 任务三：内缘收起把手点击 → 走标准 hideShelf 滑出动画。
+                .environment(\.shelfHideAction, { [weak self] in
+                    self?.hideShelf(animated: true)
+                })
         )
         panel.contentView = DragContainerView(
             store: store,
@@ -107,12 +128,14 @@ final class ShelfWindowController: NSObject {
          importCoordinator: DropImportCoordinator,
          tempFileService: TempFileService,
          settings: SettingsStore,
-         recents: RecentItemsService) {
+         recents: RecentItemsService,
+         dragStartMonitor: DragStartMonitor) {
         self.appState = appState
         self.store = store
         self.importCoordinator = importCoordinator
         self.tempFileService = tempFileService
         self.settings = settings
+        self.dragStartMonitor = dragStartMonitor
         self.dragOutController = DragOutController(
             store: store,
             settings: settings,
@@ -352,11 +375,13 @@ final class ShelfWindowController: NSObject {
     /// 1. UX5 紧凑高度 —— 可见时数量变化动画过渡到新目标 frame（custom
     ///    位置的目标 frame 不含内容高度，天然 no-op）；
     /// 2. UX6 空架自动隐藏 —— 非空→空迁移且设置开启时动画收回。
+    ///    任务二：拖拽进行中不收回（不变式见 EmptyShelfAutoHideRule）。
     private func handleItemsDidChange() {
         let shouldAutoHide = emptyAutoHideRule.evaluate(
             itemCount: store.items.count,
             isVisible: appState.isShelfVisible,
-            isEnabled: settings.autoHideWhenEmpty
+            isEnabled: settings.autoHideWhenEmpty,
+            isDragInProgress: dragStartMonitor.isDragInProgress
         )
         if appState.isShelfVisible {
             let target = targetFrame()
