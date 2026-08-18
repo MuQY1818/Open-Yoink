@@ -1771,6 +1771,48 @@
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Selects the retained item so you can drag it out again." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选中仍保留的项目，以便再次拖出。" } }
       }
+    },
+    "Usage Help" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Usage Help" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用帮助" } }
+      }
+    },
+    "Report an Issue…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Report an Issue…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "报告问题…" } }
+      }
+    },
+    "Support" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Support" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "支持" } }
+      }
+    },
+    "Copied" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Copied" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已复制" } }
+      }
+    },
+    "Copy Diagnostic Summary" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Copy Diagnostic Summary" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "复制诊断摘要" } }
+      }
+    },
+    "Diagnostics include only the app version, macOS, architecture, and relevant setting states. They never include file names, paths, clipboard data, shelf contents, or user identifiers." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Diagnostics include only the app version, macOS, architecture, and relevant setting states. They never include file names, paths, clipboard data, shelf contents, or user identifiers." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "诊断摘要仅包含应用版本、macOS、架构和相关设置状态，绝不包含文件名、路径、剪贴板数据、暂存架内容或用户标识。" } }
+      }
     }
   },
   "version" : "1.0"

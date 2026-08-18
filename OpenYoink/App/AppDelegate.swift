@@ -64,6 +64,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// SPUStandardUpdaterController；terminate 无需显式释放——XPC 连接与
     /// 调度器随进程终止，无后台常驻资源）。
     lazy var updateController = UpdateController(settings: settingsStore)
+    /// Help, voluntary issue reporting and privacy-safe local diagnostics.
+    lazy var supportController = SupportController(settings: settingsStore)
 
     private lazy var shelfWindowController = ShelfWindowController(appState: appState,
                                                                    store: shelfStore,
@@ -91,7 +93,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                                                          launchAtLoginController: launchAtLoginController,
                                                                          updateController: updateController,
                                                                          storageManagementController: storageManagementController,
-                                                                         navigation: settingsNavigation)
+                                                                         navigation: settingsNavigation,
+                                                                         supportController: supportController)
     private lazy var menuBarController = MenuBarController(
         appState: appState,
         recents: recentItemsService,
@@ -106,6 +109,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         },
         onShowQuickStart: { [weak self] in
             self?.onboardingController.replay()
+        },
+        onOpenHelp: { [weak self] in
+            self?.supportController.openHelp()
+        },
+        onReportIssue: { [weak self] in
+            self?.supportController.reportIssue()
         },
         onCheckForUpdates: { [weak self] in
             self?.updateController.checkForUpdates()

@@ -4,7 +4,7 @@ import AppKit
 ///
 /// 菜单含「Show/Hide Shelf」（勾选项跟随 `AppState.isShelfVisible`）、
 /// 「Recent Items」最近拖出子菜单（S10，读 `RecentItemsService`）、
-/// 「Settings…」（S8 起打开 SwiftUI Settings scene）、「Quit OpenYoink」。
+/// 「Quick Start」「Usage Help」「Report an Issue」、设置、更新与退出。
 /// 用户可见字符串经 `String(localized:)` 走 Localizable.xcstrings（S10）。
 @MainActor
 final class MenuBarController: NSObject {
@@ -17,6 +17,10 @@ final class MenuBarController: NSObject {
     private let onShowSettings: () -> Void
     /// 可重播的两步真实拖放练习。
     private let onShowQuickStart: () -> Void
+    /// 打开公开使用帮助；不改变应用状态。
+    private let onOpenHelp: () -> Void
+    /// 用户主动打开 GitHub Issue，并预填不含内容与路径的诊断摘要。
+    private let onReportIssue: () -> Void
     /// Sparkle 手动检查更新（由 AppDelegate 的 UpdateController 提供）。
     private let onCheckForUpdates: () -> Void
     /// 自动安装失败时可直接打开 GitHub Releases 手动下载。
@@ -33,6 +37,8 @@ final class MenuBarController: NSObject {
          onReaddRecent: @escaping (RecentEntry) -> Void,
          onShowSettings: @escaping () -> Void,
          onShowQuickStart: @escaping () -> Void,
+         onOpenHelp: @escaping () -> Void,
+         onReportIssue: @escaping () -> Void,
          onCheckForUpdates: @escaping () -> Void,
          onOpenManualUpdate: @escaping () -> Void) {
         self.appState = appState
@@ -41,6 +47,8 @@ final class MenuBarController: NSObject {
         self.onReaddRecent = onReaddRecent
         self.onShowSettings = onShowSettings
         self.onShowQuickStart = onShowQuickStart
+        self.onOpenHelp = onOpenHelp
+        self.onReportIssue = onReportIssue
         self.onCheckForUpdates = onCheckForUpdates
         self.onOpenManualUpdate = onOpenManualUpdate
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -80,6 +88,20 @@ final class MenuBarController: NSObject {
                                         keyEquivalent: "")
         quickStartItem.target = self
         menu.addItem(quickStartItem)
+
+        let helpItem = NSMenuItem(title: String(localized: "Usage Help"),
+                                  action: #selector(openHelp(_:)),
+                                  keyEquivalent: "")
+        helpItem.target = self
+        menu.addItem(helpItem)
+
+        let reportItem = NSMenuItem(title: String(localized: "Report an Issue…"),
+                                    action: #selector(reportIssue(_:)),
+                                    keyEquivalent: "")
+        reportItem.target = self
+        menu.addItem(reportItem)
+
+        menu.addItem(.separator())
 
         // S8: 打开 SwiftUI Settings scene（见 showSettings(_:)）。
         let settingsItem = NSMenuItem(title: String(localized: "Settings…"),
@@ -127,6 +149,14 @@ final class MenuBarController: NSObject {
 
     @objc private func showQuickStart(_ sender: Any?) {
         onShowQuickStart()
+    }
+
+    @objc private func openHelp(_ sender: Any?) {
+        onOpenHelp()
+    }
+
+    @objc private func reportIssue(_ sender: Any?) {
+        onReportIssue()
     }
 
     /// 手动检查更新（Sparkle；空 feed 时走「已是最新」安全路径）。

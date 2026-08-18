@@ -16,6 +16,7 @@ struct OpenYoinkApp: App {
                 .environment(appDelegate.updateController)
                 .environment(appDelegate.storageManagementController)
                 .environment(appDelegate.settingsNavigation)
+                .environment(appDelegate.supportController)
         }
     }
 }

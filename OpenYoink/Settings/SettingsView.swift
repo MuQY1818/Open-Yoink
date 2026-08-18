@@ -550,6 +550,9 @@ private struct IgnoredAppRow: View {
 // MARK: - About
 
 private struct AboutSettingsTab: View {
+    @Environment(SupportController.self) private var support
+    @State private var didCopyDiagnostics = false
+
     private var versionString: String {
         let info = Bundle.main.infoDictionary
         let version = info?["CFBundleShortVersionString"] as? String ?? String(localized: "Unknown")
@@ -570,7 +573,32 @@ private struct AboutSettingsTab: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+
+            Section("Support") {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) { supportButtons }
+                    VStack(alignment: .leading, spacing: 8) { supportButtons }
+                }
+                Text("Diagnostics include only the app version, macOS, architecture, and relevant setting states. They never include file names, paths, clipboard data, shelf contents, or user identifiers.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .formStyle(.grouped)
+    }
+
+    @ViewBuilder
+    private var supportButtons: some View {
+        Button("Usage Help") { support.openHelp() }
+            .accessibilityIdentifier("settings.support.help")
+        Button("Report an Issue…") { support.reportIssue() }
+            .accessibilityIdentifier("settings.support.report")
+        Button(didCopyDiagnostics
+               ? String(localized: "Copied")
+               : String(localized: "Copy Diagnostic Summary")) {
+            didCopyDiagnostics = support.copyDiagnosticSummary()
+        }
+        .accessibilityIdentifier("settings.support.copyDiagnostics")
     }
 }

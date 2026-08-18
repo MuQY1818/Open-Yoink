@@ -15,6 +15,7 @@ final class SettingsWindowController {
     private let updateController: UpdateController
     private let storageManagementController: StorageManagementController
     private let navigation: SettingsNavigationModel
+    private let supportController: SupportController
     private var window: NSWindow?
 
     init(settings: SettingsStore,
@@ -22,13 +23,15 @@ final class SettingsWindowController {
          launchAtLoginController: LaunchAtLoginController,
          updateController: UpdateController,
          storageManagementController: StorageManagementController,
-         navigation: SettingsNavigationModel) {
+         navigation: SettingsNavigationModel,
+         supportController: SupportController) {
         self.settings = settings
         self.hotKeyMonitor = hotKeyMonitor
         self.launchAtLoginController = launchAtLoginController
         self.updateController = updateController
         self.storageManagementController = storageManagementController
         self.navigation = navigation
+        self.supportController = supportController
     }
 
     /// 显示设置窗口并激活应用（LSUIElement：窗口前置与键盘焦点都依赖显式
@@ -45,6 +48,7 @@ final class SettingsWindowController {
                 .environment(updateController)
                 .environment(storageManagementController)
                 .environment(navigation)
+                .environment(supportController)
             let hostingController = NSHostingController(rootView: rootView)
 
             let window = NSWindow(contentViewController: hostingController)
