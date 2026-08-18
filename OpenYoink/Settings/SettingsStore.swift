@@ -103,11 +103,12 @@ final class SettingsStore {
         didSet { defaults.set(shelfEdgeOffset, forKey: Keys.shelfEdgeOffset) }
     }
 
-    /// EdgeTab: keep the edge tab on the shelf's screen edge. Default: true.
-    /// The tab stays put while the shelf is open — docked at the shelf panel's
-    /// lower corner, where a click hides the shelf again. Only meaningful for
-    /// left/right positions — custom placement has no attachment edge, so no
-    /// tab is shown.
+    /// EdgeTab: show the edge tab on the shelf's screen edge while the shelf
+    /// is hidden (mutually exclusive model — the tab disappears once the shelf
+    /// opens; collapsing is done via the shelf's own outer-edge hot zone or
+    /// inner chevron handle). Only meaningful for left/right positions —
+    /// custom placement has no attachment edge, so no tab is shown.
+    /// Default: true.
     var edgeTabEnabled: Bool {
         didSet { defaults.set(edgeTabEnabled, forKey: Keys.edgeTabEnabled) }
     }

@@ -123,21 +123,6 @@ final class ShelfWindowController: NSObject {
         appState.isShelfVisible
     }
 
-    /// EdgeTab: 拉环驻点布局的数据推送 —— 面板目标 frame 每次重算（显示/
-    /// 隐藏/设置/items/屏幕参数/Space 校正）都经 `noteTargetFrame` 记录并
-    /// 派发；隐藏时派发 nil（拉环回到边缘常态位）。
-    var onShelfTargetFrameDidChange: (@MainActor (NSRect?) -> Void)?
-
-    /// 最近一次布局目标 frame（显示动画进行中即为最终目标）。
-    private var lastShelfTargetFrame: NSRect?
-
-    /// 记录并派发目标 frame（去重：未实际变化不派发，避免冗余重驻点）。
-    private func noteTargetFrame(_ frame: NSRect?) {
-        guard frame != lastShelfTargetFrame else { return }
-        lastShelfTargetFrame = frame
-        onShelfTargetFrameDidChange?(frame)
-    }
-
     init(appState: AppState,
          store: ShelfStore,
          importCoordinator: DropImportCoordinator,
@@ -223,7 +208,6 @@ final class ShelfWindowController: NSObject {
     func showShelf(animated: Bool = true) {
         appState.showShelf()
         let targetFrame = targetFrame()
-        noteTargetFrame(targetFrame)
         guard animated else {
             panel.alphaValue = 1
             panel.setFrame(targetFrame, display: false)
@@ -244,8 +228,6 @@ final class ShelfWindowController: NSObject {
     /// 向贴附缘滑出并淡出，结束后 orderOut。
     func hideShelf(animated: Bool = true) {
         appState.hideShelf()
-        // EdgeTab: 拉环收到 nil 后回边缘常态位（与滑出动画同拍）。
-        noteTargetFrame(nil)
         // S6: shelf 隐藏时关掉 Quick Look 并释放会话资源（不恢复键盘焦点）。
         quickLookCoordinator.closeForShelfHide()
         let targetFrame = hiddenFrame(for: panel.frame)
@@ -343,7 +325,6 @@ final class ShelfWindowController: NSObject {
     @objc private func screenParametersDidChange(_ notification: Notification) {
         guard appState.isShelfVisible else { return }
         let target = targetFrame()
-        noteTargetFrame(target)
         panel.setFrame(target, display: true)
     }
 
@@ -365,7 +346,6 @@ final class ShelfWindowController: NSObject {
                                                              screens: Self.screenGeometries())
             ?? targetFrame()
         guard corrected != panel.frame else { return }
-        noteTargetFrame(corrected)
         panel.setFrame(corrected, display: true)
     }
 
@@ -385,7 +365,6 @@ final class ShelfWindowController: NSObject {
         guard appState.isShelfVisible else { return }
         let target = targetFrame()
         guard target != panel.frame else { return }
-        noteTargetFrame(target)
         NSAnimationContext.runAnimationGroup { context in
             context.duration = Self.animationDuration
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
@@ -408,7 +387,6 @@ final class ShelfWindowController: NSObject {
         if appState.isShelfVisible {
             let target = targetFrame()
             if target != panel.frame {
-                noteTargetFrame(target)
                 NSAnimationContext.runAnimationGroup { context in
                     context.duration = Self.animationDuration
                     context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)

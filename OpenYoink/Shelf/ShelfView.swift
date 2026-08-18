@@ -68,6 +68,10 @@ struct ShelfView: View {
             .animation(.easeInOut(duration: 0.2), value: notices.message != nil)
             .animation(.easeInOut(duration: 0.2), value: dropTargetState.mode)
             .padding(8)
+            // 外缘隐形收起热区挂在 padding **之后**（窗口内容坐标系）：拉环
+            // 原位置是面板贴缘的 14pt —— 挂在 padding 前会被形状内缩 8pt
+            // 带偏（真机验证点击落空），必须贴着面板真正的贴缘边。
+            .overlay(alignment: outerCollapseStripAlignment) { outerCollapseStrip }
             // C5: 框选选框在窗口 .global 坐标系 —— 必须挂在 padding 之后，
             // overlay 局部原点才与窗口内容原点（即 .global 原点）重合。
             .overlay(alignment: .topLeading) { marqueeOverlay }
@@ -287,6 +291,45 @@ struct ShelfView: View {
             ShelfCollapseHandle(side: side) {
                 shelfHideAction?()
             }
+        }
+    }
+
+    // MARK: - 外缘隐形收起热区（互斥模型）
+
+    /// 热区贴附侧 = 面板**贴屏幕缘一侧**（与内缘把手相对）：右锚 → trailing、
+    /// 左锚 → leading；custom 为 nil（不显示）。这就是拉环原来在的位置 ——
+    /// 拉环只在 shelf 隐藏时出现，shelf 展开后用户在同一点位再点即收起
+    /// （真机验收：「点拉环展开后，同位置再点缩不回去」）。
+    private var outerCollapseStripSide: ShelfLayoutEngine.InnerEdgeHandleSide? {
+        switch collapseHandleSide {
+        case .leading: return .trailing
+        case .trailing: return .leading
+        case nil: return nil
+        }
+    }
+
+    private var outerCollapseStripAlignment: Alignment {
+        outerCollapseStripSide == .trailing ? .trailing : .leading
+    }
+
+    /// 完全隐形的热区（用户明确不要多余视觉元素），保留 tooltip 与
+    /// VoiceOver 标签；宽度与把手一致（≤ 面板边距带 16pt），不占网格宽度。
+    /// 注意：标签用 0.001 白而非 `Color.clear` —— 实测 clear 在该上下文
+    /// 不接收命中（内缘把手能工作是因为它有真实字形内容）。
+    @ViewBuilder
+    private var outerCollapseStrip: some View {
+        if outerCollapseStripSide != nil {
+            Button {
+                shelfHideAction?()
+            } label: {
+                Color.white.opacity(0.001)
+            }
+            .buttonStyle(.plain)
+            .frame(width: ShelfLayoutEngine.innerEdgeHandleWidth)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .accessibilityLabel(Text("Hide Shelf"))
+            .help(Text("Hide Shelf"))
         }
     }
 
