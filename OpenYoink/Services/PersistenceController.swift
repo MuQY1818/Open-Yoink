@@ -45,6 +45,7 @@ final class PersistenceController {
     private(set) var saveCount = 0
 
     private var shelfFileURL: URL { directoryURL.appendingPathComponent("shelf.json") }
+    private static let corruptSnapshotPrefix = "shelf.json.corrupt-"
     private var pendingItems: [ShelfItem]?
     private var saveTask: Task<Void, Never>?
     private let logger = Logger(subsystem: "com.weijue.OpenYoink", category: "Persistence")
@@ -97,15 +98,28 @@ final class PersistenceController {
         case missing
         /// 文件存在但读取/解码失败（已隔离到 shelf.json.corrupt-<时间戳>）。
         case failed
+
+        /// 启动时用于构造 ShelfStore 的项目。失败仍以空架进入 UI，但必须
+        /// 保留同一个 LoadResult，不能再次读取后把已隔离文件误判为 missing。
+        var items: [ShelfItem] {
+            guard case .loaded(let items) = self else { return [] }
+            return items
+        }
+
+        /// 只有拿到可信快照，或确认从未有快照时，才允许删除未被引用的
+        /// Materialized 文件。读取失败时这些文件可能仍被损坏快照引用。
+        var permitsMaterializedOrphanCleanup: Bool {
+            switch self {
+            case .loaded, .missing: true
+            case .failed: false
+            }
+        }
     }
 
     /// Loads the persisted items. Returns an empty array when the file is
     /// missing or corrupted — see `loadResult()` for the failure-aware variant.
     func load() -> [ShelfItem] {
-        switch loadResult() {
-        case .loaded(let items): return items
-        case .missing, .failed: return []
-        }
+        loadResult().items
     }
 
     /// Failure-aware load：missing 与 failed 分开；failed 时把损坏文件改名
@@ -123,13 +137,38 @@ final class PersistenceController {
         }
     }
 
+    /// Materialized 孤儿清理的最终安全门：本轮读取必须可信，并且磁盘上不能
+    /// 留有任何隔离快照。后者必须跨重启生效——损坏文件被移走后，下次读取
+    /// 会是 `.missing`；若仅看本轮结果，第二次启动仍会删除所有恢复材料。
+    ///
+    /// 隔离快照由用户确认恢复/放弃后手工移走；在此之前宁可保留少量孤儿，
+    /// 也不能自动破坏可恢复数据。目录读取异常同样按不安全处理。
+    func canSafelyCleanupMaterializedOrphans(after result: LoadResult) -> Bool {
+        guard result.permitsMaterializedOrphanCleanup else { return false }
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: directoryURL.path) else { return true }
+        do {
+            let names = try fileManager.contentsOfDirectory(atPath: directoryURL.path)
+            return !names.contains { $0.hasPrefix(Self.corruptSnapshotPrefix) }
+        } catch {
+            logger.error("Cannot inspect persistence directory before orphan cleanup: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
     /// 把损坏的 shelf.json 改名隔离（保留供人工检查/恢复；下次保存会写新文件）。
     private func quarantineCorruptFile() {
         let stamp = makeShelfDateFormatter().string(from: Date())
             .replacingOccurrences(of: ":", with: "-")
-        let quarantineURL = directoryURL.appendingPathComponent("shelf.json.corrupt-\(stamp)")
-        try? FileManager.default.moveItem(at: shelfFileURL, to: quarantineURL)
-        logger.warning("Corrupted shelf.json quarantined to \(quarantineURL.path, privacy: .public)")
+        let quarantineURL = directoryURL.appendingPathComponent(Self.corruptSnapshotPrefix + stamp)
+        do {
+            try FileManager.default.moveItem(at: shelfFileURL, to: quarantineURL)
+            logger.warning("Corrupted shelf.json quarantined to \(quarantineURL.path, privacy: .public)")
+        } catch {
+            // 仍返回 .failed，清理安全门会继续关闭；明确记录隔离失败，不能
+            // 伪称已保存恢复副本。
+            logger.error("Failed to quarantine corrupted shelf.json: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     // MARK: - Saving

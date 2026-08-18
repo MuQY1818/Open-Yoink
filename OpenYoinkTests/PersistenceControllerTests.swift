@@ -139,6 +139,64 @@ final class PersistenceControllerTests: XCTestCase {
         XCTAssertEqual(quarantined.count, 1, "损坏文件应被隔离保留供人工恢复")
     }
 
+    /// 启动链路必须复用第一次读取的结果：损坏文件在首次读取时会被隔离，
+    /// 第二次读取已经变成 missing；若用第二次结果判断清理，就会误删全部
+    /// Materialized 文件。
+    func testLoadResult_failedSnapshotNeverPermitsOrphanCleanup_afterQuarantine() throws {
+        let directory = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try "not json {{{".write(
+            to: directory.appendingPathComponent("shelf.json"),
+            atomically: true,
+            encoding: .utf8
+        )
+        let controller = PersistenceController(directoryURL: directory)
+
+        let initialResult = controller.loadResult()
+
+        XCTAssertEqual(initialResult, .failed)
+        XCTAssertEqual(initialResult.items, [])
+        XCTAssertFalse(initialResult.permitsMaterializedOrphanCleanup)
+        XCTAssertFalse(controller.canSafelyCleanupMaterializedOrphans(after: initialResult))
+        XCTAssertEqual(controller.loadResult(), .missing,
+                       "隔离后的再次读取会变成 missing，启动代码不能依赖它")
+        XCTAssertFalse(initialResult.permitsMaterializedOrphanCleanup,
+                       "首次失败结果必须持续阻止本轮孤儿清理")
+        XCTAssertFalse(
+            controller.canSafelyCleanupMaterializedOrphans(after: .missing),
+            "隔离快照存在时，后续启动即使读到 missing 也必须保留恢复材料"
+        )
+    }
+
+    func testLoadResult_trustedSnapshotsPermitOrphanCleanup() throws {
+        XCTAssertTrue(PersistenceController.LoadResult.missing.permitsMaterializedOrphanCleanup)
+        XCTAssertTrue(PersistenceController.LoadResult.loaded([]).permitsMaterializedOrphanCleanup)
+
+        let directory = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let controller = PersistenceController(directoryURL: directory)
+        XCTAssertTrue(controller.canSafelyCleanupMaterializedOrphans(after: .missing))
+        XCTAssertTrue(controller.canSafelyCleanupMaterializedOrphans(after: .loaded([])))
+    }
+
+    func testOrphanCleanup_staysBlockedWhenValidShelfCoexistsWithRecoverySnapshot() throws {
+        let directory = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let controller = PersistenceController(directoryURL: directory)
+        try controller.saveNow([makeItem("new")])
+        try "recoverable".write(
+            to: directory.appendingPathComponent("shelf.json.corrupt-old"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let result = controller.loadResult()
+
+        guard case .loaded = result else { return XCTFail("expected valid current snapshot") }
+        XCTAssertFalse(controller.canSafelyCleanupMaterializedOrphans(after: result),
+                       "新快照不能隐式表示用户已放弃旧快照的数据恢复")
+    }
+
     /// 原子替换：已有文件时保存不得经「先删后移」（旧实现在移动失败时
     /// 新旧俱损）；正常路径下新内容完整落盘、无临时文件残留。
     func testWrite_existingFile_atomicallyReplaced() throws {

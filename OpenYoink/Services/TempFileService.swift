@@ -17,6 +17,10 @@ final class TempFileService: Sendable {
     /// The managed materialization directory; inject a custom one in tests.
     let directoryURL: URL
 
+    /// Promise 接收临时目录的唯一命名约定。创建、常规孤儿清理与按龄清理
+    /// 必须共用它，否则目录会永远清不到，或在文件仍写入时被提前删除。
+    private static let promiseStagingPrefix = "PromiseStaging-"
+
     private let logger = Logger(subsystem: "com.weijue.OpenYoink", category: "TempFileService")
 
     init(directoryURL: URL? = nil) {
@@ -37,6 +41,19 @@ final class TempFileService: Sendable {
             candidate = directoryURL.appendingPathComponent("\(UUID().uuidString)-\(name)")
         }
         return candidate
+    }
+
+    /// 创建一个 receiver 批次共享的 staging 目录。目录名与启动时的按龄
+    /// 清理规则严格一致；文件 promise 回调期间不会删除该目录。
+    func createPromiseStagingDirectory() throws -> URL {
+        let fileManager = FileManager.default
+        try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        let url = directoryURL.appendingPathComponent(
+            Self.promiseStagingPrefix + UUID().uuidString,
+            isDirectory: true
+        )
+        try fileManager.createDirectory(at: url, withIntermediateDirectories: false)
+        return url
     }
 
     /// Deletes a materialized file (e.g. when its shelf item is removed).
@@ -65,6 +82,9 @@ final class TempFileService: Sendable {
         for name in names {
             let url = directoryURL.appendingPathComponent(name)
             guard !keep.contains(url.standardizedFileURL.path) else { continue }
+            // Promise writer 可能仍在向 staging 写文件。它由下面的按龄策略
+            // 独立回收，常规孤儿清理绝不能在启动时无条件删除。
+            guard !name.hasPrefix(Self.promiseStagingPrefix) else { continue }
             do {
                 try fileManager.removeItem(at: url)
             } catch {
@@ -88,9 +108,11 @@ final class TempFileService: Sendable {
         let fileManager = FileManager.default
         guard let names = try? fileManager.contentsOfDirectory(atPath: directoryURL.path) else { return }
         let cutoff = Date().addingTimeInterval(-maxAge)
-        for name in names where name.hasPrefix("PromiseStaging") {
+        for name in names where name.hasPrefix(Self.promiseStagingPrefix) {
             let url = directoryURL.appendingPathComponent(name)
-            let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
+            let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .contentModificationDateKey])
+            guard values?.isDirectory == true else { continue }
+            let modified = values?.contentModificationDate ?? .distantPast
             guard modified < cutoff else { continue }
             do {
                 try fileManager.removeItem(at: url)

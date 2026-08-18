@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 import XCTest
 @testable import OpenYoink
 
@@ -137,6 +138,63 @@ final class DropImportCoordinatorTests: XCTestCase {
         let result = context.coordinator.importItems(from: pasteboard, onAsyncItemReady: ignoringAsyncItems())
 
         XCTAssertEqual(result.items.map(\.displayName), [first.lastPathComponent, second.lastPathComponent])
+    }
+
+    // MARK: - File promise kind inference
+
+    func testInferFileKind_actualExtensionWinsOverReceiverTypeCollection() throws {
+        var context = makeContext()
+        defer { context.cleanup() }
+        let textURL = try makeTempFile(in: &context, named: "mixed-promise.txt")
+
+        let kind = DropImportCoordinator.inferFileKind(
+            for: textURL,
+            promisedTypeIdentifiers: [UTType.png.identifier, UTType.plainText.identifier]
+        )
+
+        XCTAssertEqual(kind, .file)
+    }
+
+    func testInferFileKind_singlePromisedImageType_isFallbackForExtensionlessFile() throws {
+        var context = makeContext()
+        defer { context.cleanup() }
+        let fileURL = try makeTempFile(in: &context, named: "extensionless")
+
+        XCTAssertEqual(
+            DropImportCoordinator.inferFileKind(
+                for: fileURL,
+                promisedTypeIdentifiers: [UTType.png.identifier]
+            ),
+            .image
+        )
+    }
+
+    func testInferFileKind_mixedPromisedTypes_doNotMisclassifyExtensionlessFile() throws {
+        var context = makeContext()
+        defer { context.cleanup() }
+        let fileURL = try makeTempFile(in: &context, named: "extensionless")
+
+        XCTAssertEqual(
+            DropImportCoordinator.inferFileKind(
+                for: fileURL,
+                promisedTypeIdentifiers: [UTType.png.identifier, UTType.plainText.identifier]
+            ),
+            .file
+        )
+    }
+
+    func testInferFileKind_actualDirectoryWinsOverPromisedImageType() throws {
+        var context = makeContext()
+        defer { context.cleanup() }
+        let folderURL = try makeTempDirectory(in: &context)
+
+        XCTAssertEqual(
+            DropImportCoordinator.inferFileKind(
+                for: folderURL,
+                promisedTypeIdentifiers: [UTType.png.identifier]
+            ),
+            .folder
+        )
     }
 
     // MARK: - Priority

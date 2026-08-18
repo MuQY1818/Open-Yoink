@@ -149,7 +149,12 @@ final class HotKeyMonitor {
 
     /// UX3: 同步双击识别开关（`SettingsStore.hotKeyDoublePressSavesClipboard`）。
     func setDoublePressEnabled(_ enabled: Bool) {
+        guard enabled != doublePressEnabled else { return }
         doublePressEnabled = enabled
+        // 设置切换时作废旧模式留下的延迟单击。否则在识别窗内关闭双击后，
+        // 下一次按键会立即触发，旧任务随后又补发一次，造成 shelf 连续切换。
+        pressGeneration &+= 1
+        discriminator.reset()
     }
 
     /// UX3: 按下统一入口（Carbon 处理器与 NSEvent 兜底都经 actionBox 路由到

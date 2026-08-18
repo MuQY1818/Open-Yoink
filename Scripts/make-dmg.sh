@@ -4,15 +4,15 @@
 #
 # 用法：./Scripts/make-dmg.sh [路径到 OpenYoink.app]
 #   默认 app：export/OpenYoink.app（先跑过 archive 导出；见 README「构建」）。
-# 产物：export/OpenYoink-1.0.dmg
+# 产物：export/OpenYoink-<版本>.dmg
 #
 # 流程：staging（app + Applications 符号链接 + 背景图）→ 读写 DMG →
 # Finder AppleScript 设置窗口布局（图标位置/大小/背景）→ 压缩为 UDZO。
 # Finder 布局步骤需要「自动化」权限（首次运行系统会弹授权）；未授权时
 # 跳过布局美化，DMG 仍可用（图标位置默认）。
 #
-# 签名/公证：本脚本不重签名。分发前请先按 Scripts/notarize.sh 的说明
-# 对 export/OpenYoink.app 重签并公证，再跑本脚本。
+# 签名/公证：本脚本不改 app 签名。正式发布由 make-release.sh 在 Xcode
+# Developer ID 归档后调用本脚本，再对最终 DMG 签名、公证和装订。
 
 set -euo pipefail
 
@@ -32,7 +32,7 @@ ALIAS_X=460; ALIAS_Y=165
 ICON_SIZE=128
 
 if [ ! -d "$APP_PATH" ]; then
-    echo "error: app not found at $APP_PATH（先 archive 导出或传入路径）" >&2
+    echo "error: app not found at ${APP_PATH}（先 archive 导出或传入路径）" >&2
     exit 1
 fi
 if [ ! -f "$BACKGROUND_SRC" ]; then

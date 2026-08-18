@@ -70,7 +70,19 @@ xcodebuild -project Open-Yoink.xcodeproj -scheme OpenYoink -destination 'platfor
 xcodebuild -project Open-Yoink.xcodeproj -scheme OpenYoink -destination 'platform=macOS' test
 ```
 
-SwiftUI renders; AppKit owns windows, drag & drop and global events. Reference-based storage with security-scoped bookmarks, atomic JSON persistence. Leave `DEVELOPMENT_TEAM` empty for local signing. Release/DMG/notarization scripts live in `Scripts/`.
+SwiftUI renders; AppKit owns windows, drag & drop and global events. Reference-based storage with security-scoped bookmarks, atomic JSON persistence. Leave `DEVELOPMENT_TEAM` empty for local source builds. Formal releases require Developer ID signing, Hardened Runtime, and Apple notarization; the release script no longer produces ad-hoc distribution builds.
+
+Store notarization credentials in Keychain and provide the signing identity and Team ID before releasing:
+
+```bash
+xcrun notarytool store-credentials openyoink-notary
+export DEVELOPER_ID_APPLICATION='Developer ID Application: Your Name (ABCDE12345)'
+export DEVELOPMENT_TEAM_ID='ABCDE12345'
+export NOTARY_PROFILE='openyoink-notary'
+./Scripts/make-release.sh 1.0.2 4
+```
+
+The script updates the Sparkle appcast only after notarization and Gatekeeper validation succeed. Upload the GitHub Release first, then update the Homebrew cask with the exact SHA printed by the script; both remain explicit manual steps.
 
 ## Roadmap
 

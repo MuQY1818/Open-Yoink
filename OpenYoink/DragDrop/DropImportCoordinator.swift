@@ -527,21 +527,26 @@ final class DropImportCoordinator {
         return ShelfItem(kind: kind, path: url.path, bookmark: bookmark, displayName: displayName)
     }
 
-    /// kind 推断：folder（目录且非 package）→ image（扩展名 UTType 符合 image）
-    /// → file。`promisedTypeIdentifiers` 是 file promise 来源在拖拽会话内声明的
-    /// UTI（物化后扩展名可能不可靠时作为首要依据）。
+    /// kind 推断以实际物化结果为准：folder（目录且非 package）→ 可识别扩展名
+    /// （image / file）→ 单一明确的 promise UTI 兜底 → file。
+    ///
+    /// 一个 NSFilePromiseReceiver 可以交付多个、甚至不同类型的文件；其
+    /// `fileTypes` 是 receiver 级集合，不能把集合中的任意 image 类型套到每个
+    /// 回调文件上，否则同批的 txt 会被误标成 image。
     nonisolated static func inferFileKind(for url: URL, promisedTypeIdentifiers: [String] = []) -> ItemKind {
-        for identifier in promisedTypeIdentifiers {
-            guard let type = UTType(identifier) else { continue }
-            if type.conforms(to: .folder), !type.conforms(to: .package) { return .folder }
-            if type.conforms(to: .image) { return .image }
-        }
         let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey])
         if values?.isDirectory == true, values?.isPackage != true {
             return .folder
         }
-        if let type = UTType(filenameExtension: url.pathExtension), type.conforms(to: .image) {
-            return .image
+        if !url.pathExtension.isEmpty,
+           let type = UTType(filenameExtension: url.pathExtension) {
+            return type.conforms(to: .image) ? .image : .file
+        }
+
+        let promisedTypes = Set(promisedTypeIdentifiers.compactMap(UTType.init))
+        if promisedTypes.count == 1, let type = promisedTypes.first {
+            if type.conforms(to: .folder), !type.conforms(to: .package) { return .folder }
+            if type.conforms(to: .image) { return .image }
         }
         return .file
     }

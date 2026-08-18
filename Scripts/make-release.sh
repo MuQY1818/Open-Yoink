@@ -3,21 +3,23 @@
 # make-release.sh — 构建 OpenYoink 发布产物并更新 Sparkle appcast。
 #
 # 用法：./Scripts/make-release.sh <VERSION> [BUILD]
-#   VERSION   市场版本号（写入 MARKETING_VERSION，如 1.0）。
-#   BUILD     可选，CFBundleVersion（Sparkle 的版本比较键）；缺省沿用工程
-#             里的 CURRENT_PROJECT_VERSION。
+#   VERSION   市场版本号（写入 MARKETING_VERSION，如 1.0.2）。
+#   BUILD     可选，CFBundleVersion（Sparkle 的版本比较键）；缺省取现有
+#             appcast 最大 build + 1。
 #
-# 流程：xcodebuild archive（Release）→ 从 xcarchive 导出 app（ad hoc 签名，
-# 沿用现有本地签名流程；如需公证先跑 Scripts/notarize.sh 再打 DMG）→
-# Scripts/make-dmg.sh 打 DMG → Sparkle 包内 bin/sign_update 计算 EdDSA
-# 签名 → 把 <item> 写入 docs/appcast.xml（同 shortVersionString 已存在则
-# 替换，幂等可重跑）。
+# 流程：Developer ID archive（Release）→ 验证 app 与嵌套组件签名 →
+# Scripts/make-dmg.sh 打包 → Developer ID 签 DMG → notarytool 公证并装订
+# 最终 DMG → Sparkle sign_update 计算 EdDSA 签名 → 更新 appcast。
 #
 # 本脚本不执行 gh release create——构建完成后由人工/主代理把
 # export/OpenYoink-<VERSION>.dmg 上传到 GitHub Releases（tag v<VERSION>），
 # enclosure URL 才可达。
 #
 # 环境变量：
+#   DEVELOPER_ID_APPLICATION  钥匙串中的完整签名身份，例如：
+#                 Developer ID Application: Example Name (ABCDE12345)
+#   DEVELOPMENT_TEAM_ID  10 位 Apple Developer Team ID。
+#   NOTARY_PROFILE  `xcrun notarytool store-credentials <name>` 保存的 profile。
 #   SPARKLE_BIN   sign_update 所在目录；缺省自动定位 DerivedData 里
 #                 SourcePackages/artifacts/sparkle/Sparkle/bin。
 
@@ -32,6 +34,14 @@ if [ $# -lt 1 ]; then
 fi
 VERSION="$1"
 BUILD_NUMBER="${2:-}"
+if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "error: VERSION 必须是三段数字版本号（例如 1.0.2）。" >&2
+    exit 1
+fi
+if [ -n "$BUILD_NUMBER" ] && [[ ! "$BUILD_NUMBER" =~ ^[0-9]+$ ]]; then
+    echo "error: BUILD 必须是正整数。" >&2
+    exit 1
+fi
 
 PROJECT="Open-Yoink.xcodeproj"
 SCHEME="OpenYoink"
@@ -40,6 +50,27 @@ APP_PATH="export/OpenYoink.app"
 DMG_PATH="export/OpenYoink-$VERSION.dmg"
 APPCAST="docs/appcast.xml"
 RELEASE_URL="https://github.com/MuQY1818/OpenYoink/releases/download/v$VERSION/OpenYoink-$VERSION.dmg"
+
+# 正式分发不允许回退到 ad hoc。过去的 --deep --sign - 会剥掉 runtime 标志，
+# 并把主程序 entitlements 错套给 Sparkle 的 XPC/Updater，导致更新器不可用。
+for required_name in DEVELOPER_ID_APPLICATION DEVELOPMENT_TEAM_ID NOTARY_PROFILE; do
+    if [ -z "${!required_name:-}" ]; then
+        echo "error: 缺少环境变量 ${required_name}；1.0.2 起发布必须 Developer ID 签名并公证，不能生成 ad hoc 正式包。" >&2
+        exit 1
+    fi
+done
+if [[ ! "$DEVELOPMENT_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]]; then
+    echo "error: DEVELOPMENT_TEAM_ID 必须是 10 位大写字母/数字。" >&2
+    exit 1
+fi
+CODE_SIGN_IDENTITIES="$(security find-identity -v -p codesigning)"
+case "$CODE_SIGN_IDENTITIES" in
+    *"$DEVELOPER_ID_APPLICATION"*) ;;
+    *)
+        echo "error: 钥匙串中未找到指定的 Developer ID Application 身份。" >&2
+        exit 1
+        ;;
+esac
 
 # ---- 定位 Sparkle 命令行工具（sign_update）----
 if [ -z "${SPARKLE_BIN:-}" ]; then
@@ -67,7 +98,15 @@ fi
 
 # ---- 1. Archive ----
 # build number 在上文已保证存在且严格递增，总是显式写入。
-VERSION_ARGS=(MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="${BUILD_NUMBER}")
+VERSION_ARGS=(
+    MARKETING_VERSION="$VERSION"
+    CURRENT_PROJECT_VERSION="${BUILD_NUMBER}"
+    CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO
+    CODE_SIGN_STYLE=Manual
+    CODE_SIGN_IDENTITY="$DEVELOPER_ID_APPLICATION"
+    DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM_ID"
+    OTHER_CODE_SIGN_FLAGS=--timestamp
+)
 echo "==> archive（Release, ${VERSION} (${BUILD_NUMBER})）"
 rm -rf "$ARCHIVE_PATH"
 xcodebuild -project "$PROJECT" -scheme "$SCHEME" -configuration Release \
@@ -76,30 +115,57 @@ xcodebuild -project "$PROJECT" -scheme "$SCHEME" -configuration Release \
     "${VERSION_ARGS[@]}" \
     archive
 
-# ---- 2. 导出 app（xcarchive 内即已签名完成的成品，沿用现有本地签名流程）----
+# ---- 2. 导出并验证 Xcode 已签名的 app ----
 echo "==> 导出 $APP_PATH"
 rm -rf "$APP_PATH"
 ditto "$ARCHIVE_PATH/Products/Applications/OpenYoink.app" "$APP_PATH"
 
-# 统一深度重签（ad hoc）：Hardened Runtime 的 library validation 要求主程序
-# 与所有嵌入 dylib 签名一致——Xcode 分件 ad-hoc 签名与 Sparkle.xcframework
-# 自带签名之间存在细微不一致，Sparkle 安装更新后的副本会 dyld 拒载
-# Sparkle.framework（1.0.1 实测）。一次 --deep --sign - 让所有部件共享同一
-# 临时身份；--entitlements 必须显式带上，否则主程序 entitlements 被清空。
-echo "==> 深度重签（ad hoc, 含 entitlements）"
-codesign --force --deep --sign - \
-    --entitlements "$REPO_ROOT/OpenYoink/Resources/OpenYoink.entitlements" \
-    "$APP_PATH"
+# 不再手工 --deep 重签：嵌套 Sparkle 组件必须保留各自的签名与权限。
+codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+APP_SIGN_INFO="$(codesign -dvvv "$APP_PATH" 2>&1)"
+if printf '%s\n' "$APP_SIGN_INFO" | grep -Fq 'Signature=adhoc'; then
+    echo "error: 导出的 app 仍是 ad hoc 签名，拒绝发布。" >&2
+    exit 1
+fi
+if ! printf '%s\n' "$APP_SIGN_INFO" | grep -Eq 'flags=.*runtime'; then
+    echo "error: 导出的 app 未启用 Hardened Runtime，拒绝发布。" >&2
+    exit 1
+fi
+if ! printf '%s\n' "$APP_SIGN_INFO" | grep -Fq "TeamIdentifier=$DEVELOPMENT_TEAM_ID"; then
+    echo "error: app 的 TeamIdentifier 与 DEVELOPMENT_TEAM_ID 不一致。" >&2
+    exit 1
+fi
+ENTITLEMENTS_FILE="$(mktemp /tmp/openyoink-entitlements.XXXXXX)"
+trap 'rm -f "$ENTITLEMENTS_FILE"' EXIT
+codesign -d --entitlements :- "$APP_PATH" >"$ENTITLEMENTS_FILE" 2>/dev/null
+if grep -Fq '$(PRODUCT_BUNDLE_IDENTIFIER)' "$ENTITLEMENTS_FILE"; then
+    echo "error: app entitlements 仍含未展开的构建变量，拒绝发布。" >&2
+    exit 1
+fi
+GET_TASK_ALLOW="$(plutil -extract com.apple.security.get-task-allow raw -o - "$ENTITLEMENTS_FILE" 2>/dev/null || true)"
+if [ "$GET_TASK_ALLOW" = "true" ]; then
+    echo "error: Release app 含 get-task-allow 调试权限，拒绝发布。" >&2
+    exit 1
+fi
 
 SHORT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP_PATH/Contents/Info.plist")"
 BUNDLE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$APP_PATH/Contents/Info.plist")"
 echo "    shortVersionString=$SHORT_VERSION  bundleVersion=$BUNDLE_VERSION"
+if [ "$SHORT_VERSION" != "$VERSION" ] || [ "$BUNDLE_VERSION" != "$BUILD_NUMBER" ]; then
+    echo "error: 归档内版本与请求不一致（期望 $VERSION ($BUILD_NUMBER)），拒绝发布。" >&2
+    exit 1
+fi
 
 # ---- 3. DMG ----
 echo "==> 打 DMG"
 ./Scripts/make-dmg.sh "$APP_PATH"
 
-# ---- 4. EdDSA 签名（私钥在登录钥匙串，条目 "Private key for signing Sparkle updates"）----
+# ---- 4. 签名、公证并装订最终分发 DMG ----
+echo "==> Developer ID 签名 DMG"
+codesign --force --sign "$DEVELOPER_ID_APPLICATION" --timestamp "$DMG_PATH"
+NOTARY_PROFILE="$NOTARY_PROFILE" ./Scripts/notarize.sh "$DMG_PATH"
+
+# ---- 5. EdDSA 签名（必须在公证/装订后执行，因为 DMG 字节已改变）----
 echo "==> sign_update"
 SIGN_OUTPUT="$("$SIGN_UPDATE" "$DMG_PATH")"
 echo "    $SIGN_OUTPUT"
@@ -113,7 +179,7 @@ fi
 
 PUB_DATE="$(LC_TIME=C date '+%a, %d %b %Y %H:%M:%S %z')"
 
-# ---- 5. 更新 docs/appcast.xml（同 shortVersionString 替换而非追加）----
+# ---- 6. 更新 docs/appcast.xml（同 shortVersionString 替换而非追加）----
 # 注意：item 不写 <sparkle:channel> —— 应用的 Info.plist 未声明 SUChannel，
 # 带 channel 的 item 会被 Sparkle 过滤（「无频道订阅只看默认频道」），
 # 导致明明有新版却判为最新（1.0.1 发布时实测踩坑）。
@@ -165,28 +231,13 @@ tree.write(appcast_path, encoding="utf-8", xml_declaration=True)
 print(f"    appcast 已更新：{short_version} ({bundle_version})")
 PYEOF
 
-# ---- 6. 同步 Homebrew cask（失败不阻塞发布，仅警告）----
-TAP_DIR="/tmp/openyoink-homebrew-tap"
-echo "==> 同步 cask 到 homebrew-tap"
-if git clone -q --depth 1 https://github.com/MuQY1818/homebrew-tap "$TAP_DIR" 2>/dev/null || (cd "$TAP_DIR" && git pull -q); then
-    CASK_FILE="$TAP_DIR/Casks/openyoink.rb"
-    if [ -f "$CASK_FILE" ]; then
-        DMG_SHA="$(shasum -a 256 "$DMG_PATH" | cut -d' ' -f1)"
-        sed -i '' "s/^  version \".*\"/  version \"$SHORT_VERSION\"/" "$CASK_FILE"
-        sed -i '' "s/^  sha256 \".*\"/  sha256 \"$DMG_SHA\"/" "$CASK_FILE"
-        if ! (cd "$TAP_DIR" && git diff --quiet); then
-            (cd "$TAP_DIR" && git add -A && git commit -q -m "openyoink $SHORT_VERSION" && git push -q) \
-                && echo "    cask 已更新（$SHORT_VERSION, sha $DMG_SHA）" \
-                || echo "    ⚠️ cask 推送失败，请手动更新 homebrew-tap" >&2
-        else
-            echo "    cask 已是最新"
-        fi
-    else
-        echo "    ⚠️ 未找到 $CASK_FILE，跳过 cask 同步" >&2
-    fi
-else
-    echo "    ⚠️ 无法克隆/更新 homebrew-tap，跳过 cask 同步（sha 变了的话 brew 会装不了，需手动改）" >&2
-fi
+# ---- 7. 输出 Homebrew cask 元数据（不提前修改远端）----
+# GitHub Release 此时尚未上传；自动推送 cask 会先发布一个失效 URL。
+# 上传后重跑整条构建链又会因签名/公证时间戳生成不同 DMG，因此这里只输出
+# 最终已公证产物的精确 SHA，留给上传完成后的独立人工提交。
+DMG_SHA="$(shasum -a 256 "$DMG_PATH" | cut -d' ' -f1)"
+echo "==> Homebrew cask：version=$SHORT_VERSION  sha256=$DMG_SHA"
+echo "    GitHub Release 上传成功后，用以上两个值更新 homebrew-tap。"
 
 echo ""
 echo "==> 完成"

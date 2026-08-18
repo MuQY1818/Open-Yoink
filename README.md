@@ -74,7 +74,19 @@ xcodebuild -project Open-Yoink.xcodeproj -scheme OpenYoink -destination 'platfor
 xcodebuild -project Open-Yoink.xcodeproj -scheme OpenYoink -destination 'platform=macOS' test
 ```
 
-SwiftUI 渲染，AppKit 管窗口与拖放；引用式存储 + security-scoped bookmark，JSON 原子写持久化。`DEVELOPMENT_TEAM` 留空为本地签名。`Scripts/` 下有打 DMG、公证与发版脚本。
+SwiftUI 渲染，AppKit 管窗口与拖放；引用式存储 + security-scoped bookmark，JSON 原子写持久化。`DEVELOPMENT_TEAM` 留空供源码本地构建；正式发版脚本要求 Developer ID、Hardened Runtime 和 Apple 公证，不再生成 ad hoc 分发包。
+
+发布前先把公证凭据存入钥匙串，再提供签名身份与 Team ID：
+
+```bash
+xcrun notarytool store-credentials openyoink-notary
+export DEVELOPER_ID_APPLICATION='Developer ID Application: Your Name (ABCDE12345)'
+export DEVELOPMENT_TEAM_ID='ABCDE12345'
+export NOTARY_PROFILE='openyoink-notary'
+./Scripts/make-release.sh 1.0.2 4
+```
+
+脚本在公证和 Gatekeeper 校验通过后才会生成 Sparkle 签名并改写 appcast；上传 GitHub Release、再用脚本输出的 SHA 更新 Homebrew cask，仍需人工确认。
 
 ## Roadmap
 

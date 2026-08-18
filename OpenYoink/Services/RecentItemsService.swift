@@ -143,8 +143,9 @@ final class RecentItemsService {
         }
     }
 
-    /// 原子写：编码到同目录临时文件，再 rename 覆盖目标（思路与
-    /// PersistenceController 一致，独立文件不做防抖）。
+    /// 原子写：编码到同目录临时文件，再原子替换目标（思路与
+    /// PersistenceController 一致，独立文件不做防抖）。绝不先删旧文件，
+    /// 否则 replace/move 失败会把仍可用的最近历史一并丢掉。
     private func writeToDisk() throws {
         let fileManager = FileManager.default
         try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
@@ -153,8 +154,9 @@ final class RecentItemsService {
         let temporaryURL = directoryURL.appendingPathComponent("recents.json.tmp")
         try data.write(to: temporaryURL)
         if fileManager.fileExists(atPath: fileURL.path) {
-            try fileManager.removeItem(at: fileURL)
+            _ = try fileManager.replaceItemAt(fileURL, withItemAt: temporaryURL)
+        } else {
+            try fileManager.moveItem(at: temporaryURL, to: fileURL)
         }
-        try fileManager.moveItem(at: temporaryURL, to: fileURL)
     }
 }

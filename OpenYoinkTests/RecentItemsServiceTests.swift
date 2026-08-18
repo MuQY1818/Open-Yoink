@@ -96,6 +96,21 @@ final class RecentItemsServiceTests: XCTestCase {
                        date.timeIntervalSince1970, accuracy: 0.001)
     }
 
+    func testPersistence_existingFileIsAtomicallyReplaced_withoutTempResidue() throws {
+        let directory = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let service = RecentItemsService(directoryURL: directory)
+
+        service.record([makeFileItem("old.txt")])
+        service.record([makeFileItem("new.txt")])
+
+        let reloaded = RecentItemsService(directoryURL: directory)
+        XCTAssertEqual(reloaded.entries.map(\.displayName), ["new.txt", "old.txt"])
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: directory.appendingPathComponent("recents.json.tmp").path
+        ))
+    }
+
     func testPersistence_missingOrCorruptedFile_returnsEmpty() throws {
         let missingDirectory = try makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: missingDirectory) }

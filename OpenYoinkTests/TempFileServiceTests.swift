@@ -19,12 +19,9 @@ final class TempFileServiceTests: XCTestCase {
         let service = TempFileService(directoryURL: directory)
         let fileManager = FileManager.default
 
-        let oldStaging = directory.appendingPathComponent("PromiseStaging-old", isDirectory: true)
-        let newStaging = directory.appendingPathComponent("PromiseStaging-new", isDirectory: true)
+        let oldStaging = try service.createPromiseStagingDirectory()
+        let newStaging = try service.createPromiseStagingDirectory()
         let materializedFile = directory.appendingPathComponent("\(UUID().uuidString)-photo.png")
-        for url in [oldStaging, newStaging] {
-            try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
-        }
         try "x".write(to: materializedFile, atomically: true, encoding: .utf8)
         // 把 oldStaging 的修改时间拨到两小时前。
         let twoHoursAgo = Date().addingTimeInterval(-7200)
@@ -50,5 +47,34 @@ final class TempFileServiceTests: XCTestCase {
         service.cleanupStaleStagingDirectories(maxAge: 3600)
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: other.path))
+    }
+
+    func testCreatePromiseStagingDirectory_usesCleanupCompatibleName() throws {
+        let directory = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let service = TempFileService(directoryURL: directory)
+
+        let staging = try service.createPromiseStagingDirectory()
+        var isDirectory: ObjCBool = false
+
+        XCTAssertTrue(staging.lastPathComponent.hasPrefix("PromiseStaging-"))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: staging.path, isDirectory: &isDirectory))
+        XCTAssertTrue(isDirectory.boolValue)
+    }
+
+    /// 常规 orphan 清理必须跳过仍可能有异步写入的 staging；过期回收只由
+    /// cleanupStaleStagingDirectories 负责。
+    func testCleanupOrphans_preservesPromiseStaging_butRemovesOrdinaryOrphan() throws {
+        let directory = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let service = TempFileService(directoryURL: directory)
+        let staging = try service.createPromiseStagingDirectory()
+        let orphan = try service.uniqueFileURL(suggestedName: "orphan.txt")
+        try "x".write(to: orphan, atomically: true, encoding: .utf8)
+
+        service.cleanupOrphans()
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: staging.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: orphan.path))
     }
 }

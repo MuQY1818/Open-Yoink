@@ -12,8 +12,8 @@ import OSLog
 /// 移动到物化目录顶层（`uniqueFileURL`，与 `cleanupOrphans` 的顶层保留语义
 /// 对齐）→ 创建 bookmark + ShelfItem → MainActor 回调。
 ///
-/// 错误路径：物化失败/移文件失败/书签创建失败均记录日志，不崩溃、不静默丢
-/// （staging 目录一律清理）；S10 起失败同时经 `ShelfNoticeModel` 给出
+/// 错误路径：物化失败/移文件失败/书签创建失败均记录日志，不崩溃、不静默丢；
+/// staging 目录由下次启动的按龄策略清理。S10 起失败同时经 `ShelfNoticeModel` 给出
 /// shelf 标题栏下方的瞬态内联提示（不阻塞、不打扰，理由见该类型注释）。
 @MainActor
 final class FilePromiseReceiver {
@@ -60,8 +60,7 @@ final class FilePromiseReceiver {
         // 移往物化目录顶层；staging 残留由启动时的按龄清理兜底。
         let stagingURL: URL
         do {
-            stagingURL = try tempFileService.uniqueFileURL(suggestedName: "PromiseStaging")
-            try FileManager.default.createDirectory(at: stagingURL, withIntermediateDirectories: true)
+            stagingURL = try tempFileService.createPromiseStagingDirectory()
         } catch {
             logger.error("Failed to create promise staging directory: \(error.localizedDescription, privacy: .public)")
             return 0

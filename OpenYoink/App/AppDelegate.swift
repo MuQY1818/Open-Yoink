@@ -13,8 +13,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// S10: 拖入/物化失败的内联提示（shelf 标题栏下方短暂胶囊，自动消失）。
     private let shelfNotice = ShelfNoticeModel()
     private let logger = Logger(subsystem: "com.weijue.OpenYoink", category: "App")
+    /// shelf.json 在整个启动链路中只读取一次。读取失败会隔离损坏文件；若再读
+    /// 一次就会得到 `.missing`，从而错误放行 Materialized 孤儿清理。
+    private lazy var initialShelfLoadResult = persistence.loadResult()
     /// Shelf 数据（S3 起由 AppDelegate 持有并注入 ShelfView）。
-    private lazy var shelfStore = ShelfStore(persistence: persistence)
+    private lazy var shelfStore = ShelfStore(items: initialShelfLoadResult.items,
+                                             persistence: persistence)
     /// S4: 拖入分派器（pasteboard → ShelfItem）。S10: 失败路径经 shelfNotice 反馈。
     private lazy var dropImportCoordinator = DropImportCoordinator(bookmarkService: bookmarkService,
                                                                    tempFileService: tempFileService,
@@ -170,12 +174,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // S4: 批量解析持久化项目的 bookmark（失败标记 stale，过期书签重建并更新
         // 路径），再按最新路径清理物化目录里的孤儿文件。
         resolvePersistedBookmarks()
-        // 评审 P1：仅在 shelf.json 加载成功（或本就不存在）时清理孤儿文件——
+        // 评审 P1：仅在 shelf.json 加载成功（或本就不存在），且不存在任何
+        // shelf.json.corrupt-* 恢复快照时清理孤儿文件——
         // 加载失败（文件损坏已隔离）时禁止清理：此刻 store 是被迫为空，
         // 若照常清理会把全部保管文件连锁删除。损坏文件留在
-        // shelf.json.corrupt-* 供人工恢复，下次正常启动时再按常规清理。
-        if case .failed = persistence.loadResult() {
-            logger.warning("Skipping materialized orphan cleanup because shelf.json failed to load")
+        // shelf.json.corrupt-* 供人工恢复；只要恢复快照仍在，跨重启也持续
+        // 保留 Materialized 文件，避免第二次启动把恢复材料删掉。
+        if !persistence.canSafelyCleanupMaterializedOrphans(after: initialShelfLoadResult) {
+            logger.warning("Skipping materialized orphan cleanup because shelf recovery data is present or persistence could not be trusted")
         } else {
             cleanupMaterializedOrphans()
         }

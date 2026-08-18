@@ -1,57 +1,63 @@
 #!/bin/bash
 #
-# notarize.sh — 用 Apple notarytool 公证 OpenYoink.app 的占位脚本。
-#
-# ⚠️ 本脚本为占位（placeholder）：当前发布版本未公证，脚本不会也不应直接
-# 运行。填入你自己的 Apple Developer 信息后取消下方 `exit 0` 注释即可使用。
+# notarize.sh — 用 Apple notarytool 公证并装订 OpenYoink 分发产物。
 #
 # 前置条件：
-#   1. 加入 Apple Developer Program（付费账号），拥有 Developer ID
-#      Application 证书，并把 TEAM_ID 填到工程 DEVELOPMENT_TEAM 后用
-#      Release 配置重新归档。
-#   2. 任选一种凭据方式（二选一，见下方 KEYCHAIN_PROFILE / APPLE_ID 段）。
+#   xcrun notarytool store-credentials <profile-name> ...
+#   export NOTARY_PROFILE=<profile-name>
 #
 # 用法：
-#   ./Scripts/notarize.sh export/OpenYoink.app
+#   ./Scripts/notarize.sh export/OpenYoink-1.0.2.dmg
+#   也支持已完成 Developer ID 签名的 .app / .pkg；本脚本不会重签任何组件。
 
 set -euo pipefail
 
-# ===== 待填变量（占位，请替换为你自己的值）=====
-TEAM_ID="YOUR_TEAM_ID"                       # Apple Developer Team ID（10 位）
-KEYCHAIN_PROFILE="YOUR_KEYCHAIN_PROFILE"     # 方式 A：`notarytool store-credentials` 预存的 keychain profile 名
-APPLE_ID="your-apple-id@example.com"         # 方式 B：Apple ID（需配合 App 专用密码）
-APP_PASSWORD="@keychain:AC_PASSWORD"         # 方式 B：App 专用密码（建议存 keychain 后引用）
-
-APP_PATH="${1:-export/OpenYoink.app}"
-ZIP_PATH="${APP_PATH%.app}-notarize.zip"
-
-# ===== 占位保护：未填 TEAM_ID 时直接退出，不会执行任何操作 =====
-if [[ "$TEAM_ID" == "YOUR_TEAM_ID" ]]; then
-    echo "占位脚本：请先把 TEAM_ID 等变量替换为你自己的 Apple Developer 信息。"
-    echo "当前分发的 OpenYoink.app 为本地签名（ad hoc），未公证。"
-    exit 0
+ARTIFACT_PATH="${1:-}"
+if [ -z "$ARTIFACT_PATH" ] || [ ! -e "$ARTIFACT_PATH" ]; then
+    echo "error: 用法：$0 <已签名的 .dmg|.app|.pkg>" >&2
+    exit 1
+fi
+if [ -z "${NOTARY_PROFILE:-}" ]; then
+    echo "error: 缺少 NOTARY_PROFILE（先用 notarytool store-credentials 保存凭据）。" >&2
+    exit 1
 fi
 
-# 1. 用 Developer ID 重新签名（归档时 DEVELOPMENT_TEAM 已生效可省略；
-#    此处保留以便对既有归档补签）。
-codesign --sign "Developer ID Application: Your Name ($TEAM_ID)" \
-    --options runtime --timestamp --force --deep "$APP_PATH"
+SUBMISSION_PATH="$ARTIFACT_PATH"
+NOTARY_TEMP_DIR=""
+case "$ARTIFACT_PATH" in
+    *.app)
+        # notarytool 不直接接受 .app；仅为提交生成临时 zip，票据仍装订回 app。
+        NOTARY_TEMP_DIR="$(mktemp -d /tmp/openyoink-notary.XXXXXX)"
+        SUBMISSION_PATH="$NOTARY_TEMP_DIR/OpenYoink.zip"
+        ditto -c -k --keepParent "$ARTIFACT_PATH" "$SUBMISSION_PATH"
+        ;;
+    *.dmg|*.pkg) ;;
+    *)
+        echo "error: 仅支持 .dmg、.app 或 .pkg。" >&2
+        exit 1
+        ;;
+esac
 
-# 2. 打包为 zip（notarytool 只接受 zip/pkg/dmg）。
-ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
+cleanup() {
+    if [ -n "$NOTARY_TEMP_DIR" ] && [[ "$NOTARY_TEMP_DIR" == /tmp/openyoink-notary.* ]]; then
+        rm -rf -- "$NOTARY_TEMP_DIR"
+    fi
+}
+trap cleanup EXIT
 
-# 3. 提交公证并等待结果（凭据方式二选一，注释掉另一种）。
-xcrun notarytool submit "$ZIP_PATH" \
-    --keychain-profile "$KEYCHAIN_PROFILE" \
+echo "==> 提交 Apple 公证：$SUBMISSION_PATH"
+xcrun notarytool submit "$SUBMISSION_PATH" \
+    --keychain-profile "$NOTARY_PROFILE" \
     --wait
-# xcrun notarytool submit "$ZIP_PATH" \
-#     --apple-id "$APPLE_ID" --password "$APP_PASSWORD" --team-id "$TEAM_ID" \
-#     --wait
 
-# 4. 公证通过后将票据装订进 app，用户双击即不再触发 Gatekeeper 拦截。
-xcrun stapler staple "$APP_PATH"
+echo "==> 装订并验证票据：$ARTIFACT_PATH"
+xcrun stapler staple "$ARTIFACT_PATH"
+xcrun stapler validate "$ARTIFACT_PATH"
 
-# 5. 验证（可选）。
-spctl --assess -vv "$APP_PATH"
+case "$ARTIFACT_PATH" in
+    *.app) spctl --assess --type execute -vv "$ARTIFACT_PATH" ;;
+    *.dmg) spctl --assess --type open --context context:primary-signature -vv "$ARTIFACT_PATH" ;;
+    *.pkg) spctl --assess --type install -vv "$ARTIFACT_PATH" ;;
+esac
 
-echo "公证完成：$APP_PATH"
+echo "公证完成：$ARTIFACT_PATH"
