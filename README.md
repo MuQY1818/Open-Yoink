@@ -111,7 +111,7 @@ xattr -dr com.apple.quarantine /Applications/OpenYoink.app
 | 图片、HTML 与 RTF | 在应用沙箱的托管目录中物化为文件 |
 | 联系人、日历事件与邮件 | 当来源应用提供可读数据时，物化为 `.vcf`、`.ics` 与 `.eml` 文件 |
 
-拖出文件时，OpenYoink 同时提供文件 URL 与 file promise，以兼容 Finder 和常见浏览器上传区域；最终是否接受仍由目标应用或网站决定。
+拖出普通文件时，OpenYoink 提供文件 URL 与 Chromium 兼容的文件名表示，兼容 Finder、Safari 和常见 Chromium 浏览器上传区域；托管移动项目则使用可确认落盘的 file promise，交付成功后才会离架。最终是否接受仍由目标应用或网站决定。
 
 ## 文件安全与生命周期
 

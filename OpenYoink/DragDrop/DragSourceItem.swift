@@ -302,12 +302,9 @@ enum DragOutRemovalDecision {
 
 // MARK: - Delivery coordination
 
-/// Reconciles the two independent facts involved in drag-out delivery:
-/// AppKit's session result says a destination accepted the drag, while a file
-/// promise callback says bytes were actually written. Session snapshots are
-/// retained so a late promise failure can restore an item removed by the
-/// user's drag-out policy. Managed-move items are finalized only after both
-/// acceptance and confirmed promise delivery.
+/// 统一记录直接拖出与托管剪切交付：普通项目由 AppKit 会话结果确认；托管
+/// 剪切项目必须同时满足「目标接受会话」与「file promise 已写入」才会离架。
+/// 会话快照也用于失败恢复和运行期文件租约。
 @MainActor
 final class DeliveryCoordinator {
     private enum PromiseState {
@@ -358,7 +355,8 @@ final class DeliveryCoordinator {
         var orderedItemIDs: [UUID] = []
         for item in flattened where itemsByID[item.id] == nil {
             let strategy = DragPayloadBuilder.strategy(for: item)
-            let supportsPromise = strategy == .fileBacked || strategy == .fileBackedImage
+            let supportsPromise = item.isCut
+                && (strategy == .fileBacked || strategy == .fileBackedImage)
             itemsByID[item.id] = PendingItem(
                 item: item,
                 insertionIndex: insertionIndex(for: item.id),
@@ -397,7 +395,8 @@ final class DeliveryCoordinator {
     func noteDelivered(sessionID: UUID, itemID: UUID, destination: URL) {
         guard latestSessionByItemID[itemID] == sessionID,
               var session = sessions[sessionID],
-              var pending = session.itemsByID[itemID] else { return }
+              var pending = session.itemsByID[itemID],
+              pending.supportsFilePromise else { return }
         switch pending.promiseState {
         case .delivered, .failed:
             return
@@ -416,7 +415,8 @@ final class DeliveryCoordinator {
     func noteFailed(sessionID: UUID, itemID: UUID) {
         guard latestSessionByItemID[itemID] == sessionID,
               var session = sessions[sessionID],
-              var pending = session.itemsByID[itemID] else { return }
+              var pending = session.itemsByID[itemID],
+              pending.supportsFilePromise else { return }
         switch pending.promiseState {
         case .delivered, .failed:
             return

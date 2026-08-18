@@ -150,45 +150,51 @@ final class DragPayloadBuilderTests: XCTestCase {
         }
     }
 
-    // MARK: - 文件项：fileURL + promise 双表示
+    // MARK: - 普通文件项：直接文件表示
 
-    func testFileItem_writerAdvertisesFileURLAndPromise() throws {
+    func testFileItem_writerAdvertisesFileURLAndChromiumFilenameList() throws {
         let item = ShelfItem(kind: .file, path: "/tmp/report.pdf", displayName: "report.pdf")
         let writer = try XCTUnwrap(DragPayloadBuilder.makePasteboardWriter(for: item, bookmarkService: bookmarkService))
 
-        let promiseProvider = try XCTUnwrap(writer as? FilePromiseProvider,
-                                            "文件项 writer 应为 NSFilePromiseProvider 子类")
-        XCTAssertEqual(promiseProvider.fileType, DragPayloadBuilder.promisedFileType(for: item))
+        XCTAssertNotNil(writer as? DirectFilePasteboardWriter,
+                        "普通文件必须使用真实拖拽会保留全部类型的直接 writer")
 
         let advertised = advertisedTypes(of: writer)
         XCTAssertTrue(advertised.contains(UTType.fileURL.identifier),
                       "advertised types \(advertised) 应含 public.file-url（Finder copy 语义路径）")
-        let promiseTypes = NSFilePromiseReceiver.readableDraggedTypes
-        XCTAssertTrue(advertised.contains { promiseTypes.contains($0) },
-                      "advertised types \(advertised) 应含 file promise 类型 \(promiseTypes)")
+        XCTAssertTrue(advertised.contains(PasteboardTypes.legacyFilenames.rawValue),
+                      "advertised types \(advertised) 应含 Chromium 文件名列表")
+        XCTAssertFalse(advertised.contains { NSFilePromiseReceiver.readableDraggedTypes.contains($0) },
+                       "普通文件不得依赖真实拖拽会丢失附加类型的 promise provider")
 
-        // fileURL 表示的数据内容：URL 字符串（Finder 可解析）。
         XCTAssertEqual(writer.pasteboardPropertyList(forType: .fileURL) as? String,
                        "file:///tmp/report.pdf")
+        XCTAssertEqual(
+            writer.pasteboardPropertyList(forType: PasteboardTypes.legacyFilenames) as? [String],
+            ["/tmp/report.pdf"]
+        )
     }
 
-    func testFolderItem_writerAdvertisesFileURLAndPromise() throws {
+    func testFolderItem_writerAdvertisesDirectFileRepresentations() throws {
         let item = ShelfItem(kind: .folder, path: "/tmp/docs", displayName: "docs")
         let writer = try XCTUnwrap(DragPayloadBuilder.makePasteboardWriter(for: item, bookmarkService: bookmarkService))
 
+        XCTAssertNotNil(writer as? DirectFilePasteboardWriter)
         let advertised = advertisedTypes(of: writer)
         XCTAssertTrue(advertised.contains(UTType.fileURL.identifier))
-        XCTAssertTrue(advertised.contains { NSFilePromiseReceiver.readableDraggedTypes.contains($0) })
-        XCTAssertEqual((writer as? FilePromiseProvider)?.fileType, UTType.folder.identifier)
+        XCTAssertTrue(advertised.contains(PasteboardTypes.legacyFilenames.rawValue))
+        XCTAssertFalse(advertised.contains { NSFilePromiseReceiver.readableDraggedTypes.contains($0) })
     }
 
-    func testImageItem_writerAdvertisesFileURLPromiseAndTIFF() throws {
+    func testImageItem_writerAdvertisesDirectFileRepresentationsAndTIFF() throws {
         let item = ShelfItem(kind: .image, path: "/tmp/pic.png", displayName: "pic.png")
         let writer = try XCTUnwrap(DragPayloadBuilder.makePasteboardWriter(for: item, bookmarkService: bookmarkService))
 
+        XCTAssertNotNil(writer as? DirectFilePasteboardWriter)
         let advertised = advertisedTypes(of: writer)
         XCTAssertTrue(advertised.contains(UTType.fileURL.identifier))
-        XCTAssertTrue(advertised.contains { NSFilePromiseReceiver.readableDraggedTypes.contains($0) })
+        XCTAssertTrue(advertised.contains(PasteboardTypes.legacyFilenames.rawValue))
+        XCTAssertFalse(advertised.contains { NSFilePromiseReceiver.readableDraggedTypes.contains($0) })
         XCTAssertTrue(advertised.contains(UTType.tiff.identifier),
                       "图片项应声明 public.tiff 位图回退")
     }
@@ -235,9 +241,14 @@ final class DragPayloadBuilderTests: XCTestCase {
         item.isCut = true
         let writer = try XCTUnwrap(DragPayloadBuilder.makePasteboardWriter(for: item, bookmarkService: bookmarkService))
 
+        let provider = try XCTUnwrap(writer as? FilePromiseProvider,
+                                     "托管剪切项必须使用可确认落盘的 promise provider")
+        XCTAssertEqual(provider.fileType, DragPayloadBuilder.promisedFileType(for: item))
         let advertised = advertisedTypes(of: writer)
         XCTAssertFalse(advertised.contains(UTType.fileURL.identifier),
                        "剪切项不得广告 public.file-url（否则 Finder 直读路径绕过交付确认）：\(advertised)")
+        XCTAssertFalse(advertised.contains(PasteboardTypes.legacyFilenames.rawValue),
+                       "剪切项不得通过 legacy 路径绕过交付确认")
         let promiseTypes = NSFilePromiseReceiver.readableDraggedTypes
         XCTAssertTrue(advertised.contains { promiseTypes.contains($0) },
                       "剪切项必须保留 promise 类型（一切目的地必经 promise 写入）：\(advertised)")
@@ -270,8 +281,10 @@ final class DragPayloadBuilderTests: XCTestCase {
 
         let advertised = advertisedTypes(of: writer)
         XCTAssertTrue(advertised.contains(PasteboardTypes.fileURL.rawValue))
+        XCTAssertTrue(advertised.contains(PasteboardTypes.legacyFilenames.rawValue))
         XCTAssertTrue(advertised.contains(PasteboardTypes.tutorialSession.rawValue))
-        XCTAssertTrue(advertised.contains { NSFilePromiseReceiver.readableDraggedTypes.contains($0) })
+        XCTAssertFalse(advertised.contains { NSFilePromiseReceiver.readableDraggedTypes.contains($0) })
+        XCTAssertNotNil(writer as? DirectFilePasteboardWriter)
         XCTAssertEqual(writer.pasteboardPropertyList(forType: PasteboardTypes.tutorialSession) as? String,
                        token)
     }

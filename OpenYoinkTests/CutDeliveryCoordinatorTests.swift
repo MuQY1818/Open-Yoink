@@ -2,8 +2,8 @@ import Foundation
 import XCTest
 @testable import OpenYoink
 
-/// DeliveryCoordinator 的交付确认状态机 —— 「目标接受 × promise 交付」
-/// 两个事实任一先到的组合、取消保留、失败回插、stack 子项与文件 lease。
+/// DeliveryCoordinator 的交付确认状态机：普通直接拖出由会话结果确认；托管
+/// 剪切项需要「目标接受 × promise 交付」。覆盖逆序、取消、失败、stack 与 lease。
 @MainActor
 final class DeliveryCoordinatorTests: XCTestCase {
     @MainActor
@@ -206,9 +206,9 @@ final class DeliveryCoordinatorTests: XCTestCase {
         XCTAssertTrue(context.recents.entries.isEmpty, "普通项的历史由 DragSessionController 策略路径记录")
     }
 
-    /// `.remove` 策略可能先移除普通物化项；若目标随后请求 promise 且写入
-    /// 失败，必须从会话快照回插，并在这段窗口内保护唯一的物化文件。
-    func testLatePromiseFailureReinsertsRemovedOrdinaryItemAndProtectsLease() throws {
+    /// `.remove` 策略移除普通物化项后，已接受的直接拖出会话仍保护源文件，
+    /// 避免用户在目标完成读取前从“存储”页清理掉唯一副本。
+    func testAcceptedDirectMaterializedItemProtectsRuntimeLeaseAfterRemoval() throws {
         let context = makeContext()
         defer { context.cleanup() }
         let managedURL = try context.tempFileService.uniqueFileURL(suggestedName: "kept.txt")
@@ -222,35 +222,26 @@ final class DeliveryCoordinatorTests: XCTestCase {
         context.store.remove(ids: [item.id])
         context.coordinator.noteSessionEnded(id: sessionID, accepted: true)
         XCTAssertTrue(context.coordinator.protectedMaterializedPaths.contains(managedURL.path))
-
-        context.coordinator.notePromiseRequested(sessionID: sessionID, itemID: item.id)
-        context.coordinator.noteFailed(sessionID: sessionID, itemID: item.id)
-
-        XCTAssertEqual(context.store.item(withID: item.id), item)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: managedURL.path))
-        XCTAssertFalse(context.coordinator.protectedMaterializedPaths.contains(managedURL.path),
-                       "回插后的 shelf 引用已接管保护")
     }
 
-    func testEarlyPromiseFailureReinsertsAfterRemovalPolicyRuns() {
+    /// 普通项不再携带 file promise；即便收到来路不明的迟到回调，也不得把
+    /// 已由用户策略移除的项目回插或伪造失败状态。
+    func testDirectItemIgnoresSpuriousPromiseCallbacks() {
         let context = makeContext()
         defer { context.cleanup() }
-        let item = ShelfItem(kind: .file,
-                             path: "/tmp/early-failure.txt",
-                             displayName: "early-failure.txt")
+        let item = ShelfItem(kind: .file, path: "/tmp/direct.txt", displayName: "direct.txt")
         context.store.add(item)
         let sessionID = beginSession(context, items: [item])
 
         context.coordinator.notePromiseRequested(sessionID: sessionID, itemID: item.id)
         context.coordinator.noteFailed(sessionID: sessionID, itemID: item.id)
+        context.coordinator.noteDelivered(sessionID: sessionID,
+                                          itemID: item.id,
+                                          destination: URL(fileURLWithPath: "/tmp/unexpected.txt"))
         context.store.remove(ids: [item.id])
         context.coordinator.noteSessionEnded(id: sessionID, accepted: true)
 
-        XCTAssertEqual(context.store.item(withID: item.id), item)
-        if case .failed(let failure) = context.transferStore.currentTask?.phase {
-            XCTAssertEqual(failure.reason, .deliveryFailed)
-        } else {
-            XCTFail("早到失败必须在会话确认后呈现")
-        }
+        XCTAssertNil(context.store.item(withID: item.id))
+        XCTAssertEqual(context.transferStore.currentTask?.phase, .targetAccepted)
     }
 }

@@ -105,7 +105,7 @@ The menu-bar **Settings…** window also controls shelf width, auto-hide behavio
 | Images, HTML, and RTF | Materializes them as files in the app's managed sandbox directory |
 | Contacts, calendar events, and mail messages | Materializes `.vcf`, `.ics`, and `.eml` files when the source app exposes readable data |
 
-When dragging files out, OpenYoink offers both file URLs and file promises for compatibility with Finder and common browser upload zones. Final acceptance still depends on the destination app or website.
+When dragging regular files out, OpenYoink provides file URLs plus Chromium-compatible filename data for Finder, Safari, and common Chromium upload zones. Managed-move items use a confirmable file promise and leave the shelf only after delivery succeeds. Final acceptance still depends on the destination app or website.
 
 ## File safety and lifecycle
 

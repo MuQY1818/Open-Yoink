@@ -1,9 +1,8 @@
 import AppKit
 import UniformTypeIdentifiers
 
-/// File-promise lifecycle channel. Callbacks may arrive before or after the
-/// AppKit drag-session result and may run on the provider's background queue;
-/// the receiver is responsible for hopping to its actor.
+/// 托管剪切项的 file-promise 生命周期通道。回调可能早于或晚于 AppKit
+/// 会话结果，并且会来自 provider 后台队列；接收方负责切回自己的 actor。
 struct DeliverySink: Sendable {
     /// The destination selected the promised-file representation.
     var promiseRequested: @Sendable (UUID) -> Void
@@ -16,31 +15,18 @@ struct DeliverySink: Sendable {
 /// 拖出 payload 组装：ShelfItem → pasteboard writer 多表示 / `[NSDraggingItem]`
 /// （实施计划 §2.3「拖出」、调研报告 F-04）。
 ///
-/// ## 双表示技术路线（文件/文件夹/图片）
+/// ## 文件载荷技术路线
 ///
-/// 一个拖出项目 = 一个 `NSDraggingItem` = 一个 pasteboard writer。文件类项目的
-/// writer 是 `FilePromiseProvider`（NSFilePromiseProvider 子类），同时承载：
-/// 1. **`public.file-url` 直接表示**（子类覆写追加；值为 URL 字符串）。
-///    Finder 及绝大多数桌面目标读取它，获得真实文件语义（Finder 内部按 copy
-///    处理；我们不声明 .move，见 `DragSessionController`）。
-/// 2. **file promise 表示**（父类机制）：只认 promise 的目标（部分浏览器上传区、
-///    Mail 附件区，调研报告 §6.3）走 promise 机制，由 delegate 在后台队列复制
-///    源文件（`FilePromiseProvider.writeCopy`）。
-/// 3. 图片项另加 **`public.tiff` 位图回退**（计划 §2.3，惰性加载）。
+/// 一个拖出项目 = 一个 `NSDraggingItem` = 一个 pasteboard writer：
+/// - 普通文件/文件夹：`DirectFilePasteboardWriter`，提供 `public.file-url` 与
+///   `NSFilenamesPboardType`；后者用于 Chromium 的 macOS 上传路径。
+/// - 普通图片：再附加惰性的 `public.tiff` 位图回退。
+/// - 托管剪切项：promise-only `FilePromiseProvider`；目标确认写入后才离架。
+/// - tutorial 文件：直接 writer 额外携带私有会话 token。
 ///
-/// SDK 现实与取舍（相对计划 §2.3 原文「同一 NSItemProvider 同时注册 fileURL
-/// 与 promise 表示」的调整）：
-/// - macOS 26 SDK 起 `NSFilePromiseProvider` 不再继承 `NSItemProvider`
-///   （声明为 `NSObject <NSPasteboardWriting>`），且 `NSItemProvider` 本身也
-///   不再具备 `NSPasteboardWriting` 一致性，「同一 provider 追加注册」与
-///   「NSItemProvider 直接做 drag writer」均不可用；
-/// - 改为 `FilePromiseProvider` 子类覆写 `writableTypes` /
-///   `pasteboardPropertyList` 追加 fileURL/tiff 表示 —— writer 仍是真正的
-///   NSFilePromiseProvider，promise 跨进程路由不受影响（独立探针验证：
-///   writeObjects 后 file-url 与 promise 类型族同时出现在 advertised types）；
-/// - 文本/URL 项用 `NSPasteboardItem` 直接写类型（同一 NSDraggingItem 契约）。
-/// 浏览器先看到 file-url 即可直接映射 `DataTransfer.files`，promise 作为兜底
-/// （调研报告 §6.1：fileURL + promise 至少一路成功即可）。
+/// 不能把这些表示追加到 `NSFilePromiseProvider` 子类：私有 pasteboard
+/// `writeObjects` 虽会显示追加类型，但真实 `NSDraggingSession` 会只保留系统
+/// promise 类型，导致 Chromium、图片回退与 tutorial token 实际不可用。
 ///
 /// ## 纯函数部分
 /// `strategy(for:)` / `flattenedItems(_:)` / `promisedFileType(for:)` 不构造
@@ -48,7 +34,7 @@ struct DeliverySink: Sendable {
 enum DragPayloadBuilder {
     /// 各 kind 的表示策略。
     enum Strategy: Equatable, Sendable {
-        /// 文件/文件夹：`public.file-url` + file promise。
+        /// 文件/文件夹：普通项走直接文件表示，托管剪切项走 file promise。
         case fileBacked
         /// 图片：fileBacked + `public.tiff` 位图回退（计划 §2.3）。
         case fileBackedImage
@@ -126,7 +112,7 @@ enum DragPayloadBuilder {
 
     /// 单个项目的 pasteboard writer。无法构造（text 无内容、url 无地址、
     /// file 无路径、stack 未展开）时返回 nil。
-    /// `delivery` observes file promises for both ordinary and managed items.
+    /// `delivery` 只观察托管剪切项的 file promise；普通文件由会话结果确认。
     @MainActor
     static func makePasteboardWriter(for item: ShelfItem,
                                      bookmarkService: BookmarkService,
@@ -198,8 +184,10 @@ enum DragPayloadBuilder {
 
     // MARK: - File/folder/image
 
-    /// 文件类：`FilePromiseProvider`（promise 表示 + 覆写追加 fileURL 直接
-    /// 表示 + 图片项的 public.tiff 位图回退）。
+    /// 已存在的普通文件使用直接 writer：fileURL + Chromium 兼容文件名列表，
+    /// 图片再附加 public.tiff，教程项附加私有 token。真实拖拽中 AppKit 会
+    /// 原样保留这些类型；`NSFilePromiseProvider` 子类的附加类型则会被系统
+    /// 丢弃，因此不能承担普通文件的多表示载荷。
     ///
     /// F-05 剪切项分支（`item.isCut`）：**只广告 promise 类型** —— 不广告
     /// `public.file-url`（否则 Finder 会走 fileURL 直读路径、绕过 promise，
@@ -229,6 +217,13 @@ enum DragPayloadBuilder {
         } else {
             tiffDataProvider = nil
         }
+        if !item.isCut {
+            return DirectFilePasteboardWriter(
+                fileURL: sourceURL,
+                tiffDataProvider: tiffDataProvider,
+                tutorialSessionToken: tutorialSessionToken
+            )
+        }
         let itemID = item.id
         // 显式类型局部变量（三元 + 闭包字面量会让类型推断器无法产出诊断）。
         let onPromiseRequested: @Sendable () -> Void = {
@@ -248,9 +243,6 @@ enum DragPayloadBuilder {
                 promisedFileType: promisedFileType(for: item)
             ),
             bookmarkService: bookmarkService,
-            advertisesDirectFileURL: !item.isCut,
-            tiffDataProvider: tiffDataProvider,
-            tutorialSessionToken: tutorialSessionToken,
             onPromiseRequested: onPromiseRequested,
             onDelivered: onDelivered,
             onError: onError

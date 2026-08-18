@@ -1,22 +1,74 @@
 import AppKit
 import OSLog
 
-/// 拖出侧 file promise：`NSFilePromiseProvider` 子类，把 shelf 上已存在的文件
-/// 以「放下后才复制」的方式提供给只认 promise 的拖放目标（部分浏览器上传区、
-/// Mail 附件区等；调研报告 §5.3 / F-04）。
+/// 已存在文件的直接 pasteboard writer。
 ///
-/// 双表示策略（实施计划 §2.3「拖出」）：同一拖出项目的一个 writer 同时承载
-/// - **file promise 表示**（本类本体）：只认 promise 的目标走 promise 机制，
-///   由 delegate 在后台队列复制源文件（`writeCopy`）；
-/// - **`public.file-url` 直接表示**：经覆写 `writableTypes(for:)` /
-///   `pasteboardPropertyList(forType:)` 追加在同一个 writer 上 —— Finder 等
-///   目标读 fileURL 获得真实文件语义（copy）。
+/// `NSFilePromiseProvider` 在真实 `NSDraggingSession` 中只保留系统 promise
+/// 类型，子类覆写追加的 file URL / TIFF / 私有 token 会被 AppKit 丢弃。
+/// 普通文件因此使用独立 writer，确保以下表示真实进入拖拽 pasteboard：
+/// - `public.file-url`：Finder、Safari 与多数桌面目标；
+/// - `NSFilenamesPboardType`：Chromium 的 macOS 文件上传路径；
+/// - 可选 `public.tiff`：图片位图回退（惰性）；
+/// - 可选 tutorial token：快速上手目标的会话校验。
+nonisolated final class DirectFilePasteboardWriter: NSObject, NSPasteboardWriting {
+    private let fileURL: URL
+    private let tiffDataProvider: (@Sendable () -> Data?)?
+    private let tutorialSessionToken: String?
+
+    init(fileURL: URL,
+         tiffDataProvider: (@Sendable () -> Data?)? = nil,
+         tutorialSessionToken: String? = nil) {
+        self.fileURL = fileURL
+        self.tiffDataProvider = tiffDataProvider
+        self.tutorialSessionToken = tutorialSessionToken
+        super.init()
+    }
+
+    func writableTypes(for pasteboard: NSPasteboard) -> [NSPasteboard.PasteboardType] {
+        var result: [NSPasteboard.PasteboardType] = [
+            PasteboardTypes.fileURL,
+            PasteboardTypes.legacyFilenames,
+        ]
+        if tiffDataProvider != nil {
+            result.append(PasteboardTypes.tiff)
+        }
+        if tutorialSessionToken != nil {
+            result.append(PasteboardTypes.tutorialSession)
+        }
+        return result
+    }
+
+    /// URL、兼容文件名与 tutorial token 都很小，立即写入可避免跨进程目标
+    /// 请求时 writer 生命周期或特殊拖拽路由造成缺失。TIFF 可能较大，继续按
+    /// pasteboard promise 惰性生成。
+    func writingOptions(forType type: NSPasteboard.PasteboardType,
+                        pasteboard: NSPasteboard) -> NSPasteboard.WritingOptions {
+        type == PasteboardTypes.tiff ? .promised : []
+    }
+
+    func pasteboardPropertyList(forType type: NSPasteboard.PasteboardType) -> Any? {
+        switch type {
+        case PasteboardTypes.fileURL:
+            fileURL.absoluteString as NSString
+        case PasteboardTypes.legacyFilenames:
+            [fileURL.path] as NSArray
+        case PasteboardTypes.tiff where tiffDataProvider != nil:
+            tiffDataProvider?()
+        case PasteboardTypes.tutorialSession where tutorialSessionToken != nil:
+            tutorialSessionToken as NSString?
+        default:
+            nil
+        }
+    }
+}
+
+/// 托管剪切项的 file-promise writer：目标真正写入成功后才确认交付，随后
+/// `DeliveryCoordinator` 才会让项目离架并清理托管副本。
 ///
-/// 为什么用「子类覆写」而不是「组合 writer」：macOS 26 SDK 起
-/// `NSFilePromiseProvider` 不再继承 `NSItemProvider`（SDK 头文件声明为
-/// `NSObject <NSPasteboardWriting>`），而 promise 的跨进程路由依赖 writer
-/// 本身就是 NSFilePromiseProvider；子类覆写既能追加类型又保住 promise 通路
-/// （已用独立探针验证 writeObjects 后两类表示同时出现在 advertised types）。
+/// 本类刻意保持 **promise-only**。若同时广告 file URL，Finder 等目标可能
+/// 直接读取源路径而不触发 promise delegate，应用就无法证明目标已落盘，移动
+/// 语义会失去安全闭环。普通（非剪切）文件由 `DirectFilePasteboardWriter`
+/// 提供直接表示，不使用本类。
 ///
 /// 并发：provider 本体只在 MainActor 构造并交给 AppKit 拖拽会话；delegate
 /// 回调发生在后台写队列（`operationQueue(for:)`），因此 delegate 只持有
@@ -39,24 +91,9 @@ final class FilePromiseProvider: NSFilePromiseProvider {
 
     /// 强持有 delegate（`NSFilePromiseProvider.delegate` 是弱引用）。
     private let promiseDelegate: FilePromiseDelegate
-    /// fileURL 直接表示的值（构造时已按 bookmark 解析为最新路径）。
-    private let directFileURL: URL
-    /// 是否广告 `public.file-url` 直接表示。F-05 剪切（isCut）项为 false：
-    /// 只广告 promise 类型，保证所有目的地（Finder/浏览器/文本框）都经
-    /// promise 写入 —— 唯有如此才有写入完成的交付确认（`onDelivered`），
-    /// 移动语义（交付后离架 + 删保管文件）才可靠。
-    private let advertisesDirectFileURL: Bool
-    /// 图片项的 `public.tiff` 位图回退（惰性：目标请求时才读文件）。
-    private let tiffDataProvider: (@Sendable () -> Data?)?
-    /// 快速上手练习卡的会话令牌。仅活动 tutorial item 非 nil；目标面板据此
-    /// 拒绝任何其他拖放，同时 writer 仍保留真实 file URL / promise 表示。
-    private let tutorialSessionToken: String?
 
     init(payload: Payload,
          bookmarkService: BookmarkService,
-         advertisesDirectFileURL: Bool = true,
-         tiffDataProvider: (@Sendable () -> Data?)? = nil,
-         tutorialSessionToken: String? = nil,
          onPromiseRequested: (@Sendable () -> Void)? = nil,
          onDelivered: (@Sendable (URL) -> Void)? = nil,
          onError: (@Sendable (Error) -> Void)? = nil) {
@@ -66,10 +103,6 @@ final class FilePromiseProvider: NSFilePromiseProvider {
                                            onDelivered: onDelivered,
                                            onError: onError)
         self.promiseDelegate = delegate
-        self.directFileURL = payload.sourceURL
-        self.advertisesDirectFileURL = advertisesDirectFileURL
-        self.tiffDataProvider = tiffDataProvider
-        self.tutorialSessionToken = tutorialSessionToken
         // 不用 `super.init(fileType:delegate:)`：NSFilePromiseProvider 是 ObjC
         // 类簇，该初始化器内部回调动态类型的 `init()`，对 Swift 子类会触发
         // "unimplemented initializer" 陷阱（探针实测）。改为指定初始化器
@@ -77,43 +110,6 @@ final class FilePromiseProvider: NSFilePromiseProvider {
         super.init()
         fileType = payload.promisedFileType
         self.delegate = delegate
-    }
-
-    // MARK: - fileURL / tiff 附加表示
-
-    /// 声明类型：fileURL（+tiff 回退）在前，promise 类型随后（去重保序）。
-    /// fileURL 在前让「取最优表示」的目标优先拿到真实文件路径。
-    /// F-05: 剪切项（advertisesDirectFileURL == false）只声明 promise 类型。
-    /// nonisolated：pasteboard 读取可能被拖到非主队列调用（同 delegate 的
-    /// XPC 队列崩溃教训）；只读不可变 Sendable 状态，任意队列安全。
-    nonisolated override func writableTypes(for pasteboard: NSPasteboard) -> [NSPasteboard.PasteboardType] {
-        var result: [NSPasteboard.PasteboardType] = advertisesDirectFileURL ? [PasteboardTypes.fileURL] : []
-        if tiffDataProvider != nil {
-            result.append(PasteboardTypes.tiff)
-        }
-        if tutorialSessionToken != nil {
-            result.append(PasteboardTypes.tutorialSession)
-        }
-        for type in super.writableTypes(for: pasteboard) where !result.contains(type) {
-            result.append(type)
-        }
-        return result
-    }
-
-    /// 按类型分派数据：fileURL → URL 字符串（与 NSURL 的 pasteboard 序列化
-    /// 一致）；tiff → 惰性位图数据；其余（promise 类型族）交回父类。
-    /// nonisolated：同 `writableTypes` 的队列安全说明。
-    nonisolated override func pasteboardPropertyList(forType type: NSPasteboard.PasteboardType) -> Any? {
-        switch type {
-        case PasteboardTypes.fileURL where advertisesDirectFileURL:
-            return directFileURL.absoluteString as NSString
-        case PasteboardTypes.tiff where tiffDataProvider != nil:
-            return tiffDataProvider?()
-        case PasteboardTypes.tutorialSession where tutorialSessionToken != nil:
-            return tutorialSessionToken as NSString?
-        default:
-            return super.pasteboardPropertyList(forType: type)
-        }
     }
 
     // MARK: - 写入逻辑
@@ -147,9 +143,9 @@ final class FilePromiseProvider: NSFilePromiseProvider {
 /// **必须 `nonisolated`**（真机崩溃修复）：目标应用请求 promise 内容时，系统
 /// 经 `NSFileProviderXPCMessenger` 在**自己的 XPC 队列**上同步调用
 /// `operationQueue(for:)` 等方法；本模块默认 MainActor 隔离会在非主队列触发
-/// `_dispatch_assert_queue_fail`（SIGTRAP 闪退，拖到 QSpace Pro 必现——
-/// Finder 走 fileURL 表示不触发，QSpace 走 promise 表示）。三个方法只读
-/// 不可变 Sendable 状态（payload / writeQueue），任何队列调用均安全。
+/// `_dispatch_assert_queue_fail`（SIGTRAP 闪退；QSpace Pro 等 promise 目标可
+/// 触发）。三个方法只读不可变 Sendable 状态（payload / writeQueue），任何
+/// 队列调用均安全。
 nonisolated final class FilePromiseDelegate: NSObject, NSFilePromiseProviderDelegate {
     private let payload: FilePromiseProvider.Payload
     private let bookmarkService: BookmarkService

@@ -219,9 +219,59 @@ final class FilePromiseProviderTests: XCTestCase {
                         "写失败必须上报 onError（预留 UI 订阅）")
     }
 
-    // MARK: - 附加表示（fileURL / tiff）
+    // MARK: - 直接文件 writer / promise-only provider
 
-    func testWritableTypes_fileURLFirstThenPromiseTypes() {
+    func testDirectFileWriter_serializesFileURLAndChromiumFilenameList() {
+        let source = URL(fileURLWithPath: "/tmp/OpenYoink 示例.txt")
+        let writer = DirectFilePasteboardWriter(fileURL: source)
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("OpenYoinkTests-\(UUID().uuidString)"))
+
+        XCTAssertEqual(writer.writableTypes(for: pasteboard), [
+            PasteboardTypes.fileURL,
+            PasteboardTypes.legacyFilenames,
+        ])
+        XCTAssertTrue(pasteboard.writeObjects([writer]))
+        XCTAssertEqual(pasteboard.string(forType: PasteboardTypes.fileURL), source.absoluteString)
+        XCTAssertEqual(
+            pasteboard.propertyList(forType: PasteboardTypes.legacyFilenames) as? [String],
+            [source.path]
+        )
+    }
+
+    func testDirectFileWriter_serializesTutorialTokenIntoRealPasteboard() {
+        let token = UUID().uuidString
+        let writer = DirectFilePasteboardWriter(
+            fileURL: URL(fileURLWithPath: "/tmp/tutorial.txt"),
+            tutorialSessionToken: token
+        )
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("OpenYoinkTests-\(UUID().uuidString)"))
+
+        XCTAssertTrue(pasteboard.writeObjects([writer]))
+        XCTAssertTrue(pasteboard.types?.contains(PasteboardTypes.tutorialSession) == true)
+        XCTAssertEqual(pasteboard.string(forType: PasteboardTypes.tutorialSession), token)
+    }
+
+    func testDirectFileWriter_tiffFallbackIsLazyUntilRequested() {
+        let requestCount = Mutex(0)
+        let expected = Data([0x49, 0x49, 0x2A, 0x00])
+        let writer = DirectFilePasteboardWriter(
+            fileURL: URL(fileURLWithPath: "/tmp/image.tiff"),
+            tiffDataProvider: {
+                requestCount.withLock { $0 += 1 }
+                return expected
+            }
+        )
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("OpenYoinkTests-\(UUID().uuidString)"))
+
+        XCTAssertTrue(pasteboard.writeObjects([writer]))
+        XCTAssertEqual(requestCount.withLock { $0 }, 0,
+                       "写入拖拽 pasteboard 时不应提前解码整张图片")
+        XCTAssertEqual(pasteboard.data(forType: PasteboardTypes.tiff), expected)
+        XCTAssertEqual(requestCount.withLock { $0 }, 1)
+    }
+
+    /// F-05: 托管剪切项的 provider 永远只声明 promise 类型。
+    func testFilePromiseProvider_alwaysAdvertisesPromiseOnly() {
         let provider = FilePromiseProvider(
             payload: makePayload(sourceURL: URL(fileURLWithPath: "/tmp/hello.txt")),
             bookmarkService: BookmarkService()
@@ -229,24 +279,11 @@ final class FilePromiseProviderTests: XCTestCase {
         let pasteboard = NSPasteboard(name: NSPasteboard.Name("OpenYoinkTests-\(UUID().uuidString)"))
         let types = provider.writableTypes(for: pasteboard)
 
-        XCTAssertEqual(types.first, .fileURL, "fileURL 直接表示应在最前")
-        XCTAssertTrue(types.contains { NSFilePromiseReceiver.readableDraggedTypes.contains($0.rawValue) })
-    }
-
-    /// F-05: 剪切项（advertisesDirectFileURL == false）只声明 promise 类型。
-    func testWritableTypes_promiseOnlyWhenDirectFileURLDisabled() {
-        let provider = FilePromiseProvider(
-            payload: makePayload(sourceURL: URL(fileURLWithPath: "/tmp/hello.txt")),
-            bookmarkService: BookmarkService(),
-            advertisesDirectFileURL: false
-        )
-        let pasteboard = NSPasteboard(name: NSPasteboard.Name("OpenYoinkTests-\(UUID().uuidString)"))
-        let types = provider.writableTypes(for: pasteboard)
-
         XCTAssertFalse(types.contains(.fileURL))
+        XCTAssertFalse(types.contains(PasteboardTypes.legacyFilenames))
+        XCTAssertFalse(types.contains(PasteboardTypes.tiff))
+        XCTAssertFalse(types.contains(PasteboardTypes.tutorialSession))
         XCTAssertTrue(types.contains { NSFilePromiseReceiver.readableDraggedTypes.contains($0.rawValue) })
-        XCTAssertNil(provider.pasteboardPropertyList(forType: .fileURL),
-                     "未广告 fileURL 时请求也不得产出数据")
     }
 
     /// F-05: 写入完成回调携带目标 URL（剪切项的交付确认）。
@@ -291,12 +328,4 @@ final class FilePromiseProviderTests: XCTestCase {
         XCTAssertNil(deliveredURL.withLock { $0 })
     }
 
-    func testPasteboardPropertyList_fileURLServesAbsoluteString() {
-        let provider = FilePromiseProvider(
-            payload: makePayload(sourceURL: URL(fileURLWithPath: "/tmp/hello.txt")),
-            bookmarkService: BookmarkService()
-        )
-        XCTAssertEqual(provider.pasteboardPropertyList(forType: .fileURL) as? String,
-                       "file:///tmp/hello.txt")
-    }
 }

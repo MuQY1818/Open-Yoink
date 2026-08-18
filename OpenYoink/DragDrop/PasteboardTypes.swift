@@ -16,6 +16,11 @@ enum PasteboardTypes {
 
     /// `public.file-url` —— Finder 及多数应用的文件拖放表示。
     static let fileURL: NSPasteboard.PasteboardType = .fileURL
+    /// Chromium's macOS file-upload drop path still reads the legacy
+    /// filename-list flavor even when `public.file-url` is present. AppKit no
+    /// longer exposes the deprecated constant to Swift, so keep the wire
+    /// value local and advertise it only alongside a real direct file URL.
+    static let legacyFilenames = NSPasteboard.PasteboardType("NSFilenamesPboardType")
     /// `public.utf8-plain-text`。
     static let plainText: NSPasteboard.PasteboardType = .string
     /// `public.html`。
