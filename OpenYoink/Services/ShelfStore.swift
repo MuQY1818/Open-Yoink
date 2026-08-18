@@ -151,6 +151,14 @@ final class ShelfStore {
         selection.removeAll()
     }
 
+    /// 用已经成功写入磁盘的恢复快照替换运行期内容。调用方必须先调用
+    /// PersistenceController.saveNow；这里不再安排第二次异步写入。
+    func replaceWithPersistedItems(_ restoredItems: [ShelfItem]) {
+        items = restoredItems
+        selection.removeAll()
+        onItemsDidChange?()
+    }
+
     // MARK: - Stacks
 
     /// Merges the given top-level items into a stack, preserving their current

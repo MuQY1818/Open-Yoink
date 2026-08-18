@@ -17,6 +17,8 @@ final class MenuBarController: NSObject {
     private let onShowSettings: () -> Void
     /// Sparkle 手动检查更新（由 AppDelegate 的 UpdateController 提供）。
     private let onCheckForUpdates: () -> Void
+    /// 自动安装失败时可直接打开 GitHub Releases 手动下载。
+    private let onOpenManualUpdate: () -> Void
 
     private let statusItem: NSStatusItem
     private let toggleItem = NSMenuItem()
@@ -28,13 +30,15 @@ final class MenuBarController: NSObject {
          onToggleShelf: @escaping () -> Void,
          onReaddRecent: @escaping (RecentEntry) -> Void,
          onShowSettings: @escaping () -> Void,
-         onCheckForUpdates: @escaping () -> Void) {
+         onCheckForUpdates: @escaping () -> Void,
+         onOpenManualUpdate: @escaping () -> Void) {
         self.appState = appState
         self.recents = recents
         self.onToggleShelf = onToggleShelf
         self.onReaddRecent = onReaddRecent
         self.onShowSettings = onShowSettings
         self.onCheckForUpdates = onCheckForUpdates
+        self.onOpenManualUpdate = onOpenManualUpdate
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
         configureButton()
@@ -81,6 +85,12 @@ final class MenuBarController: NSObject {
         updateItem.target = self
         menu.addItem(updateItem)
 
+        let manualUpdateItem = NSMenuItem(title: String(localized: "Download Latest Release…"),
+                                          action: #selector(openManualUpdate(_:)),
+                                          keyEquivalent: "")
+        manualUpdateItem.target = self
+        menu.addItem(manualUpdateItem)
+
         menu.addItem(.separator())
 
         let quitItem = NSMenuItem(title: String(localized: "Quit OpenYoink"),
@@ -108,6 +118,10 @@ final class MenuBarController: NSObject {
     /// 手动检查更新（Sparkle；空 feed 时走「已是最新」安全路径）。
     @objc private func checkForUpdates(_ sender: Any?) {
         onCheckForUpdates()
+    }
+
+    @objc private func openManualUpdate(_ sender: Any?) {
+        onOpenManualUpdate()
     }
 
     // MARK: - Recent Items submenu (S10)

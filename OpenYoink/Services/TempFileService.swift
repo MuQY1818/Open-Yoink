@@ -14,6 +14,11 @@ final class TempFileService: Sendable {
         case outsideManagedDirectory(URL)
     }
 
+    struct CleanupResult: Equatable, Sendable {
+        var removedItemCount = 0
+        var reclaimedBytes: Int64 = 0
+    }
+
     /// The managed materialization directory; inject a custom one in tests.
     let directoryURL: URL
 
@@ -73,11 +78,13 @@ final class TempFileService: Sendable {
     /// loading the store; leftovers from a previous session (interrupted
     /// materializations) are orphans and get removed. Best-effort: individual
     /// failures are logged, not thrown.
-    func cleanupOrphans(keepingPaths: Set<String> = []) {
+    @discardableResult
+    func cleanupOrphans(keepingPaths: Set<String> = []) -> CleanupResult {
         let fileManager = FileManager.default
         guard let names = try? fileManager.contentsOfDirectory(atPath: directoryURL.path) else {
-            return // directory does not exist yet — nothing to clean
+            return CleanupResult() // directory does not exist yet — nothing to clean
         }
+        var result = CleanupResult()
         let keep = Set(keepingPaths.map { URL(fileURLWithPath: $0).standardizedFileURL.path })
         for name in names {
             let url = directoryURL.appendingPathComponent(name)
@@ -86,11 +93,59 @@ final class TempFileService: Sendable {
             // 独立回收，常规孤儿清理绝不能在启动时无条件删除。
             guard !name.hasPrefix(Self.promiseStagingPrefix) else { continue }
             do {
+                let bytes = allocatedSize(of: url)
                 try fileManager.removeItem(at: url)
+                result.removedItemCount += 1
+                result.reclaimedBytes += bytes
             } catch {
                 logger.error("Failed to remove orphaned file \(url.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
             }
         }
+        return result
+    }
+
+    /// 托管目录当前占用。读取失败的单个文件按 0 计，设置页不会因某个并发
+    /// promise 写入而失效。
+    func storageUsage() -> Int64 {
+        allocatedSize(of: directoryURL)
+    }
+
+    private func allocatedSize(of url: URL) -> Int64 {
+        let keys: Set<URLResourceKey> = [
+            .isRegularFileKey,
+            .fileAllocatedSizeKey,
+            .totalFileAllocatedSizeKey,
+            .fileSizeKey,
+            .totalFileSizeKey,
+        ]
+        let rootValues = try? url.resourceValues(forKeys: keys)
+        if rootValues?.isRegularFile == true {
+            return byteSize(from: rootValues)
+        }
+        guard let enumerator = FileManager.default.enumerator(
+            at: url,
+            includingPropertiesForKeys: Array(keys),
+            options: [.skipsHiddenFiles]
+        ) else {
+            return byteSize(from: rootValues)
+        }
+        var total: Int64 = 0
+        for case let childURL as URL in enumerator {
+            let values = try? childURL.resourceValues(forKeys: keys)
+            guard values?.isRegularFile == true else { continue }
+            total += byteSize(from: values)
+        }
+        return total
+    }
+
+    private func byteSize(from values: URLResourceValues?) -> Int64 {
+        let candidates = [
+            values?.totalFileAllocatedSize,
+            values?.fileAllocatedSize,
+            values?.totalFileSize,
+            values?.fileSize,
+        ].compactMap { $0 }
+        return Int64(candidates.first(where: { $0 > 0 }) ?? 0)
     }
 
     private func isInsideManagedDirectory(_ url: URL) -> Bool {

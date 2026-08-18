@@ -77,4 +77,22 @@ final class TempFileServiceTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: staging.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: orphan.path))
     }
+
+    func testCleanupOrphans_reportsRemovedItemsAndPreservesReferencedFile() throws {
+        let directory = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let service = TempFileService(directoryURL: directory)
+        let kept = try service.uniqueFileURL(suggestedName: "kept.bin")
+        let orphan = try service.uniqueFileURL(suggestedName: "orphan.bin")
+        try Data(repeating: 1, count: 4_096).write(to: kept)
+        try Data(repeating: 2, count: 8_192).write(to: orphan)
+
+        XCTAssertGreaterThan(service.storageUsage(), 0)
+        let result = service.cleanupOrphans(keepingPaths: [kept.path])
+
+        XCTAssertEqual(result.removedItemCount, 1)
+        XCTAssertGreaterThan(result.reclaimedBytes, 0)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: kept.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: orphan.path))
+    }
 }

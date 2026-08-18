@@ -26,6 +26,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 用户设置（S5 起拖出后移除策略被 DragSessionController 读取；S8 由
     /// SettingsView 编辑）。internal：OpenYoinkApp 的 Settings scene 注入环境用。
     let settingsStore = SettingsStore()
+    /// 系统登录项状态（不复制到 UserDefaults；SMAppService 是唯一事实源）。
+    let launchAtLoginController = LaunchAtLoginController()
+    /// 恢复快照、托管目录占用与安全清理（设置-存储）。
+    lazy var storageManagementController = StorageManagementController(
+        persistence: persistence,
+        tempFileService: tempFileService,
+        shelfStore: shelfStore,
+        prepareRestoredItems: { [weak self] items in
+            guard let self else { return items }
+            return items.map { self.refreshedByResolvingBookmark($0) ?? $0 }
+        }
+    )
     /// S5: 最近拖出历史（内存 + recents.json；S10 已接入菜单栏「最近项目」）。
     private let recentItemsService = RecentItemsService()
     /// Sparkle 2 自动更新封装（懒加载：首次 start/手动检查时创建
@@ -41,7 +53,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                                                    recents: recentItemsService,
                                                                    dragStartMonitor: dragStartMonitor)
     private lazy var settingsWindowController = SettingsWindowController(settings: settingsStore,
-                                                                         hotKeyMonitor: hotKeyMonitor)
+                                                                         hotKeyMonitor: hotKeyMonitor,
+                                                                         launchAtLoginController: launchAtLoginController,
+                                                                         updateController: updateController,
+                                                                         storageManagementController: storageManagementController)
     private lazy var menuBarController = MenuBarController(
         appState: appState,
         recents: recentItemsService,
@@ -56,6 +71,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         },
         onCheckForUpdates: { [weak self] in
             self?.updateController.checkForUpdates()
+        },
+        onOpenManualUpdate: { [weak self] in
+            self?.updateController.openManualDownloadPage()
         }
     )
 
@@ -336,7 +354,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 物化文件，其余视为上次会话中断的残留删除。
     private func cleanupMaterializedOrphans() {
         let managedPrefix = tempFileService.directoryURL.standardizedFileURL.path + "/"
-        tempFileService.cleanupOrphans(keepingPaths: materializedPaths(in: shelfStore.items, managedPrefix: managedPrefix))
+        // 上一份有效快照也可能引用 promise/图片物化文件；恢复功能存在时，
+        // 启动清理必须同时保护这些路径，否则“能恢复条目却丢了文件内容”。
+        let protectedItems = shelfStore.items + persistence.recoverableSnapshotItems()
+        tempFileService.cleanupOrphans(
+            keepingPaths: materializedPaths(in: protectedItems, managedPrefix: managedPrefix)
+        )
     }
 
     private func materializedPaths(in items: [ShelfItem], managedPrefix: String) -> Set<String> {

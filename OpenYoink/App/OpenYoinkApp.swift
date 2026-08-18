@@ -5,12 +5,16 @@ struct OpenYoinkApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
-        // LSUIElement 后台 agent 不需要任何常驻窗口 scene；设置窗口由
-        // SettingsWindowController 自管理（SwiftUI Settings scene 的
-        // showSettingsWindow: 在本形态下静默失败）。保留此 inert scene
-        // 仅为满足 App body 的 Scene 要求。
+        // 菜单栏入口仍由 SettingsWindowController 自管理（LSUIElement 下
+        // showSettingsWindow: 响应链不可靠）；这里也提供同一份真实内容，
+        // 避免应用被激活后从系统“OpenYoink → 设置…”打开一个空白窗口。
         Settings {
-            EmptyView()
+            SettingsView()
+                .environment(appDelegate.settingsStore)
+                .environment(appDelegate.hotKeyMonitor)
+                .environment(appDelegate.launchAtLoginController)
+                .environment(appDelegate.updateController)
+                .environment(appDelegate.storageManagementController)
         }
     }
 }

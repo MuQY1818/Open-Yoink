@@ -22,6 +22,12 @@ import Sparkle
 @MainActor
 @Observable
 final class UpdateController: NSObject {
+    /// 自动安装失败时的稳定兜底入口。指向 GitHub 的 latest 页面而非某个固定
+    /// DMG，确保即使 appcast 或附件 URL 出错，用户仍能手动取得当前版本。
+    static let manualDownloadURL = URL(
+        string: "https://github.com/MuQY1818/OpenYoink/releases/latest"
+    )!
+
     /// 更新检查状态摘要（供日志与将来 UI 展示；更新提示 UI 由 Sparkle
     /// 标准 user driver 承担）。
     enum Status: Equatable {
@@ -96,6 +102,10 @@ final class UpdateController: NSObject {
         start()
         status = .checking
         updaterController.checkForUpdates(nil)
+    }
+
+    func openManualDownloadPage() {
+        NSWorkspace.shared.open(Self.manualDownloadURL)
     }
 
     // MARK: - Delegate callbacks (经 DelegateBridge 从主线程转发)

@@ -11,11 +11,21 @@ import SwiftUI
 final class SettingsWindowController {
     private let settings: SettingsStore
     private let hotKeyMonitor: HotKeyMonitor
+    private let launchAtLoginController: LaunchAtLoginController
+    private let updateController: UpdateController
+    private let storageManagementController: StorageManagementController
     private var window: NSWindow?
 
-    init(settings: SettingsStore, hotKeyMonitor: HotKeyMonitor) {
+    init(settings: SettingsStore,
+         hotKeyMonitor: HotKeyMonitor,
+         launchAtLoginController: LaunchAtLoginController,
+         updateController: UpdateController,
+         storageManagementController: StorageManagementController) {
         self.settings = settings
         self.hotKeyMonitor = hotKeyMonitor
+        self.launchAtLoginController = launchAtLoginController
+        self.updateController = updateController
+        self.storageManagementController = storageManagementController
     }
 
     /// 显示设置窗口并激活应用（LSUIElement：窗口前置与键盘焦点都依赖显式
@@ -25,6 +35,9 @@ final class SettingsWindowController {
             let rootView = SettingsView()
                 .environment(settings)
                 .environment(hotKeyMonitor)
+                .environment(launchAtLoginController)
+                .environment(updateController)
+                .environment(storageManagementController)
             let hostingController = NSHostingController(rootView: rootView)
 
             let window = NSWindow(contentViewController: hostingController)

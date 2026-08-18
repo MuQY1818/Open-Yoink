@@ -20,6 +20,8 @@ struct SettingsView: View {
                 .tabItem { Label("Triggers", systemImage: "keyboard") }
             IgnoredAppsSettingsTab()
                 .tabItem { Label("Ignored Apps", systemImage: "hand.raised") }
+            StorageSettingsTab()
+                .tabItem { Label("Storage", systemImage: "externaldrive") }
             AboutSettingsTab()
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
@@ -28,14 +30,155 @@ struct SettingsView: View {
     }
 }
 
+// MARK: - Storage and recovery
+
+private struct StorageSettingsTab: View {
+    @Environment(StorageManagementController.self) private var storage
+    @State private var snapshotToRestore: PersistenceController.RecoverySnapshot?
+    @State private var confirmsDiscard = false
+
+    var body: some View {
+        Form {
+            Section("Managed Storage") {
+                LabeledContent("Materialized files") {
+                    Text(ByteCountFormatter.string(
+                        fromByteCount: storage.materializedBytes,
+                        countStyle: .file
+                    ))
+                    .monospacedDigit()
+                }
+
+                HStack {
+                    Button("Clean Up Unused Files") { storage.cleanUnusedFiles() }
+                        .disabled(!storage.canCleanUnusedFiles)
+                    Button("Show Data Folder") { storage.revealDataFolder() }
+                }
+
+                if !storage.canCleanUnusedFiles {
+                    Text("Cleanup is disabled while quarantined recovery data is present.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Section("Recovery") {
+                if storage.snapshots.isEmpty {
+                    Text("No recovery data is available.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(storage.snapshots) { snapshot in
+                        HStack(spacing: 10) {
+                            Image(systemName: snapshot.isRecoverable
+                                  ? "clock.arrow.circlepath"
+                                  : "exclamationmark.triangle")
+                                .foregroundStyle(snapshot.isRecoverable ? Color.secondary : Color.orange)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(snapshot.kind == .lastKnownGood
+                                     ? "Last Known Good Shelf"
+                                     : "Quarantined Shelf Data")
+                                HStack(spacing: 6) {
+                                    if let date = snapshot.modifiedAt {
+                                        Text(date, style: .date)
+                                        Text(date, style: .time)
+                                    }
+                                    Text(ByteCountFormatter.string(
+                                        fromByteCount: snapshot.byteCount,
+                                        countStyle: .file
+                                    ))
+                                }
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if snapshot.isRecoverable {
+                                Button("Restore…") { snapshotToRestore = snapshot }
+                            } else {
+                                Text("Manual repair required")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+
+                    Button("Delete All Recovery Data…", role: .destructive) {
+                        confirmsDiscard = true
+                    }
+                }
+
+                if let message = storage.statusMessage {
+                    Label(message, systemImage: "checkmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                }
+                if let error = storage.errorMessage {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .onAppear { storage.refresh() }
+        .alert("Restore Shelf Data?", isPresented: Binding(
+            get: { snapshotToRestore != nil },
+            set: { if !$0 { snapshotToRestore = nil } }
+        )) {
+            Button("Cancel", role: .cancel) { snapshotToRestore = nil }
+            Button("Restore") {
+                if let snapshot = snapshotToRestore { storage.restore(snapshot) }
+                snapshotToRestore = nil
+            }
+        } message: {
+            Text("The current shelf will be preserved as a backup before the selected snapshot is restored.")
+        }
+        .alert("Delete All Recovery Data?", isPresented: $confirmsDiscard) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) { storage.discardAllRecoveryData() }
+        } message: {
+            Text("This removes OpenYoink's recovery snapshots. Files currently on the shelf are not deleted.")
+        }
+    }
+}
+
 // MARK: - General
 
 private struct GeneralSettingsTab: View {
     @Environment(SettingsStore.self) private var settings
+    @Environment(LaunchAtLoginController.self) private var launchAtLoginController
+    @Environment(UpdateController.self) private var updateController
 
     var body: some View {
         @Bindable var settings = settings
         Form {
+            Section("Startup") {
+                Toggle("Launch OpenYoink at login", isOn: Binding(
+                    get: { launchAtLoginController.isRequested },
+                    set: { launchAtLoginController.setRequested($0) }
+                ))
+                .disabled(!launchAtLoginController.isAvailable)
+
+                if launchAtLoginController.requiresApproval {
+                    HStack {
+                        Label("Approval is required in System Settings.",
+                              systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                        Spacer()
+                        Button("Open Login Items") {
+                            launchAtLoginController.openSystemSettings()
+                        }
+                    }
+                } else if let error = launchAtLoginController.errorMessage {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                } else if !launchAtLoginController.isAvailable {
+                    Text("Login item registration is unavailable for this copy of the app.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Section("Shelf") {
                 Picker("Position", selection: $settings.shelfPosition) {
                     Text("Left").tag(SettingsStore.ShelfPosition.left)
@@ -105,9 +248,22 @@ private struct GeneralSettingsTab: View {
                 Text("Update checks contact GitHub Pages and releases only; nothing else uses the network.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                if case .error(let message) = updateController.status {
+                    Label(message, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    Button("Download Latest Release…") {
+                        updateController.openManualDownloadPage()
+                    }
+                }
             }
         }
         .formStyle(.grouped)
+        .onAppear { launchAtLoginController.refresh() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            launchAtLoginController.refresh()
+        }
     }
 }
 

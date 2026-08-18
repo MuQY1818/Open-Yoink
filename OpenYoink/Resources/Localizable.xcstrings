@@ -790,6 +790,237 @@
         "en" : { "stringUnit" : { "state" : "translated", "value" : "⌘⇧Space to toggle the shelf" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "⌘⇧Space 唤出/隐藏暂存架" } }
       }
+    },
+    "Startup" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Startup" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "启动" } }
+      }
+    },
+    "Launch OpenYoink at login" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Launch OpenYoink at login" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "登录时启动 OpenYoink" } }
+      }
+    },
+    "Approval is required in System Settings." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Approval is required in System Settings." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "需要在系统设置中批准此登录项。" } }
+      }
+    },
+    "Open Login Items" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open Login Items" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开登录项" } }
+      }
+    },
+    "Login item registration is unavailable for this copy of the app." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Login item registration is unavailable for this copy of the app." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前这份应用无法注册为登录项。" } }
+      }
+    },
+    "Download Latest Release…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Download Latest Release…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "手动下载最新版本…" } }
+      }
+    },
+    "Storage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Storage" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "存储" } }
+      }
+    },
+    "Managed Storage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Managed Storage" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "托管存储" } }
+      }
+    },
+    "Materialized files" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Materialized files" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "托管文件" } }
+      }
+    },
+    "Clean Up Unused Files" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Clean Up Unused Files" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "清理未使用文件" } }
+      }
+    },
+    "Show Data Folder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show Data Folder" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示数据文件夹" } }
+      }
+    },
+    "Cleanup is disabled while quarantined recovery data is present." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Cleanup is disabled while quarantined recovery data is present." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "存在隔离的恢复数据时不能执行清理。" } }
+      }
+    },
+    "Recovery" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Recovery" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "数据恢复" } }
+      }
+    },
+    "No recovery data is available." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No recovery data is available." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无可用的恢复数据。" } }
+      }
+    },
+    "Last Known Good Shelf" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Last Known Good Shelf" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上一份有效暂存架" } }
+      }
+    },
+    "Quarantined Shelf Data" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Quarantined Shelf Data" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已隔离的暂存架数据" } }
+      }
+    },
+    "Restore…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Restore…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "恢复…" } }
+      }
+    },
+    "Manual repair required" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Manual repair required" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "需要手动修复" } }
+      }
+    },
+    "Delete All Recovery Data…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete All Recovery Data…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除所有恢复数据…" } }
+      }
+    },
+    "Restore Shelf Data?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Restore Shelf Data?" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "恢复暂存架数据？" } }
+      }
+    },
+    "The current shelf will be preserved as a backup before the selected snapshot is restored." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The current shelf will be preserved as a backup before the selected snapshot is restored." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "恢复所选快照前，当前暂存架会先保留为备份。" } }
+      }
+    },
+    "Delete All Recovery Data?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete All Recovery Data?" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除所有恢复数据？" } }
+      }
+    },
+    "This removes OpenYoink's recovery snapshots. Files currently on the shelf are not deleted." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This removes OpenYoink's recovery snapshots. Files currently on the shelf are not deleted." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这会删除 OpenYoink 的恢复快照，但不会删除当前暂存架中的文件。" } }
+      }
+    },
+    "Shelf data was restored successfully." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Shelf data was restored successfully." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂存架数据已成功恢复。" } }
+      }
+    },
+    "Recovery data was deleted." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Recovery data was deleted." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "恢复数据已删除。" } }
+      }
+    },
+    "No unused files were found." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No unused files were found." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未发现未使用的文件。" } }
+      }
+    },
+    "Resolve or delete quarantined recovery data before cleaning files." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Resolve or delete quarantined recovery data before cleaning files." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "清理文件前，请先恢复或删除隔离数据。" } }
+      }
+    },
+    "The selected recovery file is not managed by OpenYoink." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The selected recovery file is not managed by OpenYoink." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "所选恢复文件不属于 OpenYoink 的托管范围。" } }
+      }
+    },
+    "This recovery file is damaged and cannot be restored automatically." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This recovery file is damaged and cannot be restored automatically." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此恢复文件已损坏，无法自动恢复。" } }
+      }
+    },
+    "Cancel" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Cancel" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消" } }
+      }
+    },
+    "Restore" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Restore" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "恢复" } }
+      }
+    },
+    "Delete" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除" } }
+      }
+    },
+    "Removed %lld unused items and reclaimed %@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Removed %lld unused items and reclaimed %@." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已清理 %lld 个未使用项目，释放 %@。" } }
+      }
     }
   },
   "version" : "1.0"

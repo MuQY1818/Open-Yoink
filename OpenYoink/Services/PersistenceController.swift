@@ -45,6 +45,7 @@ final class PersistenceController {
     private(set) var saveCount = 0
 
     private var shelfFileURL: URL { directoryURL.appendingPathComponent("shelf.json") }
+    private var backupShelfFileURL: URL { directoryURL.appendingPathComponent("shelf.json.backup") }
     private static let corruptSnapshotPrefix = "shelf.json.corrupt-"
     private var pendingItems: [ShelfItem]?
     private var saveTask: Task<Void, Never>?
@@ -156,6 +157,107 @@ final class PersistenceController {
         }
     }
 
+    // MARK: - Recovery snapshots
+
+    struct RecoverySnapshot: Identifiable, Equatable, Sendable {
+        enum Kind: Equatable, Sendable {
+            case lastKnownGood
+            case quarantined
+        }
+
+        let url: URL
+        let kind: Kind
+        let modifiedAt: Date?
+        let byteCount: Int64
+        /// `false` 的隔离文件仍保留给人工修复，但 UI 不允许用它覆盖当前数据。
+        let isRecoverable: Bool
+
+        var id: URL { url }
+    }
+
+    enum RecoveryError: LocalizedError, Equatable {
+        case invalidSnapshot
+        case snapshotIsUnreadable
+
+        var errorDescription: String? {
+            switch self {
+            case .invalidSnapshot:
+                String(localized: "The selected recovery file is not managed by OpenYoink.")
+            case .snapshotIsUnreadable:
+                String(localized: "This recovery file is damaged and cannot be restored automatically.")
+            }
+        }
+    }
+
+    /// 返回上一份有效快照与所有隔离文件。损坏文件也展示，方便用户在 Finder
+    /// 中取回人工修复；只有完整解码成功的条目才标记为可自动恢复。
+    func recoverySnapshots() -> [RecoverySnapshot] {
+        let fileManager = FileManager.default
+        guard let urls = try? fileManager.contentsOfDirectory(
+            at: directoryURL,
+            includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey],
+            options: [.skipsHiddenFiles]
+        ) else { return [] }
+
+        return urls.compactMap { url in
+            let kind: RecoverySnapshot.Kind
+            if url.lastPathComponent == backupShelfFileURL.lastPathComponent {
+                kind = .lastKnownGood
+            } else if url.lastPathComponent.hasPrefix(Self.corruptSnapshotPrefix) {
+                kind = .quarantined
+            } else {
+                return nil
+            }
+            let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
+            let recoverable = (try? decodeSnapshot(at: url)) != nil
+            return RecoverySnapshot(
+                url: url,
+                kind: kind,
+                modifiedAt: values?.contentModificationDate,
+                byteCount: Int64(values?.fileSize ?? 0),
+                isRecoverable: recoverable
+            )
+        }
+        .sorted { ($0.modifiedAt ?? .distantPast) > ($1.modifiedAt ?? .distantPast) }
+    }
+
+    func loadRecoverySnapshot(_ snapshot: RecoverySnapshot) throws -> [ShelfItem] {
+        guard isManagedRecoveryURL(snapshot.url) else { throw RecoveryError.invalidSnapshot }
+        do {
+            return try decodeSnapshot(at: snapshot.url).items
+        } catch {
+            throw RecoveryError.snapshotIsUnreadable
+        }
+    }
+
+    func discardRecoverySnapshot(_ snapshot: RecoverySnapshot) throws {
+        guard isManagedRecoveryURL(snapshot.url) else { throw RecoveryError.invalidSnapshot }
+        guard FileManager.default.fileExists(atPath: snapshot.url.path) else { return }
+        try FileManager.default.removeItem(at: snapshot.url)
+    }
+
+    /// 可解码恢复快照中的项目，供 Materialized 清理计算保留集合。损坏的隔离
+    /// 文件会通过 canSafelyCleanup… 阻止清理；有效 backup 则只精确保留其引用。
+    func recoverableSnapshotItems() -> [ShelfItem] {
+        recoverySnapshots().flatMap { snapshot in
+            (try? loadRecoverySnapshot(snapshot)) ?? []
+        }
+    }
+
+    private func isManagedRecoveryURL(_ url: URL) -> Bool {
+        let standardized = url.standardizedFileURL
+        guard standardized.deletingLastPathComponent() == directoryURL.standardizedFileURL else {
+            return false
+        }
+        return standardized.lastPathComponent == backupShelfFileURL.lastPathComponent
+            || standardized.lastPathComponent.hasPrefix(Self.corruptSnapshotPrefix)
+    }
+
+    private func decodeSnapshot(at url: URL) throws -> ShelfSnapshot {
+        let data = try Data(contentsOf: url)
+        return migrate(try decoder.decode(ShelfSnapshot.self, from: data))
+    }
+
     /// 把损坏的 shelf.json 改名隔离（保留供人工检查/恢复；下次保存会写新文件）。
     private func quarantineCorruptFile() {
         let stamp = makeShelfDateFormatter().string(from: Date())
@@ -234,6 +336,15 @@ final class PersistenceController {
         let temporaryURL = directoryURL.appendingPathComponent("shelf.json.tmp")
         try data.write(to: temporaryURL)
         if fileManager.fileExists(atPath: shelfFileURL.path) {
+            // 每次覆盖前保留上一份“可完整解码”的已知良好快照。.atomic 会在
+            // 同目录完成临时写与替换；备份失败不应阻止主快照继续保存。
+            do {
+                let previousData = try Data(contentsOf: shelfFileURL)
+                _ = try decoder.decode(ShelfSnapshot.self, from: previousData)
+                try previousData.write(to: backupShelfFileURL, options: .atomic)
+            } catch {
+                logger.warning("Could not refresh last-known-good shelf backup: \(error.localizedDescription, privacy: .public)")
+            }
             // replaceItemAt 是同卷原子替换；失败时旧文件保持原样。
             _ = try fileManager.replaceItemAt(shelfFileURL, withItemAt: temporaryURL)
         } else {

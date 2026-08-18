@@ -175,51 +175,42 @@ ditto "$ARCHIVE_PATH/Products/Applications/OpenYoink.app" "$APP_PATH"
 # 否则 dyld 会在启动时拒载 Sparkle.framework。各组件自己的 identifier 与
 # entitlements 仍逐一保留，不能把主程序权限套给 Sparkle 的 helper/XPC。
 if [ "$RELEASE_MODE" = "adhoc" ]; then
-    codesign --force --deep --sign - \
-        --preserve-metadata=identifier,entitlements \
-        "$APP_PATH"
+    # Sparkle 官方明确要求逐个签嵌套组件，不能 --deep。--deep 会把主 app
+    # entitlements 传播给 Installer/Updater，导致安装器无法取得授权（1.0.1
+    # 的实机失败原因）。严格按叶子 → framework → 主 app 的顺序重签。
+    SPARKLE_ROOT="$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions/B"
+    for component in \
+        "$SPARKLE_ROOT/XPCServices/Installer.xpc" \
+        "$SPARKLE_ROOT/XPCServices/Downloader.xpc" \
+        "$SPARKLE_ROOT/Autoupdate" \
+        "$SPARKLE_ROOT/Updater.app" \
+        "$APP_PATH/Contents/Frameworks/Sparkle.framework" \
+        "$APP_PATH"; do
+        codesign --force --sign - \
+            --preserve-metadata=identifier,entitlements \
+            "$component"
+    done
 fi
-codesign --verify --deep --strict --verbose=2 "$APP_PATH"
-APP_SIGN_INFO="$(codesign -dvvv "$APP_PATH" 2>&1)"
-if [ "$RELEASE_MODE" = "developer-id" ]; then
-    if ! printf '%s\n' "$APP_SIGN_INFO" | grep -Eq 'flags=.*runtime'; then
-        echo "error: 导出的 app 未启用 Hardened Runtime，拒绝 Developer ID 发布。" >&2
-        exit 1
-    fi
-    if printf '%s\n' "$APP_SIGN_INFO" | grep -Fq 'Signature=adhoc'; then
-        echo "error: 导出的 app 仍是 ad hoc 签名，拒绝 Developer ID 发布。" >&2
-        exit 1
-    fi
-    if ! printf '%s\n' "$APP_SIGN_INFO" | grep -Fq "TeamIdentifier=$DEVELOPMENT_TEAM_ID"; then
-        echo "error: app 的 TeamIdentifier 与 DEVELOPMENT_TEAM_ID 不一致。" >&2
-        exit 1
-    fi
-elif ! printf '%s\n' "$APP_SIGN_INFO" | grep -Fq 'Signature=adhoc'; then
-    echo "error: --adhoc 模式未生成 ad hoc 主程序签名。" >&2
-    exit 1
-elif printf '%s\n' "$APP_SIGN_INFO" | grep -Eq 'flags=.*runtime'; then
-    echo "error: --adhoc 模式仍启用了 Hardened Runtime，Sparkle 会因 Team ID 不匹配而无法载入。" >&2
-    exit 1
-fi
-ENTITLEMENTS_FILE="$(mktemp /tmp/openyoink-entitlements.XXXXXX)"
-trap 'rm -f "$ENTITLEMENTS_FILE"' EXIT
-codesign -d --entitlements :- "$APP_PATH" >"$ENTITLEMENTS_FILE" 2>/dev/null
-if grep -Fq '$(PRODUCT_BUNDLE_IDENTIFIER)' "$ENTITLEMENTS_FILE"; then
-    echo "error: app entitlements 仍含未展开的构建变量，拒绝发布。" >&2
-    exit 1
-fi
-GET_TASK_ALLOW="$(plutil -extract com.apple.security.get-task-allow raw -o - "$ENTITLEMENTS_FILE" 2>/dev/null || true)"
-if [ "$GET_TASK_ALLOW" = "true" ]; then
-    echo "error: Release app 含 get-task-allow 调试权限，拒绝发布。" >&2
-    exit 1
-fi
-
 SHORT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP_PATH/Contents/Info.plist")"
 BUNDLE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$APP_PATH/Contents/Info.plist")"
 echo "    shortVersionString=$SHORT_VERSION  bundleVersion=$BUNDLE_VERSION"
 if [ "$SHORT_VERSION" != "$VERSION" ] || [ "$BUNDLE_VERSION" != "$BUILD_NUMBER" ]; then
     echo "error: 归档内版本与请求不一致（期望 $VERSION ($BUILD_NUMBER)），拒绝发布。" >&2
     exit 1
+fi
+
+./Scripts/verify-distribution.sh "$APP_PATH" "$RELEASE_MODE" "$VERSION" "$BUILD_NUMBER"
+
+if [ "$RELEASE_MODE" = "developer-id" ]; then
+    APP_SIGN_INFO="$(codesign -dvvv "$APP_PATH" 2>&1)"
+    if ! printf '%s\n' "$APP_SIGN_INFO" | grep -Eq 'flags=.*runtime'; then
+        echo "error: 导出的 app 未启用 Hardened Runtime，拒绝 Developer ID 发布。" >&2
+        exit 1
+    fi
+    if ! printf '%s\n' "$APP_SIGN_INFO" | grep -Fq "TeamIdentifier=$DEVELOPMENT_TEAM_ID"; then
+        echo "error: app 的 TeamIdentifier 与 DEVELOPMENT_TEAM_ID 不一致。" >&2
+        exit 1
+    fi
 fi
 
 # ---- 3. DMG ----

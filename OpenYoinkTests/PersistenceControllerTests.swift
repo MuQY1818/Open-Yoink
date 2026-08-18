@@ -210,6 +210,57 @@ final class PersistenceControllerTests: XCTestCase {
             atPath: directory.appendingPathComponent("shelf.json.tmp").path))
     }
 
+    // MARK: - Recovery snapshots
+
+    func testSaveOverExistingSnapshot_preservesLastKnownGoodBackup() throws {
+        let directory = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let controller = PersistenceController(directoryURL: directory)
+
+        try controller.saveNow([makeItem("old")])
+        try controller.saveNow([makeItem("new")])
+
+        let backup = try XCTUnwrap(
+            controller.recoverySnapshots().first { $0.kind == .lastKnownGood }
+        )
+        XCTAssertTrue(backup.isRecoverable)
+        XCTAssertEqual(try controller.loadRecoverySnapshot(backup).map(\.displayName), ["old"])
+        XCTAssertEqual(controller.load().map(\.displayName), ["new"])
+    }
+
+    func testRecoverySnapshots_marksDamagedQuarantineAsUnreadable() throws {
+        let directory = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let damagedURL = directory.appendingPathComponent("shelf.json.corrupt-test")
+        try "broken".write(to: damagedURL, atomically: true, encoding: .utf8)
+        let controller = PersistenceController(directoryURL: directory)
+
+        let snapshot = try XCTUnwrap(controller.recoverySnapshots().first)
+
+        XCTAssertEqual(snapshot.kind, .quarantined)
+        XCTAssertFalse(snapshot.isRecoverable)
+        XCTAssertThrowsError(try controller.loadRecoverySnapshot(snapshot)) { error in
+            XCTAssertEqual(error as? PersistenceController.RecoveryError, .snapshotIsUnreadable)
+        }
+    }
+
+    func testRecoverySnapshot_refusesURLOutsideManagedDirectory() throws {
+        let directory = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let controller = PersistenceController(directoryURL: directory)
+        let outside = PersistenceController.RecoverySnapshot(
+            url: FileManager.default.temporaryDirectory.appendingPathComponent("shelf.json.backup"),
+            kind: .lastKnownGood,
+            modifiedAt: nil,
+            byteCount: 0,
+            isRecoverable: true
+        )
+
+        XCTAssertThrowsError(try controller.loadRecoverySnapshot(outside)) { error in
+            XCTAssertEqual(error as? PersistenceController.RecoveryError, .invalidSnapshot)
+        }
+    }
+
     // MARK: - Debounce
 
     func testScheduledSaves_coalesceIntoSingleDiskWrite() async throws {
