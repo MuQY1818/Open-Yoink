@@ -71,6 +71,11 @@ final class DropImportCoordinator {
     let noticeCenter: ShelfNoticeModel
     /// F-05: ⌘+拖入（剪切模式）的搬运编排（copy → 校验 → trash → isCut item）。
     let cutMoveService: CutMoveService
+    /// v1.2: 托管移动恢复事务。只有 managed item 已同步写入 shelf snapshot
+    /// 后才由 `markManagedMoveCommitted` 删除对应记录。
+    let managedMoveJournal: ManagedMoveJournal
+    /// v1.2: runtime-only batch status rendered by ShelfActivityStrip.
+    let transferStore: TransferStore
     private let tempFileService: TempFileService
     private let promiseReceiver: FilePromiseReceiver
     private let logger = Logger(subsystem: "com.weijue.OpenYoink", category: "DropImport")
@@ -78,15 +83,25 @@ final class DropImportCoordinator {
     init(bookmarkService: BookmarkService,
          tempFileService: TempFileService,
          noticeCenter: ShelfNoticeModel = ShelfNoticeModel(),
+         managedMoveJournal: ManagedMoveJournal? = nil,
+         transferStore: TransferStore? = nil,
          cutMoveService: CutMoveService? = nil) {
         self.bookmarkService = bookmarkService
         self.tempFileService = tempFileService
         self.noticeCenter = noticeCenter
-        self.cutMoveService = cutMoveService ?? CutMoveService(tempFileService: tempFileService,
-                                                               bookmarkService: bookmarkService)
+        self.transferStore = transferStore ?? TransferStore()
+        let journal = managedMoveJournal
+            ?? cutMoveService?.managedMoveJournal
+            ?? ManagedMoveJournal(directoryURL: tempFileService.directoryURL.deletingLastPathComponent())
+        self.managedMoveJournal = journal
+        self.cutMoveService = cutMoveService ?? CutMoveService(
+            tempFileService: tempFileService,
+            bookmarkService: bookmarkService,
+            managedMoveJournal: journal
+        )
         self.promiseReceiver = FilePromiseReceiver(tempFileService: tempFileService,
                                                    bookmarkService: bookmarkService,
-                                                   noticeCenter: noticeCenter)
+                                                   transferStore: self.transferStore)
     }
 
     // MARK: - Entry point
@@ -110,8 +125,14 @@ final class DropImportCoordinator {
     @discardableResult
     func importItems(from pasteboard: NSPasteboard,
                      mode: DropInMode = .copy,
+                     onManagedMoveReady: (@MainActor (ShelfItem) -> Bool)? = nil,
                      onAsyncItemReady: @escaping @MainActor (ShelfItem) -> Void) -> DropImportResult {
-        let result = dispatchImport(from: pasteboard, mode: mode, onAsyncItemReady: onAsyncItemReady)
+        let batchID = UUID()
+        let result = dispatchImport(from: pasteboard,
+                                    batchID: batchID,
+                                    mode: mode,
+                                    onManagedMoveReady: onManagedMoveReady,
+                                    onAsyncItemReady: onAsyncItemReady)
         if result.handled {
             onImportHandled?()
         }
@@ -120,13 +141,17 @@ final class DropImportCoordinator {
 
     /// 实际的分派逻辑（`importItems` 的薄包装之下，便于统一触发导入回调）。
     private func dispatchImport(from pasteboard: NSPasteboard,
+                                batchID: UUID,
                                 mode: DropInMode,
+                                onManagedMoveReady: (@MainActor (ShelfItem) -> Bool)?,
                                 onAsyncItemReady: @escaping @MainActor (ShelfItem) -> Void) -> DropImportResult {
         let types = pasteboard.types ?? []
 
         // 1. file promise 优先（高质量表示；F-03 明确建议先尝试 promise）。
         if PasteboardTypes.supports(.filePromise, types: types) {
-            let pending = promiseReceiver.receivePromises(from: pasteboard, onItemReady: onAsyncItemReady)
+            let pending = promiseReceiver.receivePromises(from: pasteboard,
+                                                           taskID: batchID,
+                                                           onItemReady: onAsyncItemReady)
             if pending > 0 {
                 return DropImportResult(items: [], pendingMaterializations: pending)
             }
@@ -135,16 +160,31 @@ final class DropImportCoordinator {
 
         // 2. fileURL（Finder 文件/文件夹，及其他应用的文件表示）。
         if PasteboardTypes.supports(.fileURL, types: types) {
-            // F-05: ⌘+拖入走剪切搬运（逐文件独立成败，失败回退引用模式）。
-            let items = mode == .move ? cutMovedItems(from: pasteboard) : fileURLItems(from: pasteboard)
-            if !items.isEmpty {
-                return DropImportResult(items: items, pendingMaterializations: 0)
+            if mode == .move {
+                // v1.2: copy/trash can be expensive. Capture bookmarks while
+                // the pasteboard grant is active, then perform each transaction
+                // serially on a detached task.
+                let pending = scheduleCutMovedItems(
+                    from: pasteboard,
+                    taskID: batchID,
+                    onManagedMoveReady: onManagedMoveReady,
+                    onItemReady: onAsyncItemReady
+                )
+                if pending > 0 {
+                    return DropImportResult(items: [], pendingMaterializations: pending)
+                }
+            } else {
+                let items = fileURLItems(from: pasteboard)
+                if !items.isEmpty {
+                    return DropImportResult(items: items, pendingMaterializations: 0)
+                }
             }
         }
 
         // 3. 图片数据（无文件 URL 的位图）：物化 PNG 到 TempFileService 目录。
         if let imageType = PasteboardTypes.preferredImageType(in: types) {
             let pending = scheduleImageMaterialization(from: pasteboard,
+                                                       taskID: batchID,
                                                        preferredType: imageType,
                                                        onItemReady: onAsyncItemReady)
             if pending > 0 {
@@ -169,11 +209,22 @@ final class DropImportCoordinator {
         }
 
         // 6. 兜底链（任务一）：主链零产出时逐 item 处理，尽可能物化出内容。
-        let fallback = fallbackImport(from: pasteboard, onAsyncItemReady: onAsyncItemReady)
+        let fallback = fallbackImport(from: pasteboard,
+                                      taskID: batchID,
+                                      onAsyncItemReady: onAsyncItemReady)
         guard !fallback.items.isEmpty || fallback.pending > 0 else {
             logger.warning("Drop contained no importable content; declared types: \(types.map(\.rawValue), privacy: .public)")
             noticeCenter.show(String(localized: "That content can't be added to the shelf yet."))
             return .unhandled
+        }
+        // A heterogeneous fallback drop can contain synchronous rich text/URL
+        // items alongside background materializations. Once a runtime batch
+        // exists, include those already-ready items in the same factual total.
+        if fallback.pending > 0, !fallback.items.isEmpty {
+            transferStore.extendImport(id: batchID, by: fallback.items.count)
+            for item in fallback.items {
+                transferStore.recordSuccess(taskID: batchID, itemID: item.id)
+            }
         }
         return DropImportResult(items: fallback.items, pendingMaterializations: fallback.pending)
     }
@@ -184,6 +235,7 @@ final class DropImportCoordinator {
     /// 逐 pasteboard item 独立走 a→b→c→d 分支；同步产出的项目直接返回，
     /// 通用数据物化（payload 可能很大）走后台写盘、计入 pending。
     private func fallbackImport(from pasteboard: NSPasteboard,
+                                taskID: UUID,
                                 onAsyncItemReady: @escaping @MainActor (ShelfItem) -> Void)
         -> (items: [ShelfItem], pending: Int) {
         var items: [ShelfItem] = []
@@ -212,7 +264,9 @@ final class DropImportCoordinator {
             }
             // c. 通用数据物化：最佳类型挑选（tier 排序见
             //    `PasteboardTypes.materializationCandidates`），后台写盘。
-            if scheduleDataMaterialization(from: pasteboardItem, onItemReady: onAsyncItemReady) {
+            if scheduleDataMaterialization(from: pasteboardItem,
+                                           taskID: taskID,
+                                           onItemReady: onAsyncItemReady) {
                 pending += 1
                 continue
             }
@@ -301,6 +355,7 @@ final class DropImportCoordinator {
     /// 能读出非空 data 的类型，后台写盘（payload 可能很大，与图片物化同模式），
     /// kind 按 UTI 推断（image→.image，其余 .file）。返回是否已派发。
     private func scheduleDataMaterialization(from pasteboardItem: NSPasteboardItem,
+                                             taskID: UUID,
                                              onItemReady: @escaping @MainActor (ShelfItem) -> Void) -> Bool {
         for candidate in PasteboardTypes.materializationCandidates(in: pasteboardItem.types) {
             // tier3（动态/桥接/泛型）且能读出「有意义的文本」→ 文本项比 .dat
@@ -319,8 +374,20 @@ final class DropImportCoordinator {
             let baseName = PasteboardTypes.materializedDisplayBaseName(for: type)
             let fileName = "\(Self.sanitizedFileNameComponent(baseName)).\(fileExtension)"
             let kind: ItemKind = UTType(type.rawValue)?.conforms(to: .image) == true ? .image : .file
-            let reportFailure: @MainActor () -> Void = { [noticeCenter] in
-                noticeCenter.show(String(localized: "Couldn't add the dropped item."))
+            transferStore.extendImport(id: taskID, by: 1)
+            let reportFailure: @MainActor () -> Void = { [transferStore] in
+                transferStore.recordFailure(
+                    taskID: taskID,
+                    failure: TransferFailure(
+                        reason: .materializationFailed,
+                        itemName: fileName,
+                        recoveryAction: .dragAgainFromSource
+                    )
+                )
+            }
+            let reportSuccess: @MainActor (ShelfItem) -> Void = { [transferStore] item in
+                onItemReady(item)
+                transferStore.recordSuccess(taskID: taskID, itemID: item.id)
             }
             Task.detached { [bookmarkService, tempFileService, logger] in
                 do {
@@ -331,7 +398,7 @@ final class DropImportCoordinator {
                                                        forcedKind: kind,
                                                        bookmarkService: bookmarkService,
                                                        logger: logger)
-                    await onItemReady(item)
+                    await reportSuccess(item)
                 } catch {
                     logger.error("Failed to materialize dropped data (\(type.rawValue, privacy: .public)): \(error.localizedDescription, privacy: .public)")
                     await reportFailure()
@@ -386,28 +453,98 @@ final class DropImportCoordinator {
 
     // MARK: - fileURL（F-05 剪切模式）
 
-    /// ⌘+拖入：逐文件经 `CutMoveService` 搬运，独立成败。回退引用模式时
-    /// 按原因提示（防套娃静默回退；copy/trash 失败告知用户已改为引用）。
-    private func cutMovedItems(from pasteboard: NSPasteboard) -> [ShelfItem] {
+    /// ⌘+拖入：在拖放会话内同步捕获 URL + bookmark，随后把 copy → journal
+    /// → trash 搬运放到后台串行执行。串行避免一次多选拖入同时争抢磁盘 IO，
+    /// 同时保持来源顺序。成功的 managed item 走专用回调，调用方必须先同步
+    /// 持久化再删除 journal；失败回退项走普通异步回调。
+    private func scheduleCutMovedItems(
+        from pasteboard: NSPasteboard,
+        taskID: UUID,
+        onManagedMoveReady: (@MainActor (ShelfItem) -> Bool)?,
+        onItemReady: @escaping @MainActor (ShelfItem) -> Void
+    ) -> Int {
         guard let urls = pasteboard.readObjects(
             forClasses: [NSURL.self],
             options: [.urlReadingFileURLsOnly: true]
         ) as? [URL] else {
-            return []
+            return 0
         }
-        return urls.map { url in
-            switch cutMoveService.makeCutItem(for: url, displayName: url.lastPathComponent) {
-            case .moved(let item):
-                return item
-            case .fallbackToReference(let item, let reason):
-                switch reason {
-                case .sourceInsideContainer:
-                    break // 防套娃：静默回落引用模式
-                case .copyFailed, .trashFailed:
-                    noticeCenter.show(String(localized: "Couldn't move \(url.lastPathComponent) — a reference was added instead."))
+
+        let service = cutMoveService
+        let requests = urls.map {
+            service.prepareRequest(for: $0, displayName: $0.lastPathComponent)
+        }
+        guard !requests.isEmpty else { return 0 }
+        transferStore.beginImport(
+            id: taskID,
+            expectedCount: requests.count,
+            safetyMessage: String(localized: "Managed copies are protected while originals move to the Trash.")
+        )
+        let transferStore = transferStore
+        Task.detached(priority: .userInitiated) {
+            for request in requests {
+                switch service.makeCutItem(for: request) {
+                case .moved(let item):
+                    await MainActor.run {
+                        let committed: Bool
+                        if let onManagedMoveReady {
+                            committed = onManagedMoveReady(item)
+                        } else {
+                            // Defensive compatibility path. The journal stays
+                            // until startup reconciliation if the caller does
+                            // not provide the commit-aware callback.
+                            onItemReady(item)
+                            committed = true
+                        }
+                        if committed {
+                            transferStore.recordSuccess(taskID: taskID, itemID: item.id)
+                        } else {
+                            transferStore.recordWarning(
+                                taskID: taskID,
+                                itemID: item.id,
+                                warning: TransferFailure(
+                                    reason: .persistenceFailed,
+                                    itemName: request.displayName,
+                                    recoveryAction: .openStorageRecovery,
+                                    impact: .itemAddedWithWarning
+                                )
+                            )
+                        }
+                    }
+                case .fallbackToReference(let item, let reason):
+                    await MainActor.run {
+                        onItemReady(item)
+                        if reason == .sourceInsideContainer {
+                            // The item was intentionally downgraded to a normal
+                            // reference, so the batch still succeeded.
+                            transferStore.recordSuccess(taskID: taskID, itemID: item.id)
+                        } else {
+                            transferStore.recordWarning(
+                                taskID: taskID,
+                                itemID: item.id,
+                                warning: TransferFailure(
+                                    reason: .managedMoveFellBackToReference,
+                                    itemName: request.displayName,
+                                    recoveryAction: .dismiss,
+                                    impact: .itemAddedWithWarning
+                                )
+                            )
+                        }
+                    }
                 }
-                return item
             }
+        }
+        return requests.count
+    }
+
+    /// Deletes the recovery transaction after the caller has synchronously
+    /// committed `item` to the shelf snapshot. Failure is safe: the record is
+    /// reconciled on the next launch and continues protecting its managed path.
+    func markManagedMoveCommitted(itemID: UUID) {
+        do {
+            try managedMoveJournal.remove(id: itemID)
+        } catch {
+            logger.error("Failed to finish managed move transaction \(itemID.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -416,6 +553,7 @@ final class DropImportCoordinator {
     /// 提取各 pasteboard item 的图片 Data 后派发到后台物化。NSPasteboardItem
     /// 非 Sendable，Data 必须在本层（MainActor）就地取出，不跨 actor 传递原 item。
     private func scheduleImageMaterialization(from pasteboard: NSPasteboard,
+                                              taskID: UUID,
                                               preferredType: NSPasteboard.PasteboardType,
                                               onItemReady: @escaping @MainActor (ShelfItem) -> Void) -> Int {
         let payloads: [(type: NSPasteboard.PasteboardType, data: Data)] =
@@ -427,10 +565,21 @@ final class DropImportCoordinator {
                 return (type, data)
             }
 
-        // D10: 失败提示经 @MainActor 闭包桥回（@MainActor 闭包天然 Sendable，
-        // 可安全捕获进 detached 任务；直接捕获 MainActor 类则违反严格并发）。
-        let reportFailure: @MainActor () -> Void = { [noticeCenter] in
-            noticeCenter.show(String(localized: "Couldn't add the dropped item."))
+        guard !payloads.isEmpty else { return 0 }
+        transferStore.beginImport(id: taskID, expectedCount: payloads.count)
+        let reportFailure: @MainActor () -> Void = { [transferStore] in
+            transferStore.recordFailure(
+                taskID: taskID,
+                failure: TransferFailure(
+                    reason: .materializationFailed,
+                    itemName: Self.materializedImageDisplayName,
+                    recoveryAction: .dragAgainFromSource
+                )
+            )
+        }
+        let reportSuccess: @MainActor (ShelfItem) -> Void = { [transferStore] item in
+            onItemReady(item)
+            transferStore.recordSuccess(taskID: taskID, itemID: item.id)
         }
         for payload in payloads {
             Task.detached { [bookmarkService, tempFileService, logger] in
@@ -445,7 +594,7 @@ final class DropImportCoordinator {
                                                        forcedKind: .image,
                                                        bookmarkService: bookmarkService,
                                                        logger: logger)
-                    await onItemReady(item)
+                    await reportSuccess(item)
                 } catch {
                     // 失败不崩溃、不静默：日志记录 + D10 内联提示，拖放本身仍视为已处理。
                     logger.error("Failed to materialize dropped image data: \(error.localizedDescription, privacy: .public)")

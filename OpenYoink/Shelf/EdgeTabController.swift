@@ -272,7 +272,21 @@ final class EdgeTabController: NSObject {
     /// shelf 给出反馈。
     private func handleDrop(_ pasteboard: NSPasteboard) -> Bool {
         let mode = DropImportCoordinator.dropMode(for: pasteboard, modifiers: NSEvent.modifierFlags)
-        let result = importCoordinator.importItems(from: pasteboard, mode: mode) { [store] item in
+        let result = importCoordinator.importItems(
+            from: pasteboard,
+            mode: mode,
+            onManagedMoveReady: { [store, importCoordinator] item in
+                do {
+                    try store.addAndPersistNow(item)
+                    importCoordinator.markManagedMoveCommitted(itemID: item.id)
+                    return true
+                } catch {
+                    store.add(item)
+                    importCoordinator.noticeCenter.show(String(localized: "The moved item is being kept for recovery because the shelf could not be saved immediately."))
+                    return false
+                }
+            }
+        ) { [store] item in
             store.add(item)
         }
         guard result.handled else { return false }

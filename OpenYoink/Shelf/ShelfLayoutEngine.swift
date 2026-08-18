@@ -30,6 +30,8 @@ enum ShelfLayoutEngine {
     static let handleContentAllowance: CGFloat = 4
     /// 标题栏块高度（含 VStack 间距）。
     static let headerHeight: CGFloat = 28
+    /// ActivityStrip 自身与 VStack 间距。只在状态可见时预留，避免覆盖卡片。
+    static let activityStripHeight: CGFloat = 42
     /// 单行卡片高度估算：缩略图区 52 + 间距 5 + 名称行 ~15 + 卡片 padding 12。
     static let cardRowHeight: CGFloat = 84
     /// 空架时的紧凑总高度（让 `ShelfEmptyState` 插画居中即可，不撑满）。
@@ -60,13 +62,15 @@ enum ShelfLayoutEngine {
     /// 上限为可见高度的 80%（超出滚动）；空架给紧凑空态高度。
     static func contentHeight(itemCount: Int,
                               panelWidth: CGFloat,
-                              visibleHeight: CGFloat) -> CGFloat {
+                              visibleHeight: CGFloat,
+                              hasActivity: Bool = false) -> CGFloat {
         let cap = visibleHeight * maximumHeightFraction
-        guard itemCount > 0 else { return min(emptyStateHeight, cap) }
+        let activityHeight = hasActivity ? activityStripHeight : 0
+        guard itemCount > 0 else { return min(emptyStateHeight + activityHeight, cap) }
         let columns = columnCount(forPanelWidth: panelWidth)
         let rows = max(1, (itemCount + columns - 1) / columns)
         let gridHeight = CGFloat(rows) * cardRowHeight + CGFloat(rows - 1) * gridSpacing
-        return min(headerHeight + gridHeight + contentPadding, cap)
+        return min(headerHeight + gridHeight + contentPadding + activityHeight, cap)
     }
 
     /// 边缘吸附 frame：贴 position 对应缘。UX5 起高度由内容决定
@@ -274,6 +278,7 @@ enum ShelfLayoutEngine {
     static func targetFrame(position: SettingsStore.ShelfPosition,
                             width: CGFloat,
                             itemCount: Int,
+                            hasActivity: Bool = false,
                             mouseLocation: CGPoint,
                             screens: [ScreenGeometry],
                             persistedCustomFrame: CGRect?,
@@ -285,7 +290,8 @@ enum ShelfLayoutEngine {
         case .left, .right:
             let height = contentHeight(itemCount: itemCount,
                                        panelWidth: width,
-                                       visibleHeight: screen.visibleFrame.height)
+                                       visibleHeight: screen.visibleFrame.height,
+                                       hasActivity: hasActivity)
             // left/right 必有 edge frame（nil 仅 custom 返回），兜底同防护分支。
             return edgeAttachedFrame(position: position, width: width, height: height,
                                      visibleFrame: screen.visibleFrame, edgeOffset: edgeOffset)

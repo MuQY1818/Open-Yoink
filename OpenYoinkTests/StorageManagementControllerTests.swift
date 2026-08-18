@@ -68,4 +68,59 @@ final class StorageManagementControllerTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: orphanURL.path))
         XCTAssertNil(controller.errorMessage)
     }
+
+    func testCleanupProtectsManagedMoveJournalFiles() throws {
+        let root = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let persistence = PersistenceController(directoryURL: root)
+        let materialized = root.appendingPathComponent("Materialized", isDirectory: true)
+        let temp = TempFileService(directoryURL: materialized)
+        let journal = ManagedMoveJournal(directoryURL: root)
+        let protectedURL = try temp.uniqueFileURL(suggestedName: "moving.dat")
+        let orphanURL = try temp.uniqueFileURL(suggestedName: "orphan.dat")
+        try Data([1]).write(to: protectedURL)
+        try Data([2]).write(to: orphanURL)
+        let reference = item("source", path: root.appendingPathComponent("source.dat").path)
+        let managed = ShelfItem(kind: .file,
+                                path: protectedURL.path,
+                                displayName: "moving.dat",
+                                isCut: true)
+        try journal.createPrepared(referenceItem: reference, managedItem: managed)
+        let controller = StorageManagementController(
+            persistence: persistence,
+            tempFileService: temp,
+            shelfStore: ShelfStore(items: [], persistence: persistence),
+            managedMoveJournal: journal
+        )
+
+        controller.cleanUnusedFiles()
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: protectedURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: orphanURL.path))
+        XCTAssertNil(controller.errorMessage)
+    }
+
+    func testDamagedManagedMoveJournalDisablesCleanup() throws {
+        let root = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let persistence = PersistenceController(directoryURL: root)
+        let materialized = root.appendingPathComponent("Materialized", isDirectory: true)
+        let temp = TempFileService(directoryURL: materialized)
+        let orphanURL = try temp.uniqueFileURL(suggestedName: "keep.dat")
+        try Data([1]).write(to: orphanURL)
+        try Data("damaged".utf8).write(to: root.appendingPathComponent("managed-moves.json"))
+        let journal = ManagedMoveJournal(directoryURL: root)
+        let controller = StorageManagementController(
+            persistence: persistence,
+            tempFileService: temp,
+            shelfStore: ShelfStore(items: [], persistence: persistence),
+            managedMoveJournal: journal
+        )
+
+        XCTAssertFalse(controller.canCleanUnusedFiles)
+        controller.cleanUnusedFiles()
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: orphanURL.path))
+        XCTAssertNotNil(controller.errorMessage)
+    }
 }

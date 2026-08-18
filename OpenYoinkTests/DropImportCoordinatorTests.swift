@@ -244,6 +244,8 @@ final class DropImportCoordinatorTests: XCTestCase {
         XCTAssertTrue(path.hasPrefix(context.tempFileService.directoryURL.path))
         // 落盘内容与原 PNG 一致。
         XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: path)), pngData)
+        XCTAssertEqual(context.coordinator.transferStore.currentTask?.phase, .delivered)
+        XCTAssertEqual(context.coordinator.transferStore.currentTask?.itemIDs, [item.id])
     }
 
     // MARK: - URL

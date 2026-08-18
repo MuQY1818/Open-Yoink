@@ -73,6 +73,21 @@ final class ShelfStore {
         persist()
     }
 
+    /// Adds an item only after the resulting shelf snapshot has been written
+    /// synchronously. Managed moves use this durability boundary before their
+    /// crash-recovery journal can be removed.
+    ///
+    /// With no injected persistence (unit tests/previews), this behaves like a
+    /// normal add while still avoiding a second debounced save.
+    func addAndPersistNow(_ item: ShelfItem, at index: Int? = nil) throws {
+        let insertionIndex = min(max(index ?? items.count, 0), items.count)
+        var updatedItems = items
+        updatedItems.insert(item, at: insertionIndex)
+        try persistence?.saveNow(updatedItems)
+        items = updatedItems
+        onItemsDidChange?()
+    }
+
     // MARK: - Removing (never deletes the user's original files)
 
     /// Removes the given items from the shelf and returns them.

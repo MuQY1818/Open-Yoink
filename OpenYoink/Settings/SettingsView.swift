@@ -114,7 +114,7 @@ private struct StorageSettingsTab: View {
                 }
 
                 if !storage.canCleanUnusedFiles {
-                    Text("Cleanup is disabled while quarantined recovery data is present.")
+                    Text("Cleanup is disabled while recovery data needs attention.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

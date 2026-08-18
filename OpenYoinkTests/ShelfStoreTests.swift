@@ -301,6 +301,37 @@ final class ShelfStoreTests: XCTestCase {
 
     // MARK: - Persistence integration
 
+    func testAddAndPersistNowCommitsBeforePublishingRuntimeItem() throws {
+        let directory = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let persistence = PersistenceController(directoryURL: directory)
+        let store = ShelfStore(persistence: persistence)
+        let item = makeItem("managed")
+        var callbackSawDurableItem = false
+        store.onItemsDidChange = {
+            callbackSawDurableItem = persistence.load().contains { $0.id == item.id }
+        }
+
+        try store.addAndPersistNow(item)
+
+        XCTAssertEqual(store.items.map(\.id), [item.id])
+        XCTAssertEqual(persistence.load().map(\.id), [item.id])
+        XCTAssertTrue(callbackSawDurableItem)
+    }
+
+    func testAddAndPersistNowLeavesRuntimeUntouchedWhenSaveFails() throws {
+        let root = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let notADirectory = root.appendingPathComponent("blocked")
+        try Data([1]).write(to: notADirectory)
+        let persistence = PersistenceController(directoryURL: notADirectory)
+        let existing = makeItem("existing")
+        let store = ShelfStore(items: [existing], persistence: persistence)
+
+        XCTAssertThrowsError(try store.addAndPersistNow(makeItem("new")))
+        XCTAssertEqual(store.items.map(\.id), [existing.id])
+    }
+
     func testMutations_triggerDebouncedPersistence() throws {
         let directory = try makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

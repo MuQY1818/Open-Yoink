@@ -12,23 +12,22 @@ import OSLog
 /// 移动到物化目录顶层（`uniqueFileURL`，与 `cleanupOrphans` 的顶层保留语义
 /// 对齐）→ 创建 bookmark + ShelfItem → MainActor 回调。
 ///
-/// 错误路径：物化失败/移文件失败/书签创建失败均记录日志，不崩溃、不静默丢；
-/// staging 目录由下次启动的按龄策略清理。S10 起失败同时经 `ShelfNoticeModel` 给出
-/// shelf 标题栏下方的瞬态内联提示（不阻塞、不打扰，理由见该类型注释）。
+/// 错误路径：物化失败/移文件失败/书签创建失败均记录日志，并汇总到
+/// `TransferStore` 的批次状态；staging 目录由下次启动的按龄策略清理。
 @MainActor
 final class FilePromiseReceiver {
     private let tempFileService: TempFileService
     private let bookmarkService: BookmarkService
-    private let noticeCenter: ShelfNoticeModel
+    private let transferStore: TransferStore
     private let operationQueue: OperationQueue
     private let logger = Logger(subsystem: "com.weijue.OpenYoink", category: "FilePromiseReceiver")
 
     init(tempFileService: TempFileService,
          bookmarkService: BookmarkService,
-         noticeCenter: ShelfNoticeModel = ShelfNoticeModel()) {
+         transferStore: TransferStore = TransferStore()) {
         self.tempFileService = tempFileService
         self.bookmarkService = bookmarkService
-        self.noticeCenter = noticeCenter
+        self.transferStore = transferStore
         self.operationQueue = OperationQueue()
         self.operationQueue.name = "com.weijue.OpenYoink.FilePromiseReceive"
         // 计划 §2.3：promise 写入放后台队列，QoS userInitiated。
@@ -42,6 +41,7 @@ final class FilePromiseReceiver {
     /// receiver 数量；返回 0 表示声明了 promise 类型但读不到对象，调用方应
     /// 按优先级回退到 fileURL 等后续类别。
     func receivePromises(from pasteboard: NSPasteboard,
+                         taskID: UUID,
                          onItemReady: @escaping @MainActor (ShelfItem) -> Void) -> Int {
         guard let receivers = pasteboard.readObjects(
             forClasses: [NSFilePromiseReceiver.self],
@@ -65,6 +65,22 @@ final class FilePromiseReceiver {
             logger.error("Failed to create promise staging directory: \(error.localizedDescription, privacy: .public)")
             return 0
         }
+        transferStore.beginImport(id: taskID, expectedCount: nil)
+        var expectedFileCount = 0
+        let reportSuccess: @MainActor (ShelfItem) -> Void = { [transferStore] item in
+            onItemReady(item)
+            transferStore.recordSuccess(taskID: taskID, itemID: item.id)
+        }
+        let reportFailure: @MainActor (String?) -> Void = { [transferStore] itemName in
+            transferStore.recordFailure(
+                taskID: taskID,
+                failure: TransferFailure(
+                    reason: .promiseReceiveFailed,
+                    itemName: itemName,
+                    recoveryAction: .dragAgainFromSource
+                )
+            )
+        }
         for receiver in receivers {
             // `fileTypes` 仅在拖拽会话内有效，立即提取为值类型。
             let promisedTypes = receiver.fileTypes
@@ -79,7 +95,7 @@ final class FilePromiseReceiver {
                 atDestination: stagingURL,
                 options: [:],
                 operationQueue: operationQueue
-            ) { @Sendable [tempFileService, bookmarkService, noticeCenter, logger] fileURL, error in
+            ) { @Sendable [tempFileService, bookmarkService, logger] fileURL, error in
                 Self.handleMaterializedPromise(
                     fileURL: fileURL,
                     error: error,
@@ -89,17 +105,23 @@ final class FilePromiseReceiver {
                     logger: logger,
                     completion: { item in
                         Task { @MainActor in
-                            onItemReady(item)
+                            reportSuccess(item)
                         }
                     },
                     failure: {
                         Task { @MainActor in
-                            noticeCenter.show(String(localized: "Couldn't add the dropped item."))
+                            reportFailure(fileURL.lastPathComponent)
                         }
                     }
                 )
             }
+            // `fileNames` becomes available after the promise is called in and
+            // is a better count than `fileTypes` for legacy multi-file promises.
+            // Keep one as the conservative minimum so cancellation still ends
+            // the batch when a source reports no names.
+            expectedFileCount += max(receiver.fileNames.count, 1)
         }
+        transferStore.setExpectedCount(expectedFileCount, for: taskID)
         return dispatched
     }
 

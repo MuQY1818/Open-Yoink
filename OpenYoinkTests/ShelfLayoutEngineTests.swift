@@ -279,6 +279,21 @@ final class ShelfLayoutEngineTests: XCTestCase {
                                                        visibleHeight: 200), 160)
     }
 
+    func testContentHeight_activityStripReservesSpaceWithoutExceedingCap() {
+        XCTAssertEqual(
+            ShelfLayoutEngine.contentHeight(itemCount: 3, panelWidth: 320,
+                                            visibleHeight: 1000, hasActivity: true),
+            ShelfLayoutEngine.contentHeight(itemCount: 3, panelWidth: 320,
+                                            visibleHeight: 1000)
+                + ShelfLayoutEngine.activityStripHeight
+        )
+        XCTAssertEqual(
+            ShelfLayoutEngine.contentHeight(itemCount: 20, panelWidth: 240,
+                                            visibleHeight: 300, hasActivity: true),
+            240
+        )
+    }
+
     // MARK: - Space-change correction
 
     func testOnscreenCorrection_validFrameUnchanged() {

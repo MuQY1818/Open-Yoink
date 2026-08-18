@@ -94,6 +94,12 @@ final class CutMoveServiceTests: XCTestCase {
         // 原文件进「废纸篓」（mock 删除），且 trash 在 copy 之后被调用一次。
         XCTAssertEqual(trashed.withLock { $0 }, [source])
         XCTAssertFalse(FileManager.default.fileExists(atPath: source.path), "原位置应已消失")
+        guard case .loaded(let records) = service.managedMoveJournal.loadResult() else {
+            return XCTFail("原文件进废纸篓后必须保留恢复事务")
+        }
+        XCTAssertEqual(records.count, 1)
+        XCTAssertEqual(records[0].state, .originalTrashed)
+        XCTAssertEqual(records[0].managedItem.id, item.id)
     }
 
     func testMakeCutItem_folder_movesRecursively() throws {
@@ -169,6 +175,33 @@ final class CutMoveServiceTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: source.path),
                       "trash 失败时原文件必须保持不动")
         XCTAssertEqual(try managedDirectoryContents(context), [], "副本必须被清掉")
+        XCTAssertEqual(service.managedMoveJournal.loadResult(), .missing,
+                       "破坏性步骤失败后不得残留有效事务")
+    }
+
+    func testMakeCutItem_damagedJournalNeverTrashesOriginal() throws {
+        var context = makeContext()
+        defer { context.cleanup() }
+        let source = try makeSourceFile(in: &context, named: "protected.txt")
+        let root = context.tempFileService.directoryURL.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try Data("damaged".utf8).write(to: root.appendingPathComponent("managed-moves.json"))
+        let trashed = Mutex<[URL]>([])
+        let service = makeService(context: context) { url in
+            trashed.withLock { $0.append(url) }
+            try FileManager.default.removeItem(at: url)
+        }
+
+        let outcome = service.makeCutItem(for: source, displayName: "protected.txt")
+
+        guard case .fallbackToReference(let item, let reason) = outcome else {
+            return XCTFail("期望 .fallbackToReference，得到 \(outcome)")
+        }
+        XCTAssertEqual(reason, .transactionFailed)
+        XCTAssertEqual(item.path, source.path)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: source.path))
+        XCTAssertEqual(trashed.withLock { $0 }, [])
+        XCTAssertEqual(try managedDirectoryContents(context), [])
     }
 
     func testMakeCutItem_sourceInsideContainer_rejected() throws {
@@ -230,7 +263,7 @@ final class CutMoveServiceTests: XCTestCase {
 
     // MARK: - 协调器集成（⌘ 分派 + 逐文件独立成败）
 
-    func testImport_moveMode_perFileIndependentOutcomes() throws {
+    func testImport_moveMode_perFileIndependentOutcomes() async throws {
         var context = makeContext()
         defer { context.cleanup() }
         let movable = try makeSourceFile(in: &context, named: "movable.txt")
@@ -257,17 +290,41 @@ final class CutMoveServiceTests: XCTestCase {
         let pasteboard = NSPasteboard(name: NSPasteboard.Name("OpenYoinkTests-\(UUID().uuidString)"))
         pasteboard.writeObjects([movable as NSURL, stuck as NSURL])
 
-        let result = coordinator.importItems(from: pasteboard, mode: .move) { _ in
-            XCTFail("fileURL 导入是同步路径，不应有异步物化")
+        var received: [ShelfItem] = []
+        let completion = expectation(description: "两个后台托管移动均完成")
+        completion.expectedFulfillmentCount = 2
+        let collect: @MainActor (ShelfItem) -> Void = { item in
+            received.append(item)
+            completion.fulfill()
         }
+        let result = coordinator.importItems(
+            from: pasteboard,
+            mode: .move,
+            onManagedMoveReady: { item in
+                collect(item)
+                return true
+            },
+            onAsyncItemReady: collect
+        )
 
-        XCTAssertEqual(result.items.count, 2)
-        XCTAssertTrue(result.items[0].isCut, "trash 成功者剪切入架")
-        XCTAssertFalse(result.items[1].isCut, "trash 失败者回退引用模式")
-        XCTAssertEqual(result.items[1].path, stuck.path)
+        XCTAssertTrue(result.items.isEmpty)
+        XCTAssertEqual(result.pendingMaterializations, 2)
+        await fulfillment(of: [completion], timeout: 3)
+
+        XCTAssertEqual(received.count, 2)
+        XCTAssertTrue(received[0].isCut, "trash 成功者剪切入架")
+        XCTAssertFalse(received[1].isCut, "trash 失败者回退引用模式")
+        XCTAssertEqual(received[1].path, stuck.path)
         XCTAssertTrue(FileManager.default.fileExists(atPath: stuck.path), "失败文件原样保留")
         XCTAssertFalse(FileManager.default.fileExists(atPath: movable.path), "成功文件原位置消失")
-        XCTAssertNotNil(noticeCenter.message, "回退引用模式应提示用户")
+        guard case .partiallySucceeded(let successCount, let failures) =
+            coordinator.transferStore.currentTask?.phase else {
+            return XCTFail("托管移动回退应形成可操作的批次警告")
+        }
+        XCTAssertEqual(successCount, 2, "成功移动与安全回退的引用都已实际入架")
+        XCTAssertEqual(failures.count, 1)
+        XCTAssertEqual(failures[0].reason, .managedMoveFellBackToReference)
+        XCTAssertNil(noticeCenter.message, "批次状态由 ActivityStrip 统一呈现，避免重复提示")
     }
 
     func testImport_copyMode_neverCuts() throws {
@@ -294,5 +351,42 @@ final class CutMoveServiceTests: XCTestCase {
         XCTAssertEqual(item.path, source.path, "复制模式保存原文件引用")
         XCTAssertEqual(trashed.withLock { $0 }, [], "复制模式不调用 trash")
         XCTAssertTrue(FileManager.default.fileExists(atPath: source.path), "复制模式原文件不动")
+    }
+
+    func testImport_moveMode_persistenceFailureBecomesRecoveryWarning() async throws {
+        var context = makeContext()
+        defer { context.cleanup() }
+        let source = try makeSourceFile(in: &context, named: "needs-recovery.txt")
+        let service = makeService(context: context) { url in
+            try FileManager.default.removeItem(at: url)
+        }
+        let coordinator = DropImportCoordinator(
+            bookmarkService: context.bookmarkService,
+            tempFileService: context.tempFileService,
+            cutMoveService: service
+        )
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("OpenYoinkTests-\(UUID().uuidString)"))
+        pasteboard.writeObjects([source as NSURL])
+        let callback = expectation(description: "managed item reached persistence boundary")
+
+        coordinator.importItems(
+            from: pasteboard,
+            mode: .move,
+            onManagedMoveReady: { _ in
+                callback.fulfill()
+                return false
+            },
+            onAsyncItemReady: { _ in XCTFail("successful move should use managed callback") }
+        )
+        await fulfillment(of: [callback], timeout: 3)
+
+        guard case .partiallySucceeded(let successCount, let failures) =
+            coordinator.transferStore.currentTask?.phase else {
+            return XCTFail("即时持久化失败必须保留为可恢复警告")
+        }
+        XCTAssertEqual(successCount, 1)
+        XCTAssertEqual(failures.first?.reason, .persistenceFailed)
+        XCTAssertEqual(failures.first?.impact, .itemAddedWithWarning)
+        XCTAssertEqual(failures.first?.recoveryAction, .openStorageRecovery)
     }
 }

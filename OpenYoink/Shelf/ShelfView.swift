@@ -32,6 +32,9 @@ struct ShelfView: View {
     @Environment(ShelfGridGeometry.self) private var gridGeometry
     /// D10: 拖入/物化失败内联提示。
     @Environment(ShelfNoticeModel.self) private var notices
+    /// v1.2: runtime-only asynchronous batch status.
+    @Environment(TransferStore.self) private var transferStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// 任务三：内缘收起把手的收起动作（ShelfWindowController 注入；Preview 为 nil 空操作）。
     @Environment(\.shelfHideAction) private var shelfHideAction
     /// 当前展开的 Stack id（同时只展开一个）。
@@ -67,6 +70,8 @@ struct ShelfView: View {
             .overlay(alignment: .bottom) { dropModeHint }
             .animation(Self.cardAnimation, value: expandedStackID)
             .animation(.easeInOut(duration: 0.2), value: notices.message != nil)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2),
+                       value: transferStore.hasVisibleActivity)
             .animation(.easeInOut(duration: 0.2), value: dropTargetState.mode)
             .padding(8)
             // 外缘隐形收起热区挂在 padding **之后**（窗口内容坐标系）：拉环
@@ -87,6 +92,12 @@ struct ShelfView: View {
     private var content: some View {
         VStack(spacing: 4) {
             header
+            if transferStore.hasVisibleActivity {
+                ShelfActivityStrip()
+                    .transition(reduceMotion
+                        ? .opacity
+                        : .opacity.combined(with: .move(edge: .top)))
+            }
             if store.items.isEmpty {
                 ShelfEmptyState()
             } else {
@@ -580,6 +591,7 @@ enum ShelfPreviewFixtures {
         .environment(SettingsStore())
         .environment(ShelfGridGeometry())
         .environment(ShelfNoticeModel())
+        .environment(TransferStore())
         .frame(width: 320, height: 600)
 }
 
@@ -590,5 +602,6 @@ enum ShelfPreviewFixtures {
         .environment(SettingsStore())
         .environment(ShelfGridGeometry())
         .environment(ShelfNoticeModel())
+        .environment(TransferStore())
         .frame(width: 320, height: 600)
 }

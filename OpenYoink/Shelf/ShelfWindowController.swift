@@ -95,6 +95,7 @@ final class ShelfWindowController: NSObject {
                 .environment(settings)
                 .environment(gridGeometry)
                 .environment(importCoordinator.noticeCenter)
+                .environment(importCoordinator.transferStore)
                 .environment(\.bookmarkService, importCoordinator.bookmarkService)
                 .environment(\.dragOutController, dragOutController)
                 .environment(\.quickLookCoordinator, quickLookCoordinator)
@@ -153,6 +154,9 @@ final class ShelfWindowController: NSObject {
         // UX5/UX6: 项目增删 → 紧凑高度动画过渡 + 空架自动隐藏裁决。
         store.onItemsDidChange = { [weak self] in
             self?.handleItemsDidChange()
+        }
+        importCoordinator.transferStore.onVisibilityDidChange = { [weak self] in
+            self?.handleActivityVisibilityDidChange()
         }
         // S8: autoHide —— 拖出成功（operation 非空）且设置开启时隐藏 shelf。
         // 回调在 DragSessionController.draggingSession(endedAt:) 里按
@@ -296,6 +300,7 @@ final class ShelfWindowController: NSObject {
             position: settings.shelfPosition,
             width: settings.shelfWidth,
             itemCount: store.items.count,
+            hasActivity: importCoordinator.transferStore.hasVisibleActivity,
             mouseLocation: NSEvent.mouseLocation,
             screens: Self.screenGeometries(),
             persistedCustomFrame: settings.customShelfFrame,
@@ -397,6 +402,19 @@ final class ShelfWindowController: NSObject {
         // 空架隐藏放在高度动画之后裁决：两者同帧时隐藏优先（隐藏动画覆盖）。
         if shouldAutoHide {
             hideShelf(animated: true)
+        }
+    }
+
+    /// ActivityStrip changes compact height but must not participate in the
+    /// non-empty → empty auto-hide state machine.
+    private func handleActivityVisibilityDidChange() {
+        guard appState.isShelfVisible else { return }
+        let target = targetFrame()
+        guard target != panel.frame else { return }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = Self.animationDuration
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            panel.animator().setFrame(target, display: true)
         }
     }
 }

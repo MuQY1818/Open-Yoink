@@ -10,6 +10,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let bookmarkService = BookmarkService()
     /// 物化临时文件目录（file promise 与图片数据落盘处）。
     private let tempFileService = TempFileService()
+    /// v1.2: ⌘ 拖入托管移动的崩溃恢复事务。独立于 shelf.json，且其引用
+    /// 必须参与所有 Materialized 清理保护集合。
+    private let managedMoveJournal = ManagedMoveJournal()
     /// S10: 拖入/物化失败的内联提示（shelf 标题栏下方短暂胶囊，自动消失）。
     private let shelfNotice = ShelfNoticeModel()
     private let logger = Logger(subsystem: "com.weijue.OpenYoink", category: "App")
@@ -22,7 +25,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// S4: 拖入分派器（pasteboard → ShelfItem）。S10: 失败路径经 shelfNotice 反馈。
     private lazy var dropImportCoordinator = DropImportCoordinator(bookmarkService: bookmarkService,
                                                                    tempFileService: tempFileService,
-                                                                   noticeCenter: shelfNotice)
+                                                                   noticeCenter: shelfNotice,
+                                                                   managedMoveJournal: managedMoveJournal)
     /// 用户设置（S5 起拖出后移除策略被 DragSessionController 读取；S8 由
     /// SettingsView 编辑）。internal：OpenYoinkApp 的 Settings scene 注入环境用。
     let settingsStore = SettingsStore()
@@ -33,6 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         persistence: persistence,
         tempFileService: tempFileService,
         shelfStore: shelfStore,
+        managedMoveJournal: managedMoveJournal,
         prepareRestoredItems: { [weak self] items in
             guard let self else { return items }
             return items.map { self.refreshedByResolvingBookmark($0) ?? $0 }
@@ -189,6 +194,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                                selector: #selector(userDefaultsDidChange(_:)),
                                                name: UserDefaults.didChangeNotification,
                                                object: nil)
+        // v1.2: 先协调 ⌘ 拖入的未完成事务。恢复必须发生在 bookmark 解析与
+        // orphan cleanup 之前，否则尚未写进 shelf 的托管副本会被误删。
+        recoverManagedMoveTransactions()
         // S4: 批量解析持久化项目的 bookmark（失败标记 stale，过期书签重建并更新
         // 路径），再按最新路径清理物化目录里的孤儿文件。
         resolvePersistedBookmarks()
@@ -198,7 +206,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 若照常清理会把全部保管文件连锁删除。损坏文件留在
         // shelf.json.corrupt-* 供人工恢复；只要恢复快照仍在，跨重启也持续
         // 保留 Materialized 文件，避免第二次启动把恢复材料删掉。
-        if !persistence.canSafelyCleanupMaterializedOrphans(after: initialShelfLoadResult) {
+        if !persistence.canSafelyCleanupMaterializedOrphans(after: initialShelfLoadResult)
+            || !managedMoveJournal.permitsManagedOrphanCleanup {
             logger.warning("Skipping materialized orphan cleanup because shelf recovery data is present or persistence could not be trusted")
         } else {
             cleanupMaterializedOrphans()
@@ -209,7 +218,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        persistence.flushPendingSave()
+        do {
+            try persistence.saveNow(shelfStore.items)
+            reconcileCommittedManagedMoves()
+        } catch {
+            // Keep recovery transactions when durability cannot be proven.
+            logger.error("Failed to synchronously save shelf during termination: \(error.localizedDescription, privacy: .public)")
+        }
         bookmarkService.stopAccessingAll()
         hotKeyMonitor.setEnabled(false)
         mouseShakeMonitor.stop()
@@ -350,6 +365,119 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Materialized file cleanup (S4)
 
+    /// Reconciles crash-recovery transactions before any materialized cleanup.
+    /// Any surviving managed copy is restored as the authoritative `isCut`
+    /// item. The source path may have been recreated after a crash, so its mere
+    /// existence cannot prove that trashing never happened. Only when the
+    /// managed copy is gone do we fall back to the source reference. Nothing is
+    /// mutated while shelf persistence is untrusted.
+    private func recoverManagedMoveTransactions() {
+        let loadResult = managedMoveJournal.loadResult()
+        guard case .loaded(let records) = loadResult, !records.isEmpty else {
+            if loadResult == .failed {
+                shelfNotice.show(String(localized: "Managed move recovery data needs attention. Automatic cleanup is disabled."))
+            }
+            return
+        }
+
+        var recoveredItems = shelfStore.items
+        var resolved: [ManagedMoveJournal.Record] = []
+        var unresolvedCount = 0
+        let fileManager = FileManager.default
+        let persistenceIsTrusted = persistence.canSafelyCleanupMaterializedOrphans(
+            after: initialShelfLoadResult
+        )
+        let persistedItemIDs = itemIDs(in: shelfStore.items)
+
+        for record in records {
+            let sourceExists = record.referenceItem.path.map(fileManager.fileExists(atPath:)) ?? false
+            let managedExists = record.managedItem.path.map(fileManager.fileExists(atPath:)) ?? false
+            let decision = ManagedMoveRecoveryPlanner.decision(
+                for: record,
+                sourceExists: sourceExists,
+                managedExists: managedExists,
+                persistedItemIDs: persistedItemIDs
+            )
+
+            if decision == .alreadyCommitted {
+                // A crash after shelf save but before journal deletion needs no
+                // content mutation.
+                try? managedMoveJournal.remove(id: record.id)
+                continue
+            }
+            guard persistenceIsTrusted else {
+                logger.warning("Deferring managed move recovery because shelf persistence is not trusted")
+                unresolvedCount += 1
+                continue
+            }
+
+            let itemToRecover: ShelfItem
+            switch decision {
+            case .recoverReference:
+                itemToRecover = record.referenceItem
+            case .recoverManaged:
+                itemToRecover = record.managedItem
+            case .alreadyCommitted:
+                continue
+            case .unresolved:
+                unresolvedCount += 1
+                continue
+            }
+            if !containsItem(id: itemToRecover.id, in: recoveredItems) {
+                recoveredItems.append(itemToRecover)
+            }
+            resolved.append(record)
+        }
+
+        if !resolved.isEmpty {
+            do {
+                try persistence.saveNow(recoveredItems)
+                shelfStore.replaceWithPersistedItems(recoveredItems)
+                for record in resolved {
+                    try? managedMoveJournal.remove(id: record.id)
+                }
+                shelfNotice.show(String(localized: "Recovered an interrupted managed move."))
+            } catch {
+                logger.error("Failed to persist recovered managed moves: \(error.localizedDescription, privacy: .public)")
+                unresolvedCount += resolved.count
+            }
+        }
+
+        if unresolvedCount > 0 {
+            shelfNotice.show(String(localized: "Some managed move recovery data needs attention. Automatic cleanup is disabled."))
+        }
+    }
+
+    /// Normal termination flushes shelf.json first, then clears any journal
+    /// records whose managed/reference item is now durable. Crashes leave the
+    /// records intact for `recoverManagedMoveTransactions`.
+    private func reconcileCommittedManagedMoves() {
+        guard case .loaded(let records) = managedMoveJournal.loadResult() else { return }
+        for record in records where shelfContainsItem(id: record.managedItem.id)
+            || shelfContainsItem(id: record.referenceItem.id) {
+            try? managedMoveJournal.remove(id: record.id)
+        }
+    }
+
+    private func shelfContainsItem(id: UUID) -> Bool {
+        containsItem(id: id, in: shelfStore.items)
+    }
+
+    private func containsItem(id: UUID, in items: [ShelfItem]) -> Bool {
+        items.contains { item in
+            item.id == id || containsItem(id: id, in: item.children ?? [])
+        }
+    }
+
+    private func itemIDs(in items: [ShelfItem]) -> Set<UUID> {
+        var ids = Set<UUID>()
+        for item in items {
+            ids.insert(item.id)
+            ids.formUnion(itemIDs(in: item.children ?? []))
+        }
+        return ids
+    }
+
     /// 清理物化目录中的孤儿文件：保留仍被 shelf 项目（含 Stack 子项）引用的
     /// 物化文件，其余视为上次会话中断的残留删除。
     private func cleanupMaterializedOrphans() {
@@ -357,9 +485,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 上一份有效快照也可能引用 promise/图片物化文件；恢复功能存在时，
         // 启动清理必须同时保护这些路径，否则“能恢复条目却丢了文件内容”。
         let protectedItems = shelfStore.items + persistence.recoverableSnapshotItems()
-        tempFileService.cleanupOrphans(
-            keepingPaths: materializedPaths(in: protectedItems, managedPrefix: managedPrefix)
-        )
+        var protectedPaths = materializedPaths(in: protectedItems, managedPrefix: managedPrefix)
+        protectedPaths.formUnion(managedMoveJournal.protectedManagedPaths())
+        tempFileService.cleanupOrphans(keepingPaths: protectedPaths)
     }
 
     private func materializedPaths(in items: [ShelfItem], managedPrefix: String) -> Set<String> {

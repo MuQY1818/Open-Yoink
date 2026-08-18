@@ -114,8 +114,14 @@ final class DragContainerView: NSView {
         // F-05: 落下瞬间以实时修饰键判定模式（⌘ = 剪切移入）。
         let mode = DropImportCoordinator.dropMode(for: sender.draggingPasteboard,
                                                   modifiers: NSEvent.modifierFlags)
-        let result = coordinator.importItems(from: sender.draggingPasteboard, mode: mode) { [weak self] item in
-            // 异步物化完成（promise / 图片数据）：逐个追加入架。
+        let result = coordinator.importItems(
+            from: sender.draggingPasteboard,
+            mode: mode,
+            onManagedMoveReady: { [weak self] item in
+                self?.commitManagedMove(item) ?? false
+            }
+        ) { [weak self] item in
+            // 异步物化完成（promise / 图片数据 / 剪切失败回退）：逐个追加入架。
             self?.store.add(item)
         }
         guard result.handled else { return false }
@@ -157,5 +163,20 @@ final class DragContainerView: NSView {
     /// 总能由兜底链物化出内容，故只要声明了任意类型即接受高亮；零类型才拒绝。
     private static func hasImportableContent(_ pasteboard: NSPasteboard) -> Bool {
         PasteboardTypes.hasImportableContent(in: pasteboard.types ?? [])
+    }
+
+    /// ManagedMoveJournal 的提交边界：先同步保存包含 item 的 shelf snapshot，
+    /// 再删除 transaction。若写盘失败，item 仍加入运行期 shelf 并继续安排常规
+    /// 保存，但 journal 保留到下次启动恢复，托管副本也持续受清理保护。
+    private func commitManagedMove(_ item: ShelfItem) -> Bool {
+        do {
+            try store.addAndPersistNow(item)
+            coordinator.markManagedMoveCommitted(itemID: item.id)
+            return true
+        } catch {
+            store.add(item)
+            coordinator.noticeCenter.show(String(localized: "The moved item is being kept for recovery because the shelf could not be saved immediately."))
+            return false
+        }
     }
 }

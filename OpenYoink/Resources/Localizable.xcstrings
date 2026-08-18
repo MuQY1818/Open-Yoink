@@ -875,11 +875,11 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示数据文件夹" } }
       }
     },
-    "Cleanup is disabled while quarantined recovery data is present." : {
+    "Cleanup is disabled while recovery data needs attention." : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Cleanup is disabled while quarantined recovery data is present." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "存在隔离的恢复数据时不能执行清理。" } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Cleanup is disabled while recovery data needs attention." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "存在需要处理的恢复数据，暂时无法执行清理。" } }
       }
     },
     "Recovery" : {
@@ -987,6 +987,55 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "清理文件前，请先恢复或删除隔离数据。" } }
       }
     },
+    "Resolve managed move recovery data before cleaning files." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Resolve managed move recovery data before cleaning files." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "清理文件前，请先处理托管移动的恢复数据。" } }
+      }
+    },
+    "Managed move recovery data is damaged." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Managed move recovery data is damaged." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "托管移动的恢复数据已损坏。" } }
+      }
+    },
+    "The managed move recovery record is missing." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The managed move recovery record is missing." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "找不到托管移动的恢复记录。" } }
+      }
+    },
+    "The moved item is being kept for recovery because the shelf could not be saved immediately." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The moved item is being kept for recovery because the shelf could not be saved immediately." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂存架未能立即保存，已保留该移动项目以便恢复。" } }
+      }
+    },
+    "Managed move recovery data needs attention. Automatic cleanup is disabled." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Managed move recovery data needs attention. Automatic cleanup is disabled." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "托管移动的恢复数据需要处理，已停用自动清理。" } }
+      }
+    },
+    "Recovered an interrupted managed move." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Recovered an interrupted managed move." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已恢复一次中断的托管移动。" } }
+      }
+    },
+    "Some managed move recovery data needs attention. Automatic cleanup is disabled." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Some managed move recovery data needs attention. Automatic cleanup is disabled." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "部分托管移动的恢复数据需要处理，已停用自动清理。" } }
+      }
+    },
     "The selected recovery file is not managed by OpenYoink." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1020,6 +1069,153 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除" } }
+      }
+    },
+    "Original files remain unchanged." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Original files remain unchanged." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "原文件保持不变。" } }
+      }
+    },
+    "Managed copies are protected while originals move to the Trash." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Managed copies are protected while originals move to the Trash." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "移动过程中托管副本会受到保护，原文件将进入废纸篓。" } }
+      }
+    },
+    "Dismiss transfer status" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Dismiss transfer status" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关闭传输状态" } }
+      }
+    },
+    "Dismiss" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Dismiss" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关闭" } }
+      }
+    },
+    "Preparing content…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Preparing content…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在准备内容…" } }
+      }
+    },
+    "Receiving content… %lld of %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Receiving content… %lld of %lld" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在接收内容… 已收到 %lld/%lld 项" } }
+      }
+    },
+    "Receiving content… %lld received" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Receiving content… %lld received" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在接收内容… 已收到 %lld 项" } }
+      }
+    },
+    "Receiving content…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Receiving content…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在接收内容…" } }
+      }
+    },
+    "Preparing received content…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Preparing received content…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在整理收到的内容…" } }
+      }
+    },
+    "The destination accepted the items." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The destination accepted the items." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "目标位置已接受这些项目。" } }
+      }
+    },
+    "%lld items added" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld items added" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已加入 %lld 项" } }
+      }
+    },
+    "%lld items added, %lld not added" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld items added, %lld not added" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已加入 %lld 项，%lld 项未加入" } }
+      }
+    },
+    "%lld items added, %lld added as references" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld items added, %lld added as references" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已加入 %lld 项，其中 %lld 项作为引用加入" } }
+      }
+    },
+    "%lld items added with warnings" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld items added with warnings" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已加入 %lld 项，但有需要处理的事项" } }
+      }
+    },
+    "Couldn't add this content" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn't add this content" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未能加入此内容" } }
+      }
+    },
+    "Transfer cancelled" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Transfer cancelled" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "传输已取消" } }
+      }
+    },
+    "Open Storage settings to review recovery data." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open Storage settings to review recovery data." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请打开“存储”设置检查恢复数据。" } }
+      }
+    },
+    "Locate the original file to reconnect it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Locate the original file to reconnect it." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请找到原文件以重新连接。" } }
+      }
+    },
+    "The item is still on the shelf. Drag it out again to retry." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The item is still on the shelf. Drag it out again to retry." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "项目仍在暂存架上，再次拖出即可重试。" } }
+      }
+    },
+    "Drag the failed item from its source again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Drag the failed item from its source again." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请从来源重新拖入失败的项目。" } }
+      }
+    },
+    "The original file remains unchanged." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The original file remains unchanged." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "原文件保持不变。" } }
       }
     },
     "Removed %lld unused items and reclaimed %@." : {

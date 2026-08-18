@@ -17,15 +17,18 @@ final class StorageManagementController {
     private let persistence: PersistenceController
     private let tempFileService: TempFileService
     private let shelfStore: ShelfStore
+    private let managedMoveJournal: ManagedMoveJournal?
     private let prepareRestoredItems: @MainActor ([ShelfItem]) -> [ShelfItem]
 
     init(persistence: PersistenceController,
          tempFileService: TempFileService,
          shelfStore: ShelfStore,
+         managedMoveJournal: ManagedMoveJournal? = nil,
          prepareRestoredItems: @escaping @MainActor ([ShelfItem]) -> [ShelfItem] = { $0 }) {
         self.persistence = persistence
         self.tempFileService = tempFileService
         self.shelfStore = shelfStore
+        self.managedMoveJournal = managedMoveJournal
         self.prepareRestoredItems = prepareRestoredItems
         refresh()
     }
@@ -38,7 +41,9 @@ final class StorageManagementController {
         snapshots.contains { $0.kind == .quarantined }
     }
 
-    var canCleanUnusedFiles: Bool { !hasQuarantinedData }
+    var canCleanUnusedFiles: Bool {
+        !hasQuarantinedData && (managedMoveJournal?.permitsManagedOrphanCleanup ?? true)
+    }
 
     func refresh() {
         snapshots = persistence.recoverySnapshots()
@@ -82,6 +87,11 @@ final class StorageManagementController {
     func cleanUnusedFiles() {
         statusMessage = nil
         errorMessage = nil
+        guard managedMoveJournal?.permitsManagedOrphanCleanup ?? true else {
+            errorMessage = String(localized: "Resolve managed move recovery data before cleaning files.")
+            refresh()
+            return
+        }
         guard persistence.canSafelyCleanupMaterializedOrphans(after: .loaded(shelfStore.items)) else {
             errorMessage = String(localized: "Resolve or delete quarantined recovery data before cleaning files.")
             refresh()
@@ -89,9 +99,9 @@ final class StorageManagementController {
         }
 
         let protectedItems = shelfStore.items + persistence.recoverableSnapshotItems()
-        let result = tempFileService.cleanupOrphans(
-            keepingPaths: materializedPaths(in: protectedItems)
-        )
+        var protectedPaths = materializedPaths(in: protectedItems)
+        protectedPaths.formUnion(managedMoveJournal?.protectedManagedPaths() ?? [])
+        let result = tempFileService.cleanupOrphans(keepingPaths: protectedPaths)
         if result.removedItemCount == 0 {
             statusMessage = String(localized: "No unused files were found.")
         } else {

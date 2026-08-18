@@ -224,6 +224,8 @@ final class DropImportFallbackTests: XCTestCase {
         XCTAssertEqual(result.pendingMaterializations, 2)
         await fulfillment(of: [allReady], timeout: 5)
         XCTAssertEqual(Set(extensions), ["vcf", "dat"])
+        XCTAssertEqual(context.coordinator.transferStore.currentTask?.phase, .delivered)
+        XCTAssertEqual(context.coordinator.transferStore.currentTask?.itemIDs.count, 2)
     }
 
     // MARK: - 分支 d：字符串兜底
