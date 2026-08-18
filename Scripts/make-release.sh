@@ -142,6 +142,29 @@ tree.write(appcast_path, encoding="utf-8", xml_declaration=True)
 print(f"    appcast 已更新：{short_version} ({bundle_version})")
 PYEOF
 
+# ---- 6. 同步 Homebrew cask（失败不阻塞发布，仅警告）----
+TAP_DIR="/tmp/openyoink-homebrew-tap"
+echo "==> 同步 cask 到 homebrew-tap"
+if git clone -q --depth 1 https://github.com/MuQY1818/homebrew-tap "$TAP_DIR" 2>/dev/null || (cd "$TAP_DIR" && git pull -q); then
+    CASK_FILE="$TAP_DIR/Casks/openyoink.rb"
+    if [ -f "$CASK_FILE" ]; then
+        DMG_SHA="$(shasum -a 256 "$DMG_PATH" | cut -d' ' -f1)"
+        sed -i '' "s/^  version \".*\"/  version \"$SHORT_VERSION\"/" "$CASK_FILE"
+        sed -i '' "s/^  sha256 \".*\"/  sha256 \"$DMG_SHA\"/" "$CASK_FILE"
+        if ! (cd "$TAP_DIR" && git diff --quiet); then
+            (cd "$TAP_DIR" && git add -A && git commit -q -m "openyoink $SHORT_VERSION" && git push -q) \
+                && echo "    cask 已更新（$SHORT_VERSION, sha $DMG_SHA）" \
+                || echo "    ⚠️ cask 推送失败，请手动更新 homebrew-tap" >&2
+        else
+            echo "    cask 已是最新"
+        fi
+    else
+        echo "    ⚠️ 未找到 $CASK_FILE，跳过 cask 同步" >&2
+    fi
+else
+    echo "    ⚠️ 无法克隆/更新 homebrew-tap，跳过 cask 同步（sha 变了的话 brew 会装不了，需手动改）" >&2
+fi
+
 echo ""
 echo "==> 完成"
 echo "    DMG:     $DMG_PATH"
