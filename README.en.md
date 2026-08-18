@@ -70,7 +70,7 @@ xcodebuild -project Open-Yoink.xcodeproj -scheme OpenYoink -destination 'platfor
 xcodebuild -project Open-Yoink.xcodeproj -scheme OpenYoink -destination 'platform=macOS' test
 ```
 
-SwiftUI renders; AppKit owns windows, drag & drop and global events. Reference-based storage with security-scoped bookmarks, atomic JSON persistence. Leave `DEVELOPMENT_TEAM` empty for local source builds. Formal releases require Developer ID signing, Hardened Runtime, and Apple notarization; the release script no longer produces ad-hoc distribution builds.
+SwiftUI renders; AppKit owns windows, drag & drop and global events. Reference-based storage with security-scoped bookmarks, atomic JSON persistence. Leave `DEVELOPMENT_TEAM` empty for local source builds. The recommended distribution path uses Developer ID signing, Hardened Runtime, and Apple notarization:
 
 Store notarization credentials in Keychain and provide the signing identity and Team ID before releasing:
 
@@ -82,7 +82,15 @@ export NOTARY_PROFILE='openyoink-notary'
 ./Scripts/make-release.sh 1.0.2 4
 ```
 
-The script updates the Sparkle appcast only after notarization and Gatekeeper validation succeed. Upload the GitHub Release first, then update the Homebrew cask with the exact SHA printed by the script; both remain explicit manual steps.
+In Developer ID mode, the script updates the Sparkle appcast only after notarization and Gatekeeper validation succeed. Upload the GitHub Release first, then update the Homebrew cask with the exact SHA printed by the script; both remain explicit manual steps.
+
+Without a paid Apple Developer membership, an explicit free GitHub community build can be produced instead:
+
+```bash
+./Scripts/make-release.sh 1.0.2 4 --adhoc
+```
+
+This mode still protects automatic updates with Sparkle EdDSA signatures, but it is not notarized by Apple. First-time downloads may require using Finder's Open command or allowing the app in System Settings. The script never falls back to this mode silently; `--adhoc` is required.
 
 ## Roadmap
 

@@ -2,10 +2,13 @@
 #
 # make-release.sh — 构建 OpenYoink 发布产物并更新 Sparkle appcast。
 #
-# 用法：./Scripts/make-release.sh <VERSION> [BUILD]
+# 用法：./Scripts/make-release.sh <VERSION> [BUILD] [--adhoc]
 #   VERSION   市场版本号（写入 MARKETING_VERSION，如 1.0.2）。
 #   BUILD     可选，CFBundleVersion（Sparkle 的版本比较键）；缺省取现有
 #             appcast 最大 build + 1。
+#   --adhoc   显式选择免费社区发布模式：跳过 Developer ID 与 Apple 公证。
+#             Sparkle EdDSA 更新签名仍会生成，但首次下载会触发 Gatekeeper
+#             的「无法验证开发者」提示。
 #
 # 流程：Developer ID archive（Release）→ 验证 app 与嵌套组件签名 →
 # Scripts/make-dmg.sh 打包 → Developer ID 签 DMG → notarytool 公证并装订
@@ -28,12 +31,19 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
-if [ $# -lt 1 ]; then
-    echo "用法：$0 <VERSION> [BUILD]" >&2
+if [ $# -lt 1 ] || [ $# -gt 3 ]; then
+    echo "用法：$0 <VERSION> [BUILD] [--adhoc]" >&2
     exit 1
 fi
 VERSION="$1"
 BUILD_NUMBER="${2:-}"
+RELEASE_MODE="developer-id"
+if [ "${3:-}" = "--adhoc" ]; then
+    RELEASE_MODE="adhoc"
+elif [ -n "${3:-}" ]; then
+    echo "error: 未知参数 ${3}；第三个参数只支持 --adhoc。" >&2
+    exit 1
+fi
 if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     echo "error: VERSION 必须是三段数字版本号（例如 1.0.2）。" >&2
     exit 1
@@ -51,26 +61,28 @@ DMG_PATH="export/OpenYoink-$VERSION.dmg"
 APPCAST="docs/appcast.xml"
 RELEASE_URL="https://github.com/MuQY1818/OpenYoink/releases/download/v$VERSION/OpenYoink-$VERSION.dmg"
 
-# 正式分发不允许回退到 ad hoc。过去的 --deep --sign - 会剥掉 runtime 标志，
-# 并把主程序 entitlements 错套给 Sparkle 的 XPC/Updater，导致更新器不可用。
-for required_name in DEVELOPER_ID_APPLICATION DEVELOPMENT_TEAM_ID NOTARY_PROFILE; do
-    if [ -z "${!required_name:-}" ]; then
-        echo "error: 缺少环境变量 ${required_name}；1.0.2 起发布必须 Developer ID 签名并公证，不能生成 ad hoc 正式包。" >&2
+if [ "$RELEASE_MODE" = "developer-id" ]; then
+    for required_name in DEVELOPER_ID_APPLICATION DEVELOPMENT_TEAM_ID NOTARY_PROFILE; do
+        if [ -z "${!required_name:-}" ]; then
+            echo "error: 缺少环境变量 ${required_name}。没有 Apple 证书时请显式使用：$0 $VERSION ${BUILD_NUMBER:-<BUILD>} --adhoc" >&2
+            exit 1
+        fi
+    done
+    if [[ ! "$DEVELOPMENT_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]]; then
+        echo "error: DEVELOPMENT_TEAM_ID 必须是 10 位大写字母/数字。" >&2
         exit 1
     fi
-done
-if [[ ! "$DEVELOPMENT_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]]; then
-    echo "error: DEVELOPMENT_TEAM_ID 必须是 10 位大写字母/数字。" >&2
-    exit 1
+    CODE_SIGN_IDENTITIES="$(security find-identity -v -p codesigning)"
+    case "$CODE_SIGN_IDENTITIES" in
+        *"$DEVELOPER_ID_APPLICATION"*) ;;
+        *)
+            echo "error: 钥匙串中未找到指定的 Developer ID Application 身份。" >&2
+            exit 1
+            ;;
+    esac
+else
+    echo "==> 发布模式：ad hoc（免费、未公证；首次下载会触发 Gatekeeper 提示）"
 fi
-CODE_SIGN_IDENTITIES="$(security find-identity -v -p codesigning)"
-case "$CODE_SIGN_IDENTITIES" in
-    *"$DEVELOPER_ID_APPLICATION"*) ;;
-    *)
-        echo "error: 钥匙串中未找到指定的 Developer ID Application 身份。" >&2
-        exit 1
-        ;;
-esac
 
 # ---- 定位 Sparkle 命令行工具（sign_update）----
 if [ -z "${SPARKLE_BIN:-}" ]; then
@@ -88,12 +100,37 @@ echo "==> sign_update: $SIGN_UPDATE"
 # 传入时校验必须大于该最大值，防止误发「看似新版实则同 build」的更新。
 MAX_BUILD="$(grep -o '<sparkle:version>[0-9]*' "$APPCAST" 2>/dev/null | grep -o '[0-9]*' | sort -n | tail -1 || true)"
 MAX_BUILD="${MAX_BUILD:-0}"
+EXISTING_VERSION_BUILD="$(python3 - "$APPCAST" "$VERSION" <<'PYEOF'
+import sys
+import xml.etree.ElementTree as ET
+
+appcast_path, requested_version = sys.argv[1:3]
+ns = {"sparkle": "http://www.andymatuschak.org/xml-namespaces/sparkle"}
+try:
+    root = ET.parse(appcast_path).getroot()
+except (FileNotFoundError, ET.ParseError):
+    raise SystemExit(0)
+for item in root.findall("./channel/item"):
+    short_version = item.find("sparkle:shortVersionString", ns)
+    build = item.find("sparkle:version", ns)
+    if short_version is not None and short_version.text == requested_version and build is not None:
+        print(build.text or "")
+        break
+PYEOF
+)"
 if [ -z "${BUILD_NUMBER}" ]; then
-    BUILD_NUMBER=$((MAX_BUILD + 1))
-    echo "==> 自动 build number：${BUILD_NUMBER}（appcast 最大 ${MAX_BUILD} + 1）"
-elif [ "${BUILD_NUMBER}" -le "${MAX_BUILD}" ]; then
+    if [ -n "$EXISTING_VERSION_BUILD" ]; then
+        BUILD_NUMBER="$EXISTING_VERSION_BUILD"
+        echo "==> 重建现有 ${VERSION} item：沿用 build ${BUILD_NUMBER}"
+    else
+        BUILD_NUMBER=$((MAX_BUILD + 1))
+        echo "==> 自动 build number：${BUILD_NUMBER}（appcast 最大 ${MAX_BUILD} + 1）"
+    fi
+elif [ "${BUILD_NUMBER}" -le "${MAX_BUILD}" ] && [ "$BUILD_NUMBER" != "$EXISTING_VERSION_BUILD" ]; then
     echo "error: BUILD=${BUILD_NUMBER} 不大于 appcast 最大 sparkle:version ${MAX_BUILD} —— 老用户将收不到更新。请传更大值，或省略第二个参数自动递增。" >&2
     exit 1
+elif [ "$BUILD_NUMBER" = "$EXISTING_VERSION_BUILD" ]; then
+    echo "==> 重建现有 ${VERSION} item：沿用 build ${BUILD_NUMBER}"
 fi
 
 # ---- 1. Archive ----
@@ -103,10 +140,21 @@ VERSION_ARGS=(
     CURRENT_PROJECT_VERSION="${BUILD_NUMBER}"
     CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO
     CODE_SIGN_STYLE=Manual
-    CODE_SIGN_IDENTITY="$DEVELOPER_ID_APPLICATION"
-    DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM_ID"
-    OTHER_CODE_SIGN_FLAGS=--timestamp
 )
+if [ "$RELEASE_MODE" = "developer-id" ]; then
+    VERSION_ARGS+=(
+        CODE_SIGN_IDENTITY="$DEVELOPER_ID_APPLICATION"
+        DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM_ID"
+        OTHER_CODE_SIGN_FLAGS=--timestamp
+    )
+else
+    VERSION_ARGS+=(
+        CODE_SIGN_IDENTITY=-
+        DEVELOPMENT_TEAM=
+        AD_HOC_CODE_SIGNING_ALLOWED=YES
+        ENABLE_HARDENED_RUNTIME=NO
+    )
+fi
 echo "==> archive（Release, ${VERSION} (${BUILD_NUMBER})）"
 rm -rf "$ARCHIVE_PATH"
 xcodebuild -project "$PROJECT" -scheme "$SCHEME" -configuration Release \
@@ -120,19 +168,37 @@ echo "==> 导出 $APP_PATH"
 rm -rf "$APP_PATH"
 ditto "$ARCHIVE_PATH/Products/Applications/OpenYoink.app" "$APP_PATH"
 
-# 不再手工 --deep 重签：嵌套 Sparkle 组件必须保留各自的签名与权限。
+# Developer ID 模式保留 Xcode 为各嵌套组件生成的独立签名。ad hoc 模式下
+# 则统一把主程序与 Sparkle 嵌套组件改为临时签名，避免无 Team ID 的主程序
+# 连接到仍带第三方 Team ID 的 XPC 服务时被拒绝。ad hoc 签名之间没有可供
+# library validation 比对的 Team ID，因此该模式必须去掉 Hardened Runtime；
+# 否则 dyld 会在启动时拒载 Sparkle.framework。各组件自己的 identifier 与
+# entitlements 仍逐一保留，不能把主程序权限套给 Sparkle 的 helper/XPC。
+if [ "$RELEASE_MODE" = "adhoc" ]; then
+    codesign --force --deep --sign - \
+        --preserve-metadata=identifier,entitlements \
+        "$APP_PATH"
+fi
 codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 APP_SIGN_INFO="$(codesign -dvvv "$APP_PATH" 2>&1)"
-if printf '%s\n' "$APP_SIGN_INFO" | grep -Fq 'Signature=adhoc'; then
-    echo "error: 导出的 app 仍是 ad hoc 签名，拒绝发布。" >&2
+if [ "$RELEASE_MODE" = "developer-id" ]; then
+    if ! printf '%s\n' "$APP_SIGN_INFO" | grep -Eq 'flags=.*runtime'; then
+        echo "error: 导出的 app 未启用 Hardened Runtime，拒绝 Developer ID 发布。" >&2
+        exit 1
+    fi
+    if printf '%s\n' "$APP_SIGN_INFO" | grep -Fq 'Signature=adhoc'; then
+        echo "error: 导出的 app 仍是 ad hoc 签名，拒绝 Developer ID 发布。" >&2
+        exit 1
+    fi
+    if ! printf '%s\n' "$APP_SIGN_INFO" | grep -Fq "TeamIdentifier=$DEVELOPMENT_TEAM_ID"; then
+        echo "error: app 的 TeamIdentifier 与 DEVELOPMENT_TEAM_ID 不一致。" >&2
+        exit 1
+    fi
+elif ! printf '%s\n' "$APP_SIGN_INFO" | grep -Fq 'Signature=adhoc'; then
+    echo "error: --adhoc 模式未生成 ad hoc 主程序签名。" >&2
     exit 1
-fi
-if ! printf '%s\n' "$APP_SIGN_INFO" | grep -Eq 'flags=.*runtime'; then
-    echo "error: 导出的 app 未启用 Hardened Runtime，拒绝发布。" >&2
-    exit 1
-fi
-if ! printf '%s\n' "$APP_SIGN_INFO" | grep -Fq "TeamIdentifier=$DEVELOPMENT_TEAM_ID"; then
-    echo "error: app 的 TeamIdentifier 与 DEVELOPMENT_TEAM_ID 不一致。" >&2
+elif printf '%s\n' "$APP_SIGN_INFO" | grep -Eq 'flags=.*runtime'; then
+    echo "error: --adhoc 模式仍启用了 Hardened Runtime，Sparkle 会因 Team ID 不匹配而无法载入。" >&2
     exit 1
 fi
 ENTITLEMENTS_FILE="$(mktemp /tmp/openyoink-entitlements.XXXXXX)"
@@ -160,10 +226,14 @@ fi
 echo "==> 打 DMG"
 ./Scripts/make-dmg.sh "$APP_PATH"
 
-# ---- 4. 签名、公证并装订最终分发 DMG ----
-echo "==> Developer ID 签名 DMG"
-codesign --force --sign "$DEVELOPER_ID_APPLICATION" --timestamp "$DMG_PATH"
-NOTARY_PROFILE="$NOTARY_PROFILE" ./Scripts/notarize.sh "$DMG_PATH"
+# ---- 4. Developer ID 模式签名、公证并装订最终分发 DMG ----
+if [ "$RELEASE_MODE" = "developer-id" ]; then
+    echo "==> Developer ID 签名 DMG"
+    codesign --force --sign "$DEVELOPER_ID_APPLICATION" --timestamp "$DMG_PATH"
+    NOTARY_PROFILE="$NOTARY_PROFILE" ./Scripts/notarize.sh "$DMG_PATH"
+else
+    echo "==> 跳过 Apple 公证（ad hoc 模式）"
+fi
 
 # ---- 5. EdDSA 签名（必须在公证/装订后执行，因为 DMG 字节已改变）----
 echo "==> sign_update"
@@ -243,5 +313,6 @@ echo ""
 echo "==> 完成"
 echo "    DMG:     $DMG_PATH"
 echo "    appcast: $APPCAST"
+echo "    mode:    $RELEASE_MODE"
 echo "下一步（本脚本不执行）：git 提交 docs/appcast.xml，并创建 GitHub Release："
 echo "    gh release create v$VERSION $DMG_PATH --title \"OpenYoink $VERSION\""

@@ -74,7 +74,7 @@ xcodebuild -project Open-Yoink.xcodeproj -scheme OpenYoink -destination 'platfor
 xcodebuild -project Open-Yoink.xcodeproj -scheme OpenYoink -destination 'platform=macOS' test
 ```
 
-SwiftUI 渲染，AppKit 管窗口与拖放；引用式存储 + security-scoped bookmark，JSON 原子写持久化。`DEVELOPMENT_TEAM` 留空供源码本地构建；正式发版脚本要求 Developer ID、Hardened Runtime 和 Apple 公证，不再生成 ad hoc 分发包。
+SwiftUI 渲染，AppKit 管窗口与拖放；引用式存储 + security-scoped bookmark，JSON 原子写持久化。`DEVELOPMENT_TEAM` 留空供源码本地构建。推荐的正式发版使用 Developer ID、Hardened Runtime 和 Apple 公证：
 
 发布前先把公证凭据存入钥匙串，再提供签名身份与 Team ID：
 
@@ -86,7 +86,15 @@ export NOTARY_PROFILE='openyoink-notary'
 ./Scripts/make-release.sh 1.0.2 4
 ```
 
-脚本在公证和 Gatekeeper 校验通过后才会生成 Sparkle 签名并改写 appcast；上传 GitHub Release、再用脚本输出的 SHA 更新 Homebrew cask，仍需人工确认。
+Developer ID 模式下，脚本在公证和 Gatekeeper 校验通过后才会生成 Sparkle 签名并改写 appcast；上传 GitHub Release、再用脚本输出的 SHA 更新 Homebrew cask，仍需人工确认。
+
+没有付费 Apple Developer 会员时，可显式生成免费 GitHub 社区发布包：
+
+```bash
+./Scripts/make-release.sh 1.0.2 4 --adhoc
+```
+
+此模式仍使用 Sparkle EdDSA 签名保护自动更新完整性，但不会进行 Apple 公证；用户首次手动下载时可能需要右键选择「打开」或在系统设置中允许应用。脚本不会静默回退到该模式，必须明确传入 `--adhoc`。
 
 ## Roadmap
 
