@@ -10,10 +10,10 @@
         <language>en</language>
         <item>
             <title>Version 1.0.1</title>
-            <pubDate>Tue, 18 Aug 2026 16:23:35 +0800</pubDate>
-            <sparkle:version>2</sparkle:version>
+            <pubDate>Tue, 18 Aug 2026 16:57:07 +0800</pubDate>
+            <sparkle:version>3</sparkle:version>
             <sparkle:shortVersionString>1.0.1</sparkle:shortVersionString>
-            <enclosure url="https://github.com/MuQY1818/OpenYoink/releases/download/v1.0.1/OpenYoink-1.0.1.dmg" sparkle:edSignature="cEVOPq72c4sYS1m6UMBhDkWUBtXPbILYwvQ0d+/nJTYdEpNne6MSom7ZKVq/mFwhfedXhwyKfeUlVqD67IsQBQ==" length="3127901" type="application/octet-stream" />
+            <enclosure url="https://github.com/MuQY1818/OpenYoink/releases/download/v1.0.1/OpenYoink-1.0.1.dmg" sparkle:edSignature="PQy2aiR/KrhV+UEL3x/uTL+k44oU7ph3QUaXHL+NKqSw0YBqsafacNiFgcOtr6+8DDL5w56xLK34Rxu9GaDdDg==" length="3132441" type="application/octet-stream" />
         </item>
         <item>
             <title>Version 1.0</title>

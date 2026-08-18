@@ -81,6 +81,16 @@ echo "==> 导出 $APP_PATH"
 rm -rf "$APP_PATH"
 ditto "$ARCHIVE_PATH/Products/Applications/OpenYoink.app" "$APP_PATH"
 
+# 统一深度重签（ad hoc）：Hardened Runtime 的 library validation 要求主程序
+# 与所有嵌入 dylib 签名一致——Xcode 分件 ad-hoc 签名与 Sparkle.xcframework
+# 自带签名之间存在细微不一致，Sparkle 安装更新后的副本会 dyld 拒载
+# Sparkle.framework（1.0.1 实测）。一次 --deep --sign - 让所有部件共享同一
+# 临时身份；--entitlements 必须显式带上，否则主程序 entitlements 被清空。
+echo "==> 深度重签（ad hoc, 含 entitlements）"
+codesign --force --deep --sign - \
+    --entitlements "$REPO_ROOT/OpenYoink/Resources/OpenYoink.entitlements" \
+    "$APP_PATH"
+
 SHORT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP_PATH/Contents/Info.plist")"
 BUNDLE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$APP_PATH/Contents/Info.plist")"
 echo "    shortVersionString=$SHORT_VERSION  bundleVersion=$BUNDLE_VERSION"
