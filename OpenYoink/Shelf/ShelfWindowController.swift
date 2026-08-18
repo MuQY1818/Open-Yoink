@@ -75,6 +75,9 @@ final class ShelfWindowController: NSObject {
     /// S6: Quick Look 会话（QLPreviewPanel 数据源/代理；空格/双击/右键入口
     /// 汇聚于此，随窗口控制器长期存活）。
     private let quickLookCoordinator: QuickLookCoordinator
+    /// v1.2: distinguishes external references from managed-copy loss and owns
+    /// the safe user-driven recovery actions.
+    private let itemRecoveryController: ItemRecoveryController
     /// 任务二：拖拽进行中状态（`DragStartMonitor.isDragInProgress`），供给
     /// 空架自动隐藏的门控 —— 拖拽期间任何自动显隐不得收起已可见的 shelf。
     private let dragStartMonitor: DragStartMonitor
@@ -106,6 +109,7 @@ final class ShelfWindowController: NSObject {
                 .environment(\.dragOutController, dragOutController)
                 .environment(\.quickLookCoordinator, quickLookCoordinator)
                 .environment(\.tempFileService, tempFileService)
+                .environment(\.itemRecoveryController, itemRecoveryController)
                 // 任务三：内缘收起把手点击 → 走标准 hideShelf 滑出动画。
                 .environment(\.shelfHideAction, { [weak self] in
                     self?.hideShelf(animated: true)
@@ -138,6 +142,7 @@ final class ShelfWindowController: NSObject {
          recents: RecentItemsService,
          deliveryCoordinator: DeliveryCoordinator,
          dragStartMonitor: DragStartMonitor,
+         onOpenStorageRecovery: @escaping @MainActor () -> Void = {},
          tutorialTokenForItem: @escaping @MainActor (UUID) -> String? = { _ in nil }) {
         self.appState = appState
         self.store = store
@@ -157,6 +162,12 @@ final class ShelfWindowController: NSObject {
             store: store,
             bookmarkService: importCoordinator.bookmarkService,
             tempFileService: tempFileService
+        )
+        self.itemRecoveryController = ItemRecoveryController(
+            store: store,
+            bookmarkService: importCoordinator.bookmarkService,
+            notices: importCoordinator.noticeCenter,
+            openStorageRecovery: onOpenStorageRecovery
         )
         super.init()
         // UX5/UX6: 项目增删 → 紧凑高度动画过渡 + 空架自动隐藏裁决。
@@ -220,6 +231,7 @@ final class ShelfWindowController: NSObject {
 
     /// 从贴附缘滑入并淡入（贴左缘时自左侧滑入，贴右缘时自右侧滑入）。
     func showShelf(animated: Bool = true) {
+        itemRecoveryController.refreshAll()
         appState.showShelf()
         let targetFrame = targetFrame()
         guard animated else {

@@ -32,6 +32,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 用户设置（S5 起拖出后移除策略被 DragSessionController 读取；S8 由
     /// SettingsView 编辑）。internal：OpenYoinkApp 的 Settings scene 注入环境用。
     let settingsStore = SettingsStore()
+    /// 设置窗口的共享导航状态，允许不可用的托管项目直接打开“存储”页。
+    let settingsNavigation = SettingsNavigationModel()
     /// 系统登录项状态（不复制到 UserDefaults；SMAppService 是唯一事实源）。
     let launchAtLoginController = LaunchAtLoginController()
     /// 恢复快照、托管目录占用与安全清理（设置-存储）。
@@ -71,6 +73,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                                                    recents: recentItemsService,
                                                                    deliveryCoordinator: deliveryCoordinator,
                                                                    dragStartMonitor: dragStartMonitor,
+                                                                   onOpenStorageRecovery: { [weak self] in
+                                                                       self?.settingsWindowController.show(pane: .storage)
+                                                                   },
                                                                    tutorialTokenForItem: { [weak self] itemID in
                                                                        self?.onboardingDragContext.token(for: itemID)
                                                                    })
@@ -85,7 +90,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                                                          hotKeyMonitor: hotKeyMonitor,
                                                                          launchAtLoginController: launchAtLoginController,
                                                                          updateController: updateController,
-                                                                         storageManagementController: storageManagementController)
+                                                                         storageManagementController: storageManagementController,
+                                                                         navigation: settingsNavigation)
     private lazy var menuBarController = MenuBarController(
         appState: appState,
         recents: recentItemsService,
@@ -372,7 +378,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Bookmark resolution at launch (S4)
 
     /// 启动时批量解析已持久化项目的 bookmark：
-    /// - 解析失败 → `isStale = true`（卡片显示「不可用」，不静默删除，计划 §6）；
+    /// - 外部引用解析失败 → `externalFileOffline`，允许用户重新定位；
+    /// - 托管副本解析失败 → `managedCopyMissing`，只进入存储与恢复；
     /// - 解析成功但 bookmark 过期（文件移动过）→ 重建 bookmark 并更新 path；
     /// - Stack 子项递归处理。
     private func resolvePersistedBookmarks() {
@@ -385,42 +392,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// 返回需要更新的项目副本；无需更新返回 nil。递归处理 Stack 子项。
     private func refreshedByResolvingBookmark(_ item: ShelfItem) -> ShelfItem? {
-        var updated = item
-        var changed = false
-
-        if let bookmark = item.bookmark {
-            do {
-                let resolved = try bookmarkService.resolve(bookmark)
-                if resolved.isStale {
-                    // bookmark 过期但可解析（文件移动后经 file id 找到）：重建。
-                    updated.bookmark = (try? bookmarkService.createBookmark(for: resolved.url)) ?? bookmark
-                    updated.path = resolved.url.path
-                    changed = true
-                } else if item.path != resolved.url.path {
-                    updated.path = resolved.url.path
-                    changed = true
-                }
-            } catch {
-                updated.isStale = true
-                changed = true
-            }
-        }
-
-        if var children = updated.children {
-            var childrenChanged = false
-            for index in children.indices {
-                if let refreshedChild = refreshedByResolvingBookmark(children[index]) {
-                    children[index] = refreshedChild
-                    childrenChanged = true
-                }
-            }
-            if childrenChanged {
-                updated.children = children
-                changed = true
-            }
-        }
-
-        return changed ? updated : nil
+        let result = ItemAvailabilityResolver.refresh(
+            item,
+            bookmarkService: bookmarkService
+        )
+        return result.item == item ? nil : result.item
     }
 
     // MARK: - Materialized file cleanup (S4)

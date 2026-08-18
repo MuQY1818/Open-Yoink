@@ -299,6 +299,40 @@ final class ShelfStoreTests: XCTestCase {
         XCTAssertFalse(store.items[0].isStale)
     }
 
+    func testRecursiveLookupAndDurableUpdate_replacesStackChild() throws {
+        let directory = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let persistence = PersistenceController(directoryURL: directory)
+        let child = makeItem("missing")
+        let stack = ShelfItem(kind: .stack, displayName: "Files", children: [child])
+        let store = ShelfStore(items: [stack], persistence: persistence)
+        try persistence.saveNow(store.items)
+
+        var relocated = child
+        relocated.path = "/tmp/reconnected"
+        relocated.bookmark = Data([1, 2, 3])
+        XCTAssertEqual(store.itemRecursively(withID: child.id), child)
+        XCTAssertTrue(try store.updateRecursivelyAndPersistNow(relocated))
+
+        XCTAssertEqual(store.itemRecursively(withID: child.id)?.path, "/tmp/reconnected")
+        XCTAssertEqual(persistence.load()[0].children?[0].bookmark, Data([1, 2, 3]))
+    }
+
+    func testRecursiveDurableUpdate_saveFailureLeavesRuntimeUntouched() throws {
+        let root = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let notADirectory = root.appendingPathComponent("blocked")
+        try Data([1]).write(to: notADirectory)
+        let persistence = PersistenceController(directoryURL: notADirectory)
+        let item = makeItem("original")
+        let store = ShelfStore(items: [item], persistence: persistence)
+        var replacement = item
+        replacement.path = "/tmp/replacement"
+
+        XCTAssertThrowsError(try store.updateRecursivelyAndPersistNow(replacement))
+        XCTAssertEqual(store.items[0].path, item.path)
+    }
+
     // MARK: - Persistence integration
 
     func testAddAndPersistNowCommitsBeforePublishingRuntimeItem() throws {

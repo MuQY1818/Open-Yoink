@@ -35,14 +35,24 @@ struct ShelfItem: Codable, Identifiable, Equatable, Sendable {
     /// delivered — then removed from the shelf — on drag out. Persisted;
     /// JSON written by older versions lacks the key and decodes as false.
     var isCut: Bool
-    /// Runtime-only flag: true when the backing file could not be resolved at
-    /// launch (bookmark dead). Never persisted — recomputed on every launch via
-    /// `BookmarkService`, so the UI can show "unavailable" instead of dropping
-    /// the item silently.
-    var isStale = false
+    /// Runtime-only availability. Never persisted — recomputed on launch and
+    /// whenever the shelf is shown. External references and managed copies use
+    /// different recovery paths; see `ItemAvailability`.
+    var availability: ItemAvailability = .available
+
+    /// Compatibility shorthand retained for call sites and older focused tests.
+    /// New code should inspect `availability` to choose a safe recovery action.
+    var isStale: Bool {
+        get { availability != .available }
+        set {
+            availability = newValue
+                ? (isCut ? .managedCopyMissing : .externalFileOffline)
+                : .available
+        }
+    }
 
     private enum CodingKeys: String, CodingKey {
-        // `isStale` is deliberately excluded (runtime-only, see above).
+        // `availability` / `isStale` are deliberately excluded (runtime-only).
         case id, kind, path, bookmark, displayName, addedAt, sourceApp, text, urlString, children, isCut
     }
 

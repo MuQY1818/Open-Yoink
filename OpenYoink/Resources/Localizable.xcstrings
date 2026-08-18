@@ -1449,6 +1449,125 @@
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Removed %lld unused items and reclaimed %@." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已清理 %lld 个未使用项目，释放 %@。" } }
       }
+    },
+    "Available" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Available" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "可用" } }
+      }
+    },
+    "Selected" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Selected" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已选择" } }
+      }
+    },
+    "Not selected" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Not selected" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未选择" } }
+      }
+    },
+    "Contains unavailable items" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Contains unavailable items" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "包含不可用项目" } }
+      }
+    },
+    "Original file unavailable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Original file unavailable" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "找不到原文件" } }
+      }
+    },
+    "Managed copy missing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Managed copy missing" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "托管副本缺失" } }
+      }
+    },
+    "Items unavailable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Items unavailable" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "有项目不可用" } }
+      }
+    },
+    "Original missing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Original missing" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "原文件缺失" } }
+      }
+    },
+    "Review…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Review…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "查看…" } }
+      }
+    },
+    "Locate…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Locate…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重新定位…" } }
+      }
+    },
+    "Recovery…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Recovery…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "恢复…" } }
+      }
+    },
+    "Expand the stack to review unavailable items." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Expand the stack to review unavailable items." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "展开堆叠以查看不可用项目。" } }
+      }
+    },
+    "Locate Original File" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Locate Original File" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重新定位原文件" } }
+      }
+    },
+    "Choose the file or folder that this shelf item should reference." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose the file or folder that this shelf item should reference." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请选择这个暂存项目应重新连接的文件或文件夹。" } }
+      }
+    },
+    "Reconnect" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reconnect" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重新连接" } }
+      }
+    },
+    "The shelf item was reconnected." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The shelf item was reconnected." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂存项目已重新连接。" } }
+      }
+    },
+    "The file could not be reconnected. The original shelf item was kept." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The file could not be reconnected. The original shelf item was kept." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法重新连接文件，原暂存项目已保留。" } }
+      }
     }
   },
   "version" : "1.0"

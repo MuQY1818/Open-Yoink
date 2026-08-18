@@ -34,6 +34,8 @@ struct ShelfView: View {
     @Environment(ShelfNoticeModel.self) private var notices
     /// v1.2: runtime-only asynchronous batch status.
     @Environment(TransferStore.self) private var transferStore
+    /// v1.2: unavailable-item actions (external reconnect vs managed recovery).
+    @Environment(\.itemRecoveryController) private var itemRecoveryController
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// 任务三：内缘收起把手的收起动作（ShelfWindowController 注入；Preview 为 nil 空操作）。
     @Environment(\.shelfHideAction) private var shelfHideAction
@@ -218,6 +220,7 @@ struct ShelfView: View {
                 onSelect: { additive in select(item.id, additive: additive) },
                 onToggleExpanded: { toggleStackExpansion(item.id) },
                 onRemove: { store.remove(ids: [item.id]) },
+                onRecover: { toggleStackExpansion(item.id) },
                 dragContentsProvider: dragContents(for:)
             )
         } else {
@@ -226,6 +229,7 @@ struct ShelfView: View {
                 isSelected: store.selection.contains(item.id),
                 onSelect: { additive in select(item.id, additive: additive) },
                 onRemove: { store.remove(ids: [item.id]) },
+                onRecover: { itemRecoveryController?.recover(item) },
                 dragContentsProvider: dragContents(for:)
             )
         }
@@ -369,6 +373,9 @@ struct ShelfView: View {
                         // 因 item(withID:) 返回 nil 自动收起。
                         onRemoveChild: { childID in
                             store.removeChild(childID, fromStack: stackID)
+                        },
+                        onRecoverChild: { child in
+                            itemRecoveryController?.recover(child)
                         }
                     )
                     .padding(8)

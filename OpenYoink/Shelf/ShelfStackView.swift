@@ -16,6 +16,7 @@ struct ShelfStackView: View {
     let onSelect: (_ additive: Bool) -> Void
     let onToggleExpanded: () -> Void
     var onRemove: (() -> Void)?
+    var onRecover: (() -> Void)? = nil
     /// S5 拖出内容计算（多选整批/stack 语义由 ShelfView 决定）。
     var dragContentsProvider: ((ShelfItem) -> DragOutContents)?
 
@@ -32,6 +33,7 @@ struct ShelfStackView: View {
                 }
             },
             onRemove: onRemove,
+            onRecover: onRecover,
             thumbnailItem: item.children?.first(where: { $0.fileURL != nil }),
             dragContentsProvider: dragContentsProvider
         )
@@ -67,6 +69,8 @@ struct ShelfStackExpandedView: View {
     let onDismiss: () -> Void
     /// UX4: 子项移除回调（参数为子项 id）。nil 时子项卡片不渲染 ✕。
     var onRemoveChild: ((UUID) -> Void)?
+    /// v1.2: child-specific availability recovery.
+    var onRecoverChild: ((ShelfItem) -> Void)? = nil
 
     /// 子项局部多选集合（S5 批量拖出读取）。
     @State private var childSelection: Set<UUID> = []
@@ -91,6 +95,9 @@ struct ShelfStackExpandedView: View {
                             },
                             onRemove: onRemoveChild.map { remove in
                                 { remove(child.id) }
+                            },
+                            onRecover: onRecoverChild.map { recover in
+                                { recover(child) }
                             },
                             dragContentsProvider: dragContents(for:)
                         )

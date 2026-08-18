@@ -45,6 +45,14 @@ final class ShelfStore {
         items.first { $0.id == id }
     }
 
+    /// Finds a top-level item or a descendant of a stack.
+    func itemRecursively(withID id: UUID) -> ShelfItem? {
+        for item in items {
+            if let match = Self.item(withID: id, inside: item) { return match }
+        }
+        return nil
+    }
+
     func index(ofItemWithID id: UUID) -> Int? {
         items.firstIndex { $0.id == id }
     }
@@ -276,6 +284,26 @@ final class ShelfStore {
         persist()
     }
 
+    /// Publishes a top-level runtime-only state change without scheduling a
+    /// shelf write. Availability is deliberately absent from shelf.json.
+    func updateRuntime(_ item: ShelfItem) {
+        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
+        items[index] = item
+    }
+
+    /// Atomically replaces a top-level item or stack descendant. The complete
+    /// snapshot is written before runtime state changes, so a failed reconnect
+    /// can never leave memory pointing at a bookmark that was not saved.
+    @discardableResult
+    func updateRecursivelyAndPersistNow(_ item: ShelfItem) throws -> Bool {
+        var updatedItems = items
+        guard Self.replace(item, inside: &updatedItems) else { return false }
+        try persistence?.saveNow(updatedItems)
+        items = updatedItems
+        onItemsDidChange?()
+        return true
+    }
+
     /// Sets the runtime-only stale flag. Not persisted — the flag is recomputed
     /// on every launch.
     func markStale(_ id: UUID, _ isStale: Bool) {
@@ -290,5 +318,28 @@ final class ShelfStore {
         // UX5/UX6: 一切会持久化的变更都是 items 变更（选择集不持久化、
         // 不触发）——高度动画/空架裁决的统一下发点。
         onItemsDidChange?()
+    }
+
+    private static func item(withID id: UUID, inside item: ShelfItem) -> ShelfItem? {
+        if item.id == id { return item }
+        for child in item.children ?? [] {
+            if let match = self.item(withID: id, inside: child) { return match }
+        }
+        return nil
+    }
+
+    private static func replace(_ replacement: ShelfItem, inside items: inout [ShelfItem]) -> Bool {
+        for index in items.indices {
+            if items[index].id == replacement.id {
+                items[index] = replacement
+                return true
+            }
+            if var children = items[index].children,
+               replace(replacement, inside: &children) {
+                items[index].children = children
+                return true
+            }
+        }
+        return false
     }
 }

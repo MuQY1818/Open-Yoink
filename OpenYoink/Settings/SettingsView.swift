@@ -1,6 +1,13 @@
 import AppKit
+import Observation
 import SwiftUI
 import UniformTypeIdentifiers
+
+@MainActor
+@Observable
+final class SettingsNavigationModel {
+    var selectedPane: SettingsPane = .general
+}
 
 /// Settings window (S8): native sidebar navigation with grouped forms. The
 /// sidebar keeps all five destinations readable in Chinese and at larger text
@@ -13,11 +20,12 @@ import UniformTypeIdentifiers
 /// the menu bar (`MenuBarController.showSettings`). `SettingsStore` and
 /// `HotKeyMonitor` arrive through the environment.
 struct SettingsView: View {
-    @State private var selectedPane: SettingsPane = .general
+    @Environment(SettingsNavigationModel.self) private var navigation
 
     var body: some View {
+        @Bindable var navigation = navigation
         HStack(spacing: 0) {
-            List(selection: $selectedPane) {
+            List(selection: $navigation.selectedPane) {
                 ForEach(SettingsPane.allCases) { pane in
                     Label(pane.title, systemImage: pane.systemImage)
                         .tag(pane)
@@ -29,7 +37,7 @@ struct SettingsView: View {
 
             Divider()
 
-            selectedContent
+            selectedContent(for: navigation.selectedPane)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(
@@ -43,8 +51,8 @@ struct SettingsView: View {
     }
 
     @ViewBuilder
-    private var selectedContent: some View {
-        switch selectedPane {
+    private func selectedContent(for pane: SettingsPane) -> some View {
+        switch pane {
         case .general:
             GeneralSettingsTab()
         case .triggers:
@@ -59,7 +67,7 @@ struct SettingsView: View {
     }
 }
 
-private enum SettingsPane: String, CaseIterable, Identifiable {
+enum SettingsPane: String, CaseIterable, Identifiable {
     case general
     case triggers
     case ignoredApps

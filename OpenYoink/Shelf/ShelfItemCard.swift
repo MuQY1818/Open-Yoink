@@ -29,6 +29,9 @@ struct ShelfItemCard: View {
     /// 「Remove from Shelf」。同时驱动右键菜单移除项与 UX4 悬停 ✕ 按钮；
     /// 为 nil 时两者都不呈现（移除语义由父视图决定注入）。
     var onRemove: (() -> Void)?
+    /// v1.2: safe recovery action selected by the parent (external reconnect,
+    /// managed storage, or review a stack's unavailable children).
+    var onRecover: (() -> Void)?
     /// 决定缩略图内容的项目；默认与 `item` 相同。Stack 卡片传入第一个文件类子项。
     var thumbnailItem: ShelfItem?
     /// S5 拖出内容计算：给定被拖卡片项目，返回本次拖出的项目集合与涉及的顶层
@@ -58,19 +61,25 @@ struct ShelfItemCard: View {
          isSelected: Bool,
          onSelect: @escaping (_ additive: Bool) -> Void,
          onRemove: (() -> Void)? = nil,
+         onRecover: (() -> Void)? = nil,
          thumbnailItem: ShelfItem? = nil,
          dragContentsProvider: ((ShelfItem) -> DragOutContents)? = nil) {
         self.item = item
         self.isSelected = isSelected
         self.onSelect = onSelect
         self.onRemove = onRemove
+        self.onRecover = onRecover
         self.thumbnailItem = thumbnailItem
         self.dragContentsProvider = dragContentsProvider
     }
 
     var body: some View {
         VStack(spacing: 5) {
-            thumbnailArea
+            if item.availability == .available {
+                thumbnailArea
+            } else {
+                availabilityArea
+            }
             nameRow
         }
         .padding(6)
@@ -78,28 +87,29 @@ struct ShelfItemCard: View {
         .background { surface }
         .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius))
         .contentShape(RoundedRectangle(cornerRadius: Self.cornerRadius))
-        .opacity(item.isStale ? 0.55 : 1)
-        .overlay(alignment: .topLeading) { staleBadge }
+        .overlay { availabilityBorder }
         // F-05: 剪切项角标（左下剪刀，与左上 stale 角标不同位置/颜色）。
         .overlay(alignment: .bottomLeading) { cutBadge }
         // S5 拖出事件层：透明 NSView 覆盖整卡，成为左键事件权威
         //（mouseDown 记录 → mouseDragged 超阈值开始拖拽；mouseUp 无拖拽回落为
         // 点击选择 / 双击 Quick Look）。右键（contextMenu）与滚动透传给 SwiftUI。
         .overlay {
-            CardDragSourceBridge(
-                itemID: item.id,
-                onClick: onSelect,
-                onDoubleClick: { quickLookCoordinator?.toggle(contextItem: item) },
-                onDragBegin: { sourceView, event in
-                    guard let dragOutController else { return }
-                    let contents = dragContentsProvider?(item)
-                        ?? DragOutContents(items: [item], topLevelIDs: [item.id])
-                    dragOutController.beginDrag(contents: contents,
-                                                originatingItemID: item.id,
-                                                from: sourceView,
-                                                event: event)
-                }
-            )
+            if item.availability == .available {
+                CardDragSourceBridge(
+                    itemID: item.id,
+                    onClick: onSelect,
+                    onDoubleClick: { quickLookCoordinator?.toggle(contextItem: item) },
+                    onDragBegin: { sourceView, event in
+                        guard let dragOutController else { return }
+                        let contents = dragContentsProvider?(item)
+                            ?? DragOutContents(items: [item], topLevelIDs: [item.id])
+                        dragOutController.beginDrag(contents: contents,
+                                                    originatingItemID: item.id,
+                                                    from: sourceView,
+                                                    event: event)
+                    }
+                )
+            }
         }
         // UX4: 悬停 ✕ 移除按钮。z 序在拖出事件层之上 —— 命中测试先到达
         // SwiftUI Button，落在 ✕ 上的点击不会触发选择或拖出；未悬停时
@@ -112,13 +122,17 @@ struct ShelfItemCard: View {
         // 子项数）+ stale 态；选中态走 .isSelected trait；双击 = Quick Look。
         // UX4: 卡片忽略子元素（✕ 对 VoiceOver 不可见），移除操作改以自定义
         // action 暴露（rotor「操作」中可触发）。
-        .accessibilityElement(children: .ignore)
+        .accessibilityElement(children: item.availability == .available ? .ignore : .contain)
         .accessibilityLabel(cardAccessibilityLabel)
         .accessibilityHint(Text("Double-click for Quick Look"))
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction(named: Text("Remove from Shelf")) {
             onRemove?()
         }
+        .simultaneousGesture(TapGesture().onEnded {
+            guard item.availability != .available else { return }
+            onSelect(NSEvent.modifierFlags.contains(.command))
+        })
         .task(id: item) { await loadAssets() }
     }
 
@@ -158,8 +172,20 @@ struct ShelfItemCard: View {
         if item.isCut {
             label += ", " + String(localized: "Will move on drag out")
         }
-        if item.isStale {
-            label += ", " + String(localized: "File Unavailable")
+        label += isSelected
+            ? ", " + String(localized: "Selected")
+            : ", " + String(localized: "Not selected")
+        switch item.availability {
+        case .available:
+            label += ", " + String(localized: "Available")
+        case .externalFileOffline:
+            label += ", " + String(localized: item.kind == .stack
+                ? "Contains unavailable items"
+                : "Original file unavailable")
+        case .managedCopyMissing:
+            label += ", " + String(localized: item.kind == .stack
+                ? "Contains unavailable items"
+                : "Managed copy missing")
         }
         return Text(label)
     }
@@ -250,6 +276,67 @@ struct ShelfItemCard: View {
         }
     }
 
+    // MARK: - Availability
+
+    /// Fixed-height status content replaces the thumbnail for unavailable
+    /// items, keeping the grid geometry stable while exposing a real button.
+    private var availabilityArea: some View {
+        VStack(spacing: 2) {
+            Label(availabilityStatusText, systemImage: availabilitySymbolName)
+                .font(.caption2.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            if let onRecover {
+                Button(availabilityActionTitle, action: onRecover)
+                    .buttonStyle(.borderless)
+                    .controlSize(.mini)
+                    .accessibilityHint(Text(availabilityActionHint))
+            }
+        }
+        .foregroundStyle(.primary)
+        .frame(maxWidth: .infinity)
+        .frame(height: Self.thumbnailHeight)
+    }
+
+    private var availabilityStatusText: String {
+        if item.kind == .stack { return String(localized: "Items unavailable") }
+        switch item.availability {
+        case .available: return String(localized: "Available")
+        case .externalFileOffline: return String(localized: "Original missing")
+        case .managedCopyMissing: return String(localized: "Managed copy missing")
+        }
+    }
+
+    private var availabilityActionTitle: String {
+        if item.kind == .stack { return String(localized: "Review…") }
+        switch item.availability {
+        case .available: return ""
+        case .externalFileOffline: return String(localized: "Locate…")
+        case .managedCopyMissing: return String(localized: "Recovery…")
+        }
+    }
+
+    private var availabilityActionHint: String {
+        if item.kind == .stack {
+            return String(localized: "Expand the stack to review unavailable items.")
+        }
+        switch item.availability {
+        case .available: return ""
+        case .externalFileOffline:
+            return String(localized: "Locate the original file to reconnect it.")
+        case .managedCopyMissing:
+            return String(localized: "Open Storage settings to review recovery data.")
+        }
+    }
+
+    private var availabilitySymbolName: String {
+        switch item.availability {
+        case .available: "checkmark.circle"
+        case .externalFileOffline: "questionmark.folder"
+        case .managedCopyMissing: "externaldrive.badge.exclamationmark"
+        }
+    }
+
     // MARK: - Name row
 
     /// 名称行：来源应用 12pt 小图标 + 单行中间截断名称（§3）。
@@ -282,17 +369,16 @@ struct ShelfItemCard: View {
             }
     }
 
-    /// isStale 角标（bookmark 失效，文件可能被移动/删除；S4 起由 BookmarkService 标记）。
+    /// Unavailable state uses a dashed shape in addition to icon/text, so the
+    /// distinction remains visible with “Differentiate Without Color”.
     @ViewBuilder
-    private var staleBadge: some View {
-        if item.isStale {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.caption)
-                .foregroundStyle(Color(nsColor: .systemYellow))
-                .padding(4)
-                .background { Circle().fill(Color(nsColor: .windowBackgroundColor)) }
-                .padding(5)
-                .help("File unavailable — it may have been moved or deleted.")
+    private var availabilityBorder: some View {
+        if item.availability != .available {
+            RoundedRectangle(cornerRadius: Self.cornerRadius)
+                .strokeBorder(
+                    Color.primary.opacity(0.48),
+                    style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])
+                )
                 .allowsHitTesting(false)
         }
     }
@@ -322,8 +408,11 @@ struct ShelfItemCard: View {
     /// 选中集合（规则见 `QuickLookPreviewPlanner`）。
     @ViewBuilder
     private var contextMenu: some View {
-        if item.isStale {
-            Text("File Unavailable")
+        if item.availability != .available {
+            Label(availabilityStatusText, systemImage: availabilitySymbolName)
+            if let onRecover {
+                Button(availabilityActionTitle, action: onRecover)
+            }
         } else {
             Button("Quick Look") { quickLookCoordinator?.toggle(contextItem: item) }
                 .disabled(quickLookCoordinator == nil || !ItemActions.canQuickLook(item))
