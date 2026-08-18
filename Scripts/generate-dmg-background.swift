@@ -1,23 +1,21 @@
-#!/usr/bin/env swift
-//
 // generate-dmg-background.swift — 生成 DMG 安装窗口背景图（自绘，无第三方资源）。
 //
 // 运行：swift Scripts/generate-dmg-background.swift
-// 产物：Scripts/dmg-background.png（660×440 px —— 必须与窗口 pt 尺寸 1:1：
+// 产物：Scripts/dmg-background.png（600×360 px —— 必须与窗口 pt 尺寸 1:1：
 //   Finder 按图片像素尺寸以 pt 为单位铺背景，@2x 会放大一倍导致元素出界）。
 //   为兼顾 Retina 观感，全部内容先在 2x 离屏画布绘制再降采样到 1x
-//   （超采样抗锯齿，文字不发虚）。
+//   （超采样抗锯齿）。
 //
 // 布局约定（与 make-dmg.sh 的 Finder 布局参数一致，单位均为 1x pt/px）：
-//   窗口内容 660×440；app 图标中心 (160, 250)、Applications 别名中心
-//   (500, 250)、图标 128pt；标题/副标题/点状箭头烘焙在背景图里。
-//   NSGraphicsContext 原点左下：y = H - 距顶距离。
+//   窗口内容 600×360；app 图标中心 (140, 180)、Applications 别名中心
+//   (460, 180)、图标 128pt；两图标之间只画点状引导箭头（无文字，按作者
+//   要求）。NSGraphicsContext 原点左下：y = H - 距顶距离。
 
 import AppKit
 
 // 1x 输出尺寸与 2x 超采样因子。
-let W: CGFloat = 660
-let H: CGFloat = 440
+let W: CGFloat = 600
+let H: CGFloat = 360
 let SS: CGFloat = 2
 
 func makeRep(_ w: CGFloat, _ h: CGFloat) -> NSBitmapImageRep {
@@ -46,28 +44,10 @@ let bg = NSGradient(colors: [
 ])!
 bg.draw(in: NSRect(x: 0, y: 0, width: W, height: H), angle: -90)
 
-// 2. 标题：大号细字重（优雅风格，超采样后依然锐利）。
-let titleAttrs: [NSAttributedString.Key: Any] = [
-    .font: NSFont.systemFont(ofSize: 40, weight: .light),
-    .foregroundColor: NSColor(srgbRed: 0.16, green: 0.18, blue: 0.22, alpha: 1.0),
-]
-let title = NSAttributedString(string: "OpenYoink", attributes: titleAttrs)
-let titleSize = title.size()
-title.draw(at: NSPoint(x: (W - titleSize.width) / 2, y: H - 66 - titleSize.height))
-
-// 3. 副标题：小号常规字重，中性灰。
-let subAttrs: [NSAttributedString.Key: Any] = [
-    .font: NSFont.systemFont(ofSize: 13, weight: .regular),
-    .foregroundColor: NSColor(srgbRed: 0.44, green: 0.47, blue: 0.52, alpha: 1.0),
-]
-let subtitle = NSAttributedString(string: "拖至 Applications 完成安装 · Drag to Applications to install", attributes: subAttrs)
-let subSize = subtitle.size()
-subtitle.draw(at: NSPoint(x: (W - subSize.width) / 2, y: H - 104 - subSize.height))
-
-// 4. 引导箭头：点状虚线 + 实心箭头头部，灰蓝色，位于图标行（距顶 250 → y=190）。
-let arrowY: CGFloat = H - 250
-let startX: CGFloat = 252   // app 图标右缘 224 → 留 28pt
-let endX: CGFloat = 408     // Applications 左缘 436 → 留 28pt
+// 2. 引导箭头：点状虚线 + 实心箭头头部，灰蓝色，垂直居中（图标行 y=180 距顶）。
+let arrowY: CGFloat = H - 180
+let startX: CGFloat = 228   // app 图标右缘 204 → 留 24pt
+let endX: CGFloat = 372     // Applications 左缘 396 → 留 24pt
 let dotColor = NSColor(srgbRed: 0.4, green: 0.52, blue: 0.76, alpha: 0.95)
 
 dotColor.setFill()
@@ -90,7 +70,7 @@ head.fill()
 
 NSGraphicsContext.restoreGraphicsState()
 
-// 5. 超采样降落到 1x 画布（高质量插值）。
+// 3. 超采样降落到 1x 画布（高质量插值）。
 let final = makeRep(W, H)
 NSGraphicsContext.saveGraphicsState()
 NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: final)
@@ -109,3 +89,4 @@ do {
 } catch {
     fatalError("Failed to write PNG: \(error.localizedDescription)")
 }
+

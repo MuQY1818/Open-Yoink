@@ -26,9 +26,9 @@ FINAL_DMG="$REPO_ROOT/export/$DMG_NAME.dmg"
 BACKGROUND_SRC="$REPO_ROOT/Scripts/dmg-background.png"
 
 # 窗口/图标布局（与 generate-dmg-background.swift 的坐标约定一致）。
-WIN_W=600; WIN_H=400
-APP_X=150; APP_Y=230
-ALIAS_X=450; ALIAS_Y=230
+WIN_W=600; WIN_H=360
+APP_X=140; APP_Y=180
+ALIAS_X=460; ALIAS_Y=180
 ICON_SIZE=128
 
 if [ ! -d "$APP_PATH" ]; then
