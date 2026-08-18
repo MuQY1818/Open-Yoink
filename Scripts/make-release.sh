@@ -52,12 +52,23 @@ if [ ! -x "$SIGN_UPDATE" ]; then
 fi
 echo "==> sign_update: $SIGN_UPDATE"
 
-# ---- 1. Archive ----
-VERSION_ARGS=(MARKETING_VERSION="$VERSION")
-if [ -n "$BUILD_NUMBER" ]; then
-    VERSION_ARGS+=(CURRENT_PROJECT_VERSION="$BUILD_NUMBER")
+# ---- build number（评审 P2）：sparkle:version 必须严格递增，否则老用户
+# 不会把新包视为更新。不传 BUILD 时自动取 appcast 最大 sparkle:version + 1；
+# 传入时校验必须大于该最大值，防止误发「看似新版实则同 build」的更新。
+MAX_BUILD="$(grep -o '<sparkle:version>[0-9]*' "$APPCAST" 2>/dev/null | grep -o '[0-9]*' | sort -n | tail -1 || true)"
+MAX_BUILD="${MAX_BUILD:-0}"
+if [ -z "$BUILD_NUMBER" ]; then
+    BUILD_NUMBER=$((MAX_BUILD + 1))
+    echo "==> 自动 build number：$BUILD_NUMBER（appcast 最大 $MAX_BUILD + 1）"
+elif [ "$BUILD_NUMBER" -le "$MAX_BUILD" ]; then
+    echo "error: BUILD=$BUILD_NUMBER 不大于 appcast 最大 sparkle:version $MAX_BUILD —— 老用户将收不到更新。请传更大值，或省略第二个参数自动递增。" >&2
+    exit 1
 fi
-echo "==> archive（Release, ${VERSION}）"
+
+# ---- 1. Archive ----
+# build number 在上文已保证存在且严格递增，总是显式写入。
+VERSION_ARGS=(MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD_NUMBER")
+echo "==> archive（Release, ${VERSION} (${BUILD_NUMBER})）"
 rm -rf "$ARCHIVE_PATH"
 xcodebuild -project "$PROJECT" -scheme "$SCHEME" -configuration Release \
     -destination 'platform=macOS' \

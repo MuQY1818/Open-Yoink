@@ -51,17 +51,24 @@ final class FilePromiseReceiver {
         }
 
         var dispatched = 0
+        // 评审 P1 修复：同一批拖入的所有 receiver 共享**一个** staging 目录
+        // （NSFilePromiseReceiver.h:25「All file promisesReceiver's in a drag
+        // must specify the same destination location」）。此前每个 receiver
+        // 独立目录 + 回调即删——但 reader 回调是**逐文件**触发的（同一
+        // receiver 可交付多个文件），首个文件完成就删目录会把后续文件
+        // 仍需写入的位置抽空。现在共享目录且不在回调中清理：文件一到即
+        // 移往物化目录顶层；staging 残留由启动时的按龄清理兜底。
+        let stagingURL: URL
+        do {
+            stagingURL = try tempFileService.uniqueFileURL(suggestedName: "PromiseStaging")
+            try FileManager.default.createDirectory(at: stagingURL, withIntermediateDirectories: true)
+        } catch {
+            logger.error("Failed to create promise staging directory: \(error.localizedDescription, privacy: .public)")
+            return 0
+        }
         for receiver in receivers {
             // `fileTypes` 仅在拖拽会话内有效，立即提取为值类型。
             let promisedTypes = receiver.fileTypes
-            let stagingURL: URL
-            do {
-                stagingURL = try tempFileService.uniqueFileURL(suggestedName: "PromiseStaging")
-                try FileManager.default.createDirectory(at: stagingURL, withIntermediateDirectories: true)
-            } catch {
-                logger.error("Failed to create promise staging directory: \(error.localizedDescription, privacy: .public)")
-                continue
-            }
             dispatched += 1
             // 回调在 operationQueue（后台）执行：只捕获 Sendable 的服务与值类型，
             // 不捕获 MainActor 隔离的 self；成功/失败均经闭包内 Task 跳回 MainActor。
@@ -78,7 +85,6 @@ final class FilePromiseReceiver {
                     fileURL: fileURL,
                     error: error,
                     promisedTypes: promisedTypes,
-                    stagingURL: stagingURL,
                     tempFileService: tempFileService,
                     bookmarkService: bookmarkService,
                     logger: logger,
@@ -100,20 +106,18 @@ final class FilePromiseReceiver {
 
     /// 后台物化完成处理（OperationQueue 上下文，非隔离）。
     /// 成功：移动到物化目录顶层 → kind 推断 + bookmark → completion。
-    /// 失败：记日志 + failure 回调（D10 内联提示）；staging 目录无论成败都清理。
+    /// 失败：记日志 + failure 回调（D10 内联提示）。
+    /// 回调逐文件触发，故**不触碰共享 staging 目录**（清理由启动时按龄兜底）。
     private nonisolated static func handleMaterializedPromise(
         fileURL: URL?,
         error: Error?,
         promisedTypes: [String],
-        stagingURL: URL,
         tempFileService: TempFileService,
         bookmarkService: BookmarkService,
         logger: Logger,
         completion: (ShelfItem) -> Void,
         failure: () -> Void
     ) {
-        defer { try? FileManager.default.removeItem(at: stagingURL) }
-
         if let error {
             logger.error("File promise materialization failed: \(error.localizedDescription, privacy: .public)")
             failure()

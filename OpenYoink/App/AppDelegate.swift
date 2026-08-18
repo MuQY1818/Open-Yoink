@@ -170,7 +170,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // S4: 批量解析持久化项目的 bookmark（失败标记 stale，过期书签重建并更新
         // 路径），再按最新路径清理物化目录里的孤儿文件。
         resolvePersistedBookmarks()
-        cleanupMaterializedOrphans()
+        // 评审 P1：仅在 shelf.json 加载成功（或本就不存在）时清理孤儿文件——
+        // 加载失败（文件损坏已隔离）时禁止清理：此刻 store 是被迫为空，
+        // 若照常清理会把全部保管文件连锁删除。损坏文件留在
+        // shelf.json.corrupt-* 供人工恢复，下次正常启动时再按常规清理。
+        if case .failed = persistence.loadResult() {
+            logger.warning("Skipping materialized orphan cleanup because shelf.json failed to load")
+        } else {
+            cleanupMaterializedOrphans()
+        }
+        // 评审 P1：promise 共享 staging 的按龄清理（与 shelf 加载结果无关，
+        // 只删 1 小时前的 PromiseStaging-* 残留，刚完成的拖入不受影响）。
+        tempFileService.cleanupStaleStagingDirectories()
     }
 
     func applicationWillTerminate(_ notification: Notification) {

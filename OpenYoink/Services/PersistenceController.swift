@@ -86,19 +86,50 @@ final class PersistenceController {
 
     // MARK: - Loading
 
+    /// 加载结果（评审 P1 修复）：严格区分「首次启动无文件」与「读取失败」。
+    /// 损坏的文件绝不能静默吞掉——AppDelegate 据此决定是否允许清理
+    /// Materialized 孤儿文件（加载失败时禁止清理，否则一次坏写就会在
+    /// 下次启动时连锁删除全部保管文件）。
+    enum LoadResult: Sendable, Equatable {
+        /// 成功读取快照（可能为空）。
+        case loaded([ShelfItem])
+        /// 文件不存在（首次启动/全新状态）。
+        case missing
+        /// 文件存在但读取/解码失败（已隔离到 shelf.json.corrupt-<时间戳>）。
+        case failed
+    }
+
     /// Loads the persisted items. Returns an empty array when the file is
-    /// missing or corrupted — the error is logged, never thrown, so a damaged
-    /// `shelf.json` can never crash launch.
+    /// missing or corrupted — see `loadResult()` for the failure-aware variant.
     func load() -> [ShelfItem] {
-        guard FileManager.default.fileExists(atPath: shelfFileURL.path) else { return [] }
+        switch loadResult() {
+        case .loaded(let items): return items
+        case .missing, .failed: return []
+        }
+    }
+
+    /// Failure-aware load：missing 与 failed 分开；failed 时把损坏文件改名
+    /// 隔离（保留现场供人工恢复），随后按全新空架启动。
+    func loadResult() -> LoadResult {
+        guard FileManager.default.fileExists(atPath: shelfFileURL.path) else { return .missing }
         do {
             let data = try Data(contentsOf: shelfFileURL)
             let snapshot = try decoder.decode(ShelfSnapshot.self, from: data)
-            return migrate(snapshot).items
+            return .loaded(migrate(snapshot).items)
         } catch {
             logger.error("Failed to load \(self.shelfFileURL.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
-            return []
+            quarantineCorruptFile()
+            return .failed
         }
+    }
+
+    /// 把损坏的 shelf.json 改名隔离（保留供人工检查/恢复；下次保存会写新文件）。
+    private func quarantineCorruptFile() {
+        let stamp = makeShelfDateFormatter().string(from: Date())
+            .replacingOccurrences(of: ":", with: "-")
+        let quarantineURL = directoryURL.appendingPathComponent("shelf.json.corrupt-\(stamp)")
+        try? FileManager.default.moveItem(at: shelfFileURL, to: quarantineURL)
+        logger.warning("Corrupted shelf.json quarantined to \(quarantineURL.path, privacy: .public)")
     }
 
     // MARK: - Saving
@@ -153,7 +184,9 @@ final class PersistenceController {
     }
 
     /// Atomic write: encode to a temporary file in the same directory, then
-    /// rename it over the target.
+    /// atomically replace the target with it. Never pre-deletes the old file —
+    /// 「先删旧文件再移动临时文件」在移动失败/断电时会同时丢掉新旧两份
+    /// （评审 P1：坏 shelf.json 会在下次启动连锁清空保管文件）。
     private func writeToDisk(_ items: [ShelfItem]) throws {
         let fileManager = FileManager.default
         try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
@@ -162,9 +195,11 @@ final class PersistenceController {
         let temporaryURL = directoryURL.appendingPathComponent("shelf.json.tmp")
         try data.write(to: temporaryURL)
         if fileManager.fileExists(atPath: shelfFileURL.path) {
-            try fileManager.removeItem(at: shelfFileURL)
+            // replaceItemAt 是同卷原子替换；失败时旧文件保持原样。
+            _ = try fileManager.replaceItemAt(shelfFileURL, withItemAt: temporaryURL)
+        } else {
+            try fileManager.moveItem(at: temporaryURL, to: shelfFileURL)
         }
-        try fileManager.moveItem(at: temporaryURL, to: shelfFileURL)
     }
 
     /// Schema migration hook. v1 is the first schema, so there is nothing to
