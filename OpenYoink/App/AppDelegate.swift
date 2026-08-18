@@ -30,7 +30,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                                                    importCoordinator: dropImportCoordinator,
                                                                    tempFileService: tempFileService,
                                                                    settings: settingsStore,
-                                                                   recents: recentItemsService)
+                                                                   recents: recentItemsService,
+                                                                   dragStartMonitor: dragStartMonitor)
+    private lazy var settingsWindowController = SettingsWindowController(settings: settingsStore,
+                                                                         hotKeyMonitor: hotKeyMonitor)
     private lazy var menuBarController = MenuBarController(
         appState: appState,
         recents: recentItemsService,
@@ -39,6 +42,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         },
         onReaddRecent: { [weak self] entry in
             self?.readdRecent(entry)
+        },
+        onShowSettings: { [weak self] in
+            self?.settingsWindowController.show()
         }
     )
 
@@ -185,6 +191,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// UX1: 拖拽结束。本轮为自动唤出且没有内容落入 → 动画收回；
     /// 其余情况（手动唤出、已有导入、用户拖拽中已手动隐藏）不动。
+    ///
+    /// 任务二审查结论（拖拽中可见性不变式）：本路径不会「拖拽中误隐」——
+    /// DragStartMonitor 在派发 onDragEnd 前已把 isDragInProgress 复位，
+    /// 收回只发生在抬起之后；且成功落入（含已派发的异步物化）经
+    /// onImportHandled → noteImport 置位，dragEnded 必返回 false。
+    /// 空架自动隐藏（拖拽中唯一可能误隐的路径）已在 EmptyShelfAutoHideRule
+    /// 内按 isDragInProgress 门控。
     private func handleDragEnd() {
         guard dragAutoShowSession.dragEnded(), appState.isShelfVisible else { return }
         shelfWindowController.hideShelf(animated: true)

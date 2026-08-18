@@ -13,6 +13,8 @@ final class MenuBarController: NSObject {
     private let onToggleShelf: () -> Void
     /// S10: 最近项目重新入架（条目构造在 AppDelegate，那里持有 shelfStore）。
     private let onReaddRecent: (RecentEntry) -> Void
+    /// 打开设置窗口（由 AppDelegate 的 SettingsWindowController 提供）。
+    private let onShowSettings: () -> Void
 
     private let statusItem: NSStatusItem
     private let toggleItem = NSMenuItem()
@@ -22,11 +24,13 @@ final class MenuBarController: NSObject {
     init(appState: AppState,
          recents: RecentItemsService,
          onToggleShelf: @escaping () -> Void,
-         onReaddRecent: @escaping (RecentEntry) -> Void) {
+         onReaddRecent: @escaping (RecentEntry) -> Void,
+         onShowSettings: @escaping () -> Void) {
         self.appState = appState
         self.recents = recents
         self.onToggleShelf = onToggleShelf
         self.onReaddRecent = onReaddRecent
+        self.onShowSettings = onShowSettings
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
         configureButton()
@@ -81,17 +85,13 @@ final class MenuBarController: NSObject {
         onToggleShelf()
     }
 
-    /// S8: 打开 SwiftUI Settings scene 的窗口。
+    /// 打开自管理设置窗口（`SettingsWindowController`）。
     ///
-    /// LSUIElement 下的焦点处理：后台 agent 平时处于非活跃状态，
-    /// `showSettingsWindow:` 只负责创建并前置窗口，不会把应用激活——
-    /// 必须随后 `NSApp.activate(ignoringOtherApps:)`，否则设置窗口可能
-    /// 停在原前台应用窗口之后、拿不到键盘焦点（录制快捷键等交互失效）。
+    /// 不再走 SwiftUI Settings scene 的 `showSettingsWindow:`——LSUIElement
+    /// 下该响应链 action 实测静默失败；自管理窗口无此问题。LSUIElement 的
+    /// 焦点处理（activate 前置）由 SettingsWindowController.show() 负责。
     @objc private func showSettings(_ sender: Any?) {
-        // Selector(("..."))：括号抑制「未声明的 Objective-C selector」编译警告
-        //（该 action 由 SwiftUI Settings scene 在响应链上提供，静态不可见）。
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: sender)
-        NSApp.activate(ignoringOtherApps: true)
+        onShowSettings()
     }
 
     // MARK: - Recent Items submenu (S10)

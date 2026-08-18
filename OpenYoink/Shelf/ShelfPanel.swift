@@ -35,6 +35,12 @@ final class ShelfPanel: NSPanel {
         animationBehavior = .none
     }
 
+    /// 修复（真机验收发现）：borderless 窗口默认 `canBecomeKeyWindow = false`，
+    /// 导致 S6 的「卡片单击后 panel.makeKey()」静默失败（运行日志有
+    /// `makeKeyWindow ... returned NO` 警告），空格 Quick Look / Delete / Esc
+    /// 全部失效。面板需要接键盘事件但不抢 main 状态，故只放开 key。
+    override var canBecomeKey: Bool { true }
+
     override func keyDown(with event: NSEvent) {
         if onKeyDown?(event) == true { return }
         super.keyDown(with: event)

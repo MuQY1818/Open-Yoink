@@ -5,13 +5,12 @@ struct OpenYoinkApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
-        // 本 LSUIElement 后台 agent 的唯一 scene：设置窗口（S8）。
-        // SettingsStore / HotKeyMonitor 由 AppDelegate 持有并注入环境；
-        // 打开入口在 MenuBarController（showSettingsWindow: + NSApp.activate）。
+        // LSUIElement 后台 agent 不需要任何常驻窗口 scene；设置窗口由
+        // SettingsWindowController 自管理（SwiftUI Settings scene 的
+        // showSettingsWindow: 在本形态下静默失败）。保留此 inert scene
+        // 仅为满足 App body 的 Scene 要求。
         Settings {
-            SettingsView()
-                .environment(appDelegate.settingsStore)
-                .environment(appDelegate.hotKeyMonitor)
+            EmptyView()
         }
     }
 }
