@@ -102,6 +102,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
 private struct StorageSettingsTab: View {
     @Environment(StorageManagementController.self) private var storage
     @State private var snapshotToRestore: PersistenceController.RecoverySnapshot?
+    @State private var pendingImportToDiscard: PendingImportJournal.Record?
     @State private var confirmsDiscard = false
 
     var body: some View {
@@ -123,6 +124,50 @@ private struct StorageSettingsTab: View {
 
                 if !storage.canCleanUnusedFiles {
                     Text("Cleanup is disabled while recovery data needs attention.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Section("Pending Imports") {
+                if storage.isPendingImportRecoveryDamaged {
+                    Label("Pending import recovery data needs manual attention. Automatic cleanup is disabled.",
+                          systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                } else if storage.pendingImports.isEmpty {
+                    Text("No received files are waiting to be imported.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(storage.pendingImports) { pending in
+                        HStack(spacing: 10) {
+                            Image(systemName: "tray.and.arrow.down.fill")
+                                .foregroundStyle(.orange)
+                                .accessibilityHidden(true)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(pending.displayName)
+                                    .lineLimit(2)
+                                Text(pending.createdAt, style: .relative)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                            Button("Retry Import") {
+                                storage.retryPendingImport(pending)
+                            }
+                            .accessibilityIdentifier("storage.pendingImport.retry")
+
+                            Button(role: .destructive) {
+                                pendingImportToDiscard = pending
+                            } label: {
+                                Image(systemName: "trash")
+                            }
+                            .accessibilityLabel("Delete Pending Import")
+                            .accessibilityIdentifier("storage.pendingImport.delete")
+                        }
+                    }
+
+                    Text("These files are retained in OpenYoink's managed storage until you retry or delete them.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -203,6 +248,20 @@ private struct StorageSettingsTab: View {
             Button("Delete", role: .destructive) { storage.discardAllRecoveryData() }
         } message: {
             Text("This removes OpenYoink's recovery snapshots. Files currently on the shelf are not deleted.")
+        }
+        .alert("Delete Pending Import?", isPresented: Binding(
+            get: { pendingImportToDiscard != nil },
+            set: { if !$0 { pendingImportToDiscard = nil } }
+        )) {
+            Button("Cancel", role: .cancel) { pendingImportToDiscard = nil }
+            Button("Delete", role: .destructive) {
+                if let pending = pendingImportToDiscard {
+                    storage.discardPendingImport(pending)
+                }
+                pendingImportToDiscard = nil
+            }
+        } message: {
+            Text("This permanently deletes OpenYoink's retained copy. The source application may no longer be able to provide it again.")
         }
     }
 }

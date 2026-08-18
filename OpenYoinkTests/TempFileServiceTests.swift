@@ -49,6 +49,26 @@ final class TempFileServiceTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: other.path))
     }
 
+    func testCleanupStaleStagingDirectories_preservesJournaledPayload() throws {
+        let directory = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let service = TempFileService(directoryURL: directory)
+        let staging = try service.createPromiseStagingDirectory()
+        let payload = staging.appendingPathComponent("received.txt")
+        try Data("retained".utf8).write(to: payload)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date().addingTimeInterval(-86400)],
+            ofItemAtPath: staging.path
+        )
+
+        service.cleanupStaleStagingDirectories(
+            maxAge: 3600,
+            keepingPaths: [payload.path]
+        )
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: payload.path))
+    }
+
     func testCreatePromiseStagingDirectory_usesCleanupCompatibleName() throws {
         let directory = try makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

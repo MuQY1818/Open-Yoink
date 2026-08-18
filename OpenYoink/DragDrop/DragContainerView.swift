@@ -129,6 +129,9 @@ final class DragContainerView: NSView {
             mode: mode,
             onManagedMoveReady: { [weak self] item in
                 self?.commitManagedMove(item) ?? false
+            },
+            onPromisedItemReady: { [weak self] item in
+                self?.commitPromisedItem(item) ?? false
             }
         ) { [weak self] item in
             // 异步物化完成（promise / 图片数据 / 剪切失败回退）：逐个追加入架。
@@ -188,6 +191,20 @@ final class DragContainerView: NSView {
         } catch {
             store.add(item)
             coordinator.noticeCenter.show(String(localized: "The moved item is being kept for recovery because the shelf could not be saved immediately."))
+            return false
+        }
+    }
+
+    /// Promise imports stay in PendingImportJournal until this synchronous
+    /// shelf write succeeds. Unlike managed moves, a failed promise commit is
+    /// not inserted into memory: Storage > Pending Imports remains the single,
+    /// truthful retry path and the in-memory shelf cannot diverge from disk.
+    private func commitPromisedItem(_ item: ShelfItem) -> Bool {
+        do {
+            try store.addAndPersistNow(item)
+            return true
+        } catch {
+            coordinator.noticeCenter.show(String(localized: "The received file was kept safely. Open Recovery to finish importing it."))
             return false
         }
     }

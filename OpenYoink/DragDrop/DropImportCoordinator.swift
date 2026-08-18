@@ -79,6 +79,9 @@ final class DropImportCoordinator {
     /// v1.2: 托管移动恢复事务。只有 managed item 已同步写入 shelf snapshot
     /// 后才由 `markManagedMoveCommitted` 删除对应记录。
     let managedMoveJournal: ManagedMoveJournal
+    /// v1.2: promised files are journaled before leaving staging and remain
+    /// retryable until their ShelfItem is synchronously persisted.
+    let pendingImportJournal: PendingImportJournal
     /// v1.2: runtime-only batch status rendered by ShelfActivityStrip.
     let transferStore: TransferStore
     private let tempFileService: TempFileService
@@ -89,6 +92,7 @@ final class DropImportCoordinator {
          tempFileService: TempFileService,
          noticeCenter: ShelfNoticeModel = ShelfNoticeModel(),
          managedMoveJournal: ManagedMoveJournal? = nil,
+         pendingImportJournal: PendingImportJournal? = nil,
          transferStore: TransferStore? = nil,
          cutMoveService: CutMoveService? = nil) {
         self.bookmarkService = bookmarkService
@@ -99,6 +103,11 @@ final class DropImportCoordinator {
             ?? cutMoveService?.managedMoveJournal
             ?? ManagedMoveJournal(directoryURL: tempFileService.directoryURL.deletingLastPathComponent())
         self.managedMoveJournal = journal
+        let pendingJournal = pendingImportJournal ?? PendingImportJournal(
+            directoryURL: tempFileService.directoryURL.deletingLastPathComponent(),
+            managedDirectoryURL: tempFileService.directoryURL
+        )
+        self.pendingImportJournal = pendingJournal
         self.cutMoveService = cutMoveService ?? CutMoveService(
             tempFileService: tempFileService,
             bookmarkService: bookmarkService,
@@ -106,6 +115,7 @@ final class DropImportCoordinator {
         )
         self.promiseReceiver = FilePromiseReceiver(tempFileService: tempFileService,
                                                    bookmarkService: bookmarkService,
+                                                   pendingImportJournal: pendingJournal,
                                                    transferStore: self.transferStore)
     }
 
@@ -131,6 +141,7 @@ final class DropImportCoordinator {
     func importItems(from pasteboard: NSPasteboard,
                      mode: DropInMode = .copy,
                      onManagedMoveReady: (@MainActor (ShelfItem) -> Bool)? = nil,
+                     onPromisedItemReady: (@MainActor (ShelfItem) -> Bool)? = nil,
                      onAsyncItemReady: @escaping @MainActor (ShelfItem) -> Void) -> DropImportResult {
         let batchID = UUID()
         let tutorialToken = activeTutorialToken(in: pasteboard)
@@ -139,10 +150,22 @@ final class DropImportCoordinator {
             guard let self, let tutorialToken else { return }
             self.onTutorialItemsImported?(tutorialToken, [item])
         }
+        let wrappedPromisedReady: @MainActor (ShelfItem) -> Bool = { [weak self] item in
+            guard let onPromisedItemReady else {
+                wrappedAsyncReady(item)
+                return true
+            }
+            let committed = onPromisedItemReady(item)
+            if committed, let self, let tutorialToken {
+                self.onTutorialItemsImported?(tutorialToken, [item])
+            }
+            return committed
+        }
         let result = dispatchImport(from: pasteboard,
                                     batchID: batchID,
                                     mode: mode,
                                     onManagedMoveReady: onManagedMoveReady,
+                                    onPromisedItemReady: wrappedPromisedReady,
                                     onAsyncItemReady: wrappedAsyncReady)
         if result.handled {
             onImportHandled?()
@@ -178,6 +201,7 @@ final class DropImportCoordinator {
                                 batchID: UUID,
                                 mode: DropInMode,
                                 onManagedMoveReady: (@MainActor (ShelfItem) -> Bool)?,
+                                onPromisedItemReady: @escaping @MainActor (ShelfItem) -> Bool,
                                 onAsyncItemReady: @escaping @MainActor (ShelfItem) -> Void) -> DropImportResult {
         let types = pasteboard.types ?? []
 
@@ -185,7 +209,7 @@ final class DropImportCoordinator {
         if PasteboardTypes.supports(.filePromise, types: types) {
             let pending = promiseReceiver.receivePromises(from: pasteboard,
                                                            taskID: batchID,
-                                                           onItemReady: onAsyncItemReady)
+                                                           onItemReady: onPromisedItemReady)
             if pending > 0 {
                 return DropImportResult(items: [], pendingMaterializations: pending)
             }

@@ -13,6 +13,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// v1.2: ⌘ 拖入托管移动的崩溃恢复事务。独立于 shelf.json，且其引用
     /// 必须参与所有 Materialized 清理保护集合。
     private let managedMoveJournal = ManagedMoveJournal()
+    /// v1.2: file-promise staging/finalization recovery. Lazy construction
+    /// keeps its managed root identical to TempFileService in every build.
+    private lazy var pendingImportJournal = PendingImportJournal(
+        managedDirectoryURL: tempFileService.directoryURL
+    )
     /// S10: 拖入/物化失败的内联提示（shelf 标题栏下方短暂胶囊，自动消失）。
     private let shelfNotice = ShelfNoticeModel()
     /// 仅承载活动 tutorial item 的 token，避免 shelf 与 onboarding lazy init 成环。
@@ -28,7 +33,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var dropImportCoordinator = DropImportCoordinator(bookmarkService: bookmarkService,
                                                                    tempFileService: tempFileService,
                                                                    noticeCenter: shelfNotice,
-                                                                   managedMoveJournal: managedMoveJournal)
+                                                                   managedMoveJournal: managedMoveJournal,
+                                                                   pendingImportJournal: pendingImportJournal)
     /// 用户设置（S5 起拖出后移除策略被 DragSessionController 读取；S8 由
     /// SettingsView 编辑）。internal：OpenYoinkApp 的 Settings scene 注入环境用。
     let settingsStore = SettingsStore()
@@ -42,6 +48,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         tempFileService: tempFileService,
         shelfStore: shelfStore,
         managedMoveJournal: managedMoveJournal,
+        pendingImportJournal: pendingImportJournal,
+        bookmarkService: bookmarkService,
         additionalProtectedPaths: { [weak self] in
             self?.deliveryCoordinator.protectedMaterializedPaths ?? []
         },
@@ -242,6 +250,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // v1.2: 先协调 ⌘ 拖入的未完成事务。恢复必须发生在 bookmark 解析与
         // orphan cleanup 之前，否则尚未写进 shelf 的托管副本会被误删。
         recoverManagedMoveTransactions()
+        reconcilePendingImports()
         // S4: 批量解析持久化项目的 bookmark（失败标记 stale，过期书签重建并更新
         // 路径），再按最新路径清理物化目录里的孤儿文件。
         resolvePersistedBookmarks()
@@ -252,14 +261,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // shelf.json.corrupt-* 供人工恢复；只要恢复快照仍在，跨重启也持续
         // 保留 Materialized 文件，避免第二次启动把恢复材料删掉。
         if !persistence.canSafelyCleanupMaterializedOrphans(after: initialShelfLoadResult)
-            || !managedMoveJournal.permitsManagedOrphanCleanup {
+            || !managedMoveJournal.permitsManagedOrphanCleanup
+            || !pendingImportJournal.permitsOrphanCleanup {
             logger.warning("Skipping materialized orphan cleanup because shelf recovery data is present or persistence could not be trusted")
         } else {
             cleanupMaterializedOrphans()
         }
         // 评审 P1：promise 共享 staging 的按龄清理（与 shelf 加载结果无关，
         // 只删 1 小时前的 PromiseStaging-* 残留，刚完成的拖入不受影响）。
-        tempFileService.cleanupStaleStagingDirectories()
+        tempFileService.cleanupStaleStagingDirectories(
+            keepingPaths: pendingImportJournal.protectedPaths()
+        )
         // 引导必须排在 shelf 读取、事务恢复、bookmark 解析和安全清理之后，
         // 此时「空架」才是可信事实。
         onboardingController.startAtLaunch(
@@ -272,6 +284,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         do {
             try persistence.saveNow(shelfStore.items)
             reconcileCommittedManagedMoves()
+            reconcilePendingImports()
         } catch {
             // Keep recovery transactions when durability cannot be proven.
             logger.error("Failed to synchronously save shelf during termination: \(error.localizedDescription, privacy: .public)")
@@ -508,6 +521,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Removes only records whose stable id is already present in the loaded
+    /// shelf. All other records remain available in Settings > Storage for an
+    /// explicit retry; startup never guesses that an incomplete import should
+    /// silently create a card.
+    private func reconcilePendingImports() {
+        switch pendingImportJournal.loadResult() {
+        case .loaded(let records):
+            var remainingCount = 0
+            for record in records {
+                if shelfContainsItem(id: record.id) {
+                    do {
+                        try pendingImportJournal.remove(id: record.id)
+                    } catch {
+                        logger.error("Failed to reconcile completed pending import \(record.id.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                    }
+                } else {
+                    remainingCount += 1
+                }
+            }
+            if remainingCount > 0 {
+                shelfNotice.show(String(localized: "A received file was kept safely. Open Recovery to finish importing it."))
+            }
+        case .failed:
+            shelfNotice.show(String(localized: "Pending import recovery data needs attention. Automatic cleanup is disabled."))
+        case .missing:
+            break
+        }
+    }
+
     private func shelfContainsItem(id: UUID) -> Bool {
         containsItem(id: id, in: shelfStore.items)
     }
@@ -536,6 +578,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let protectedItems = shelfStore.items + persistence.recoverableSnapshotItems()
         var protectedPaths = materializedPaths(in: protectedItems, managedPrefix: managedPrefix)
         protectedPaths.formUnion(managedMoveJournal.protectedManagedPaths())
+        protectedPaths.formUnion(pendingImportJournal.protectedPaths())
         tempFileService.cleanupOrphans(keepingPaths: protectedPaths)
     }
 

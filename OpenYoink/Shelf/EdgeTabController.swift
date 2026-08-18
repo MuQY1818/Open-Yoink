@@ -289,6 +289,15 @@ final class EdgeTabController: NSObject {
                     importCoordinator.noticeCenter.show(String(localized: "The moved item is being kept for recovery because the shelf could not be saved immediately."))
                     return false
                 }
+            },
+            onPromisedItemReady: { [store, importCoordinator] item in
+                do {
+                    try store.addAndPersistNow(item)
+                    return true
+                } catch {
+                    importCoordinator.noticeCenter.show(String(localized: "The received file was kept safely. Open Recovery to finish importing it."))
+                    return false
+                }
             }
         ) { [store] item in
             store.add(item)

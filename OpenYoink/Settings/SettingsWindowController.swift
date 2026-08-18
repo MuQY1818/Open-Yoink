@@ -39,6 +39,9 @@ final class SettingsWindowController {
     func show(pane: SettingsPane? = nil) {
         if let pane {
             navigation.selectedPane = pane
+            if pane == .storage {
+                storageManagementController.refresh()
+            }
         }
         if window == nil {
             let rootView = SettingsView()

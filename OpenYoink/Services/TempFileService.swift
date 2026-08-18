@@ -159,12 +159,18 @@ final class TempFileService: Sendable {
     /// 修改时间早于 `maxAge` 秒的（刚完成的拖入可能仍有文件在路上）。
     /// 与 shelf 内容无关，启动时调用安全（评审 P1：回调不再清理 staging，
     /// 由本方法兜底；默认 1 小时）。
-    func cleanupStaleStagingDirectories(maxAge: TimeInterval = 3600) {
+    func cleanupStaleStagingDirectories(maxAge: TimeInterval = 3600,
+                                        keepingPaths: Set<String> = []) {
         let fileManager = FileManager.default
         guard let names = try? fileManager.contentsOfDirectory(atPath: directoryURL.path) else { return }
         let cutoff = Date().addingTimeInterval(-maxAge)
+        let protected = Set(keepingPaths.map {
+            URL(fileURLWithPath: $0).standardizedFileURL.path
+        })
         for name in names where name.hasPrefix(Self.promiseStagingPrefix) {
             let url = directoryURL.appendingPathComponent(name)
+            let directoryPath = url.standardizedFileURL.path + "/"
+            guard !protected.contains(where: { $0.hasPrefix(directoryPath) }) else { continue }
             let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .contentModificationDateKey])
             guard values?.isDirectory == true else { continue }
             let modified = values?.contentModificationDate ?? .distantPast
