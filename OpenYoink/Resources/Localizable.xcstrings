@@ -1568,6 +1568,41 @@
         "en" : { "stringUnit" : { "state" : "translated", "value" : "The file could not be reconnected. The original shelf item was kept." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法重新连接文件，原暂存项目已保留。" } }
       }
+    },
+    "Keyboard focus" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Keyboard focus" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "键盘焦点" } }
+      }
+    },
+    "Copy" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Copy" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "复制" } }
+      }
+    },
+    "%lld items copied to the Clipboard." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld items copied to the Clipboard." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已将 %lld 项复制到剪贴板。" } }
+      }
+    },
+    "%lld items copied; %lld unavailable items skipped." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld items copied; %lld unavailable items skipped." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已复制 %lld 项，跳过 %lld 个不可用项目。" } }
+      }
+    },
+    "The selected items could not be copied." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The selected items could not be copied." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法复制所选项目。" } }
+      }
     }
   },
   "version" : "1.0"

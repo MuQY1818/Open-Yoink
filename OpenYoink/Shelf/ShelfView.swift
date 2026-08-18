@@ -28,20 +28,19 @@ struct ShelfView: View {
     @Environment(SettingsStore.self) private var settings
     /// S6: Quick Look 会话；选中变化时同步已打开的预览（nil 时为 no-op）。
     @Environment(\.quickLookCoordinator) private var quickLookCoordinator
+    @Environment(\.bookmarkService) private var bookmarkService
     /// C5/C6: 卡片网格几何（frame 上报 + 框选命中 + 拖入插入定位共用）。
     @Environment(ShelfGridGeometry.self) private var gridGeometry
     /// D10: 拖入/物化失败内联提示。
     @Environment(ShelfNoticeModel.self) private var notices
     /// v1.2: runtime-only asynchronous batch status.
     @Environment(TransferStore.self) private var transferStore
+    @Environment(ShelfInteractionState.self) private var interaction
     /// v1.2: unavailable-item actions (external reconnect vs managed recovery).
     @Environment(\.itemRecoveryController) private var itemRecoveryController
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// 任务三：内缘收起把手的收起动作（ShelfWindowController 注入；Preview 为 nil 空操作）。
     @Environment(\.shelfHideAction) private var shelfHideAction
-    /// 当前展开的 Stack id（同时只展开一个）。
-    @State private var expandedStackID: UUID?
-
     /// C5 框选状态：起点/当前点均在窗口 .global 坐标系（与卡片 frame 一致）。
     @State private var marqueeStart: CGPoint?
     @State private var marqueeCurrent: CGPoint?
@@ -70,7 +69,8 @@ struct ShelfView: View {
             .overlay { expandedStackOverlay }
             .overlay(alignment: .top) { noticeBanner }
             .overlay(alignment: .bottom) { dropModeHint }
-            .animation(Self.cardAnimation, value: expandedStackID)
+            .animation(reduceMotion ? nil : Self.cardAnimation,
+                       value: interaction.expandedStackID)
             .animation(.easeInOut(duration: 0.2), value: notices.message != nil)
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.2),
                        value: transferStore.hasVisibleActivity)
@@ -86,6 +86,7 @@ struct ShelfView: View {
             // 项目集合变化后清除拖入视觉残留（S4 拖放完成后同样走这里复位）。
             .onChange(of: store.items) {
                 dropTargetState.reset()
+                interaction.normalize(for: store.items)
             }
     }
 
@@ -175,8 +176,8 @@ struct ShelfView: View {
                 }
             }
             // 卡片弹入 / 删除淡出 / 重排让位统一走 §3 的 spring 动画。
-            .animation(Self.cardAnimation, value: store.items)
-            .animation(Self.cardAnimation, value: store.selection)
+            .animation(reduceMotion ? nil : Self.cardAnimation, value: store.items)
+            .animation(reduceMotion ? nil : Self.cardAnimation, value: store.selection)
         }
         .scrollIndicators(.hidden)
     }
@@ -216,20 +217,26 @@ struct ShelfView: View {
             ShelfStackView(
                 item: item,
                 isSelected: store.selection.contains(item.id),
-                isExpanded: expandedStackID == item.id,
+                isKeyboardFocused: interaction.focusedItemID == item.id,
+                isExpanded: interaction.expandedStackID == item.id,
                 onSelect: { additive in select(item.id, additive: additive) },
                 onToggleExpanded: { toggleStackExpansion(item.id) },
                 onRemove: { store.remove(ids: [item.id]) },
                 onRecover: { toggleStackExpansion(item.id) },
+                onCopy: { copyToClipboard([item]) },
                 dragContentsProvider: dragContents(for:)
             )
         } else {
             ShelfItemCard(
                 item: item,
                 isSelected: store.selection.contains(item.id),
+                isKeyboardFocused: interaction.focusedItemID == item.id,
                 onSelect: { additive in select(item.id, additive: additive) },
                 onRemove: { store.remove(ids: [item.id]) },
                 onRecover: { itemRecoveryController?.recover(item) },
+                onCopy: item.availability == .available
+                    ? { copyToClipboard([item]) }
+                    : nil,
                 dragContentsProvider: dragContents(for:)
             )
         }
@@ -358,7 +365,7 @@ struct ShelfView: View {
 
     @ViewBuilder
     private var expandedStackOverlay: some View {
-        if let stackID = expandedStackID,
+        if let stackID = interaction.expandedStackID,
            let stack = store.item(withID: stackID),
            stack.kind == .stack {
             // 半透明遮罩：点击外部收起。
@@ -369,6 +376,7 @@ struct ShelfView: View {
                     ShelfStackExpandedView(
                         stack: stack,
                         onDismiss: collapseStack,
+                        interaction: interaction,
                         // UX4: 子项 ✕ 从 stack 移除；stack 解散/消失后本浮层
                         // 因 item(withID:) 返回 nil 自动收起。
                         onRemoveChild: { childID in
@@ -376,6 +384,9 @@ struct ShelfView: View {
                         },
                         onRecoverChild: { child in
                             itemRecoveryController?.recover(child)
+                        },
+                        onCopyChild: { child in
+                            copyToClipboard([child])
                         }
                     )
                     .padding(8)
@@ -385,20 +396,25 @@ struct ShelfView: View {
     }
 
     private func toggleStackExpansion(_ id: UUID) {
-        withAnimation(Self.cardAnimation) {
-            expandedStackID = expandedStackID == id ? nil : id
+        withAnimation(reduceMotion ? nil : Self.cardAnimation) {
+            if interaction.expandedStackID == id {
+                interaction.exitStack()
+            } else if let stack = store.item(withID: id) {
+                interaction.enterStack(stack)
+            }
         }
     }
 
     private func collapseStack() {
-        withAnimation(Self.cardAnimation) {
-            expandedStackID = nil
+        withAnimation(reduceMotion ? nil : Self.cardAnimation) {
+            interaction.exitStack()
         }
     }
 
     // MARK: - Selection
 
     private func select(_ id: UUID, additive: Bool) {
+        interaction.focusedItemID = id
         if additive {
             store.toggleSelection(id)
         } else {
@@ -411,6 +427,11 @@ struct ShelfView: View {
     private func clearSelectionAndCollapse() {
         collapseStack()
         store.clearSelection()
+    }
+
+    private func copyToClipboard(_ items: [ShelfItem]) {
+        let result = ClipboardController.copy(items, bookmarkService: bookmarkService)
+        notices.show(ClipboardController.statusMessage(for: result))
     }
 
     // MARK: - Marquee selection (C5)

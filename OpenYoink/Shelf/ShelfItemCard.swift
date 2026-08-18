@@ -24,6 +24,8 @@ struct ShelfItemCard: View {
     let item: ShelfItem
     /// 选中态（§3：accent color 描边 + 浅色填充）。
     let isSelected: Bool
+    /// Keyboard focus is independent from multi-selection and gets its own ring.
+    let isKeyboardFocused: Bool
     /// 点击回调；additive 为 true 表示 ⌘点击（切换选中），否则单选。
     let onSelect: (_ additive: Bool) -> Void
     /// 「Remove from Shelf」。同时驱动右键菜单移除项与 UX4 悬停 ✕ 按钮；
@@ -32,6 +34,8 @@ struct ShelfItemCard: View {
     /// v1.2: safe recovery action selected by the parent (external reconnect,
     /// managed storage, or review a stack's unavailable children).
     var onRecover: (() -> Void)?
+    /// One-shot copy action, exposed in the context menu and accessibility rotor.
+    var onCopy: (() -> Void)?
     /// 决定缩略图内容的项目；默认与 `item` 相同。Stack 卡片传入第一个文件类子项。
     var thumbnailItem: ShelfItem?
     /// S5 拖出内容计算：给定被拖卡片项目，返回本次拖出的项目集合与涉及的顶层
@@ -59,16 +63,20 @@ struct ShelfItemCard: View {
 
     init(item: ShelfItem,
          isSelected: Bool,
+         isKeyboardFocused: Bool = false,
          onSelect: @escaping (_ additive: Bool) -> Void,
          onRemove: (() -> Void)? = nil,
          onRecover: (() -> Void)? = nil,
+         onCopy: (() -> Void)? = nil,
          thumbnailItem: ShelfItem? = nil,
          dragContentsProvider: ((ShelfItem) -> DragOutContents)? = nil) {
         self.item = item
         self.isSelected = isSelected
+        self.isKeyboardFocused = isKeyboardFocused
         self.onSelect = onSelect
         self.onRemove = onRemove
         self.onRecover = onRecover
+        self.onCopy = onCopy
         self.thumbnailItem = thumbnailItem
         self.dragContentsProvider = dragContentsProvider
     }
@@ -88,6 +96,7 @@ struct ShelfItemCard: View {
         .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius))
         .contentShape(RoundedRectangle(cornerRadius: Self.cornerRadius))
         .overlay { availabilityBorder }
+        .overlay { keyboardFocusRing }
         // F-05: 剪切项角标（左下剪刀，与左上 stale 角标不同位置/颜色）。
         .overlay(alignment: .bottomLeading) { cutBadge }
         // S5 拖出事件层：透明 NSView 覆盖整卡，成为左键事件权威
@@ -126,8 +135,13 @@ struct ShelfItemCard: View {
         .accessibilityLabel(cardAccessibilityLabel)
         .accessibilityHint(Text("Double-click for Quick Look"))
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
-        .accessibilityAction(named: Text("Remove from Shelf")) {
-            onRemove?()
+        .accessibilityActions {
+            if let onCopy {
+                Button("Copy", action: onCopy)
+            }
+            if let onRemove {
+                Button("Remove from Shelf", action: onRemove)
+            }
         }
         .simultaneousGesture(TapGesture().onEnded {
             guard item.availability != .available else { return }
@@ -175,6 +189,9 @@ struct ShelfItemCard: View {
         label += isSelected
             ? ", " + String(localized: "Selected")
             : ", " + String(localized: "Not selected")
+        if isKeyboardFocused {
+            label += ", " + String(localized: "Keyboard focus")
+        }
         switch item.availability {
         case .available:
             label += ", " + String(localized: "Available")
@@ -383,6 +400,17 @@ struct ShelfItemCard: View {
         }
     }
 
+    @ViewBuilder
+    private var keyboardFocusRing: some View {
+        if isKeyboardFocused {
+            RoundedRectangle(cornerRadius: Self.cornerRadius - 2)
+                .strokeBorder(Color.accentColor, lineWidth: 3)
+                .padding(2)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+    }
+
     /// F-05: 剪切项角标（SF Symbol scissors，橙色，左下）—— 表示「原文件已
     /// 移入 shelf 保管，拖出时交付并离架」。卡片整体是单个可访问性元素，
     /// 语义并入 `cardAccessibilityLabel`，此处不再单独暴露。
@@ -424,6 +452,9 @@ struct ShelfItemCard: View {
                 ItemActions.revealInFinder(item, bookmarkService: bookmarkService, tempFileService: tempFileService)
             }
             .disabled(!ItemActions.canRevealInFinder(item))
+        }
+        if let onCopy {
+            Button("Copy", action: onCopy)
         }
         if let onRemove {
             Divider()

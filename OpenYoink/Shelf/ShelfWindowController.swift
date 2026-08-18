@@ -66,6 +66,8 @@ final class ShelfWindowController: NSObject {
     /// C5/C6: 卡片网格几何（ShelfView 上报 frame；DragContainerView 拖入定位、
     /// ShelfView 框选命中共用）。
     private let gridGeometry = ShelfGridGeometry()
+    /// Runtime focus/expanded-stack state shared with SwiftUI card rendering.
+    private let interaction = ShelfInteractionState()
     /// S5: 拖出总控（卡片 mouseDragged → NSDraggingSession；结束后按设置策略
     /// 移除/保留/询问（S8 .ask NSAlert）并记入最近历史；S8 起经
     /// onSuccessfulDrop 回调接 autoHide）。
@@ -103,6 +105,7 @@ final class ShelfWindowController: NSObject {
                 .environment(dropTargetState)
                 .environment(settings)
                 .environment(gridGeometry)
+                .environment(interaction)
                 .environment(importCoordinator.noticeCenter)
                 .environment(importCoordinator.transferStore)
                 .environment(\.bookmarkService, importCoordinator.bookmarkService)
@@ -229,20 +232,36 @@ final class ShelfWindowController: NSObject {
         }
     }
 
+    /// Global-hot-key entry point: showing the shelf also makes its
+    /// nonactivating panel key so the user can continue entirely by keyboard.
+    func toggleShelfForKeyboard(animated: Bool = true) {
+        if appState.isShelfVisible {
+            hideShelf(animated: animated)
+        } else {
+            showShelf(animated: animated, takeKeyboardFocus: true)
+        }
+    }
+
     /// 从贴附缘滑入并淡入（贴左缘时自左侧滑入，贴右缘时自右侧滑入）。
-    func showShelf(animated: Bool = true) {
+    func showShelf(animated: Bool = true, takeKeyboardFocus: Bool = false) {
         itemRecoveryController.refreshAll()
+        interaction.normalize(for: store.items)
+        if takeKeyboardFocus, interaction.focusedItemID == nil {
+            interaction.focusedItemID = store.selectedItems.first?.id ?? store.items.first?.id
+        }
         appState.showShelf()
         let targetFrame = targetFrame()
         guard animated else {
             panel.alphaValue = 1
             panel.setFrame(targetFrame, display: false)
             panel.orderFront(nil)
+            if takeKeyboardFocus { panel.makeKey() }
             return
         }
         panel.alphaValue = 0
         panel.setFrame(hiddenFrame(for: targetFrame), display: false)
         panel.orderFront(nil)
+        if takeKeyboardFocus { panel.makeKey() }
         NSAnimationContext.runAnimationGroup { context in
             context.duration = Self.animationDuration
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
@@ -302,36 +321,189 @@ final class ShelfWindowController: NSObject {
 
     // MARK: - Item keyboard handling (S6)
 
-    /// ShelfPanel.keyDown 回调：空格切换 Quick Look（当前选中集合）、
-    /// Delete/Forward Delete 移除选中项（不删原文件，纯 store.remove）、
-    /// Esc 先关已打开的 QL 面板、其次取消选择。
+    /// Complete keyboard path for the visible shelf. Focus remains independent
+    /// from multi-selection; only Shift+Arrow extends selection.
     ///
     /// 事件到达前提：卡片单击让面板成为 key（CardDragSourceAnchorView.mouseUp）。
     /// 带修饰键的组合一律放行（⌘⇧Space 等由 AppDelegate 的快捷键监听处理）；
     /// QL 面板为 key 时键盘事件由 QL 自己接管（空格/Esc 关闭、方向键翻页），
     /// 不会到达这里。
     private func handleItemKeyDown(_ event: NSEvent) -> Bool {
-        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        var modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        modifiers.subtract([.capsLock, .function, .numericPad])
+
+        if modifiers == .command {
+            switch event.charactersIgnoringModifiers?.lowercased() {
+            case "a":
+                selectAllVisibleItems()
+                return true
+            case "c":
+                return copyKeyboardItems()
+            default:
+                return false
+            }
+        }
+
+        if modifiers.isEmpty || modifiers == .shift {
+            let extending = modifiers == .shift
+            let direction: ShelfArrowDirection?
+            switch event.keyCode {
+            case 123: direction = .left
+            case 124: direction = .right
+            case 125: direction = .down
+            case 126: direction = .up
+            default: direction = nil
+            }
+            if let direction {
+                return moveKeyboardFocus(direction, extendingSelection: extending)
+            }
+        }
+
         guard modifiers.isEmpty else { return false }
         switch event.keyCode {
         case 49: // Space
-            return quickLookCoordinator.toggle(contextItem: nil)
+            return quickLookCoordinator.toggle(contextItem: focusedItem())
+        case 36, 76: // Return / keypad Enter
+            return openFocusedItem()
         case 51, 117: // Delete / Forward Delete
-            guard !store.selection.isEmpty else { return false }
-            store.removeSelection()
-            quickLookCoordinator.refreshPreview(contextItem: nil)
-            return true
+            return removeKeyboardItems()
         case 53: // Escape
             if quickLookCoordinator.isPreviewing {
                 quickLookCoordinator.dismiss()
                 return true
             }
-            guard !store.selection.isEmpty else { return false }
-            store.clearSelection()
+            if interaction.expandedStackID != nil {
+                interaction.exitStack()
+                return true
+            }
+            if !store.selection.isEmpty {
+                store.clearSelection()
+                return true
+            }
+            hideShelf(animated: !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
             return true
         default:
             return false
         }
+    }
+
+    private func visibleKeyboardItems() -> [ShelfItem] {
+        interaction.visibleItems(in: store.items)
+    }
+
+    private func focusedItem() -> ShelfItem? {
+        let visible = visibleKeyboardItems()
+        if let focusedItemID = interaction.focusedItemID,
+           let item = visible.first(where: { $0.id == focusedItemID }) {
+            return item
+        }
+        return nil
+    }
+
+    private func moveKeyboardFocus(_ direction: ShelfArrowDirection,
+                                   extendingSelection: Bool) -> Bool {
+        let visible = visibleKeyboardItems()
+        guard !visible.isEmpty else { return false }
+        let currentIndex: Int
+        if let focusedItemID = interaction.focusedItemID,
+           let index = visible.firstIndex(where: { $0.id == focusedItemID }) {
+            currentIndex = index
+        } else if interaction.expandedStackID == nil,
+                  let selected = visible.firstIndex(where: { store.selection.contains($0.id) }) {
+            currentIndex = selected
+        } else {
+            currentIndex = 0
+        }
+        let destination = ShelfKeyboardNavigator.destinationIndex(
+            currentIndex: currentIndex,
+            itemCount: visible.count,
+            columnCount: ShelfLayoutEngine.columnCount(forPanelWidth: panel.frame.width),
+            direction: direction
+        )
+        interaction.focusedItemID = visible[destination].id
+        if extendingSelection {
+            let extendingIDs: Set<UUID> = [visible[currentIndex].id, visible[destination].id]
+            if interaction.expandedStackID != nil {
+                interaction.childSelection.formUnion(extendingIDs)
+            } else {
+                store.setSelection(store.selection.union(extendingIDs))
+            }
+        }
+        return true
+    }
+
+    private func selectAllVisibleItems() {
+        let visible = visibleKeyboardItems()
+        guard !visible.isEmpty else { return }
+        if interaction.expandedStackID != nil {
+            interaction.childSelection = Set(visible.map(\.id))
+        } else {
+            store.selectAll()
+        }
+        if interaction.focusedItemID == nil {
+            interaction.focusedItemID = visible[0].id
+        }
+    }
+
+    private func keyboardActionItems() -> [ShelfItem] {
+        let visible = visibleKeyboardItems()
+        if interaction.expandedStackID != nil {
+            let selected = visible.filter { interaction.childSelection.contains($0.id) }
+            if !selected.isEmpty { return selected }
+        } else {
+            let selected = visible.filter { store.selection.contains($0.id) }
+            if !selected.isEmpty { return selected }
+        }
+        guard let focusedItemID = interaction.focusedItemID,
+              let focused = visible.first(where: { $0.id == focusedItemID }) else { return [] }
+        return [focused]
+    }
+
+    private func copyKeyboardItems() -> Bool {
+        let items = keyboardActionItems()
+        guard !items.isEmpty else { return false }
+        let result = ClipboardController.copy(
+            items,
+            bookmarkService: importCoordinator.bookmarkService
+        )
+        importCoordinator.noticeCenter.show(ClipboardController.statusMessage(for: result))
+        return true
+    }
+
+    private func openFocusedItem() -> Bool {
+        guard let item = focusedItem() else { return false }
+        if item.availability != .available {
+            itemRecoveryController.recover(item)
+            return true
+        }
+        if item.kind == .stack {
+            if interaction.expandedStackID == item.id {
+                interaction.exitStack()
+            } else {
+                interaction.enterStack(item)
+            }
+            return true
+        }
+        guard ItemActions.canOpen(item) else { return false }
+        ItemActions.open(item,
+                         bookmarkService: importCoordinator.bookmarkService,
+                         tempFileService: tempFileService)
+        return true
+    }
+
+    private func removeKeyboardItems() -> Bool {
+        let items = keyboardActionItems()
+        guard !items.isEmpty else { return false }
+        let ids = Set(items.map(\.id))
+        if let stackID = interaction.expandedStackID {
+            guard store.removeChildren(ids: ids, fromStack: stackID) else { return false }
+            interaction.childSelection.subtract(ids)
+        } else {
+            store.remove(ids: ids)
+        }
+        interaction.normalize(for: store.items)
+        quickLookCoordinator.refreshPreview(contextItem: focusedItem())
+        return true
     }
 
     // MARK: - Layout
@@ -430,6 +602,7 @@ final class ShelfWindowController: NSObject {
     /// 2. UX6 空架自动隐藏 —— 非空→空迁移且设置开启时动画收回。
     ///    任务二：拖拽进行中不收回（不变式见 EmptyShelfAutoHideRule）。
     private func handleItemsDidChange() {
+        interaction.normalize(for: store.items)
         let shouldAutoHide = emptyAutoHideRule.evaluate(
             itemCount: store.items.count,
             isVisible: appState.isShelfVisible,

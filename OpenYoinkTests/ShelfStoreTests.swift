@@ -264,6 +264,29 @@ final class ShelfStoreTests: XCTestCase {
         XCTAssertEqual(stack.children?.count, 3)
     }
 
+    func testRemoveChildren_batchDeletionDissolvesStackDeterministically() throws {
+        let (store, stackID, childIDs) = try makeThreeItemStack()
+
+        XCTAssertTrue(store.removeChildren(ids: [childIDs[0], childIDs[2]],
+                                           fromStack: stackID))
+
+        XCTAssertNil(store.item(withID: stackID))
+        XCTAssertEqual(store.items.first?.id, childIDs[1])
+        XCTAssertEqual(store.selection, [childIDs[1]])
+    }
+
+    func testRemoveChildren_preservesOtherSelectedTopLevelItemsWhenStackDissolves() throws {
+        let (store, stackID, childIDs) = try makeThreeItemStack()
+        let other = ShelfItem(kind: .text, displayName: "Other", text: "other")
+        store.add(other)
+        store.setSelection([stackID, other.id])
+
+        XCTAssertTrue(store.removeChildren(ids: [childIDs[0], childIDs[2]],
+                                           fromStack: stackID))
+
+        XCTAssertEqual(store.selection, [childIDs[1], other.id])
+    }
+
     func testRemoveChild_triggersPersistence() throws {
         let directory = try makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

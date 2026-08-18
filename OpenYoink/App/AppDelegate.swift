@@ -122,7 +122,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     lazy var hotKeyMonitor = HotKeyMonitor(
         shortcut: settingsStore.hotKeyShortcut,
         onPress: { [weak self] in
-            self?.toggleShelf()
+            self?.toggleShelfForKeyboard()
         },
         onDoublePress: { [weak self] in
             self?.saveClipboardToShelf()
@@ -300,6 +300,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func toggleShelf() {
         shelfWindowController.toggleShelf(animated: true)
+    }
+
+    private func toggleShelfForKeyboard() {
+        shelfWindowController.toggleShelfForKeyboard(animated: true)
     }
 
     // MARK: - UX1/UX2 drag-driven appearance

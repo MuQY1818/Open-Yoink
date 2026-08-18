@@ -265,7 +265,37 @@ final class ShelfStore {
             let survivor = remaining[0]
             items[index] = survivor
             if selection.contains(stackID) {
-                selection = [survivor.id]
+                selection.remove(stackID)
+                selection.insert(survivor.id)
+            }
+        default:
+            items[index].children = remaining
+        }
+        persist()
+        return true
+    }
+
+    /// Removes several descendants from one stack in a single persisted
+    /// mutation. This keeps keyboard multi-delete deterministic even when the
+    /// stack dissolves to one remaining child.
+    @discardableResult
+    func removeChildren(ids: Set<UUID>, fromStack stackID: UUID) -> Bool {
+        guard !ids.isEmpty,
+              let index = items.firstIndex(where: { $0.id == stackID }),
+              items[index].kind == .stack,
+              let children = items[index].children else { return false }
+        let remaining = children.filter { !ids.contains($0.id) }
+        guard remaining.count != children.count else { return false }
+        switch remaining.count {
+        case 0:
+            items.remove(at: index)
+            selection.remove(stackID)
+        case 1:
+            let survivor = remaining[0]
+            items[index] = survivor
+            if selection.contains(stackID) {
+                selection.remove(stackID)
+                selection.insert(survivor.id)
             }
         default:
             items[index].children = remaining

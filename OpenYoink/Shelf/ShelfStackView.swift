@@ -10,6 +10,7 @@ import SwiftUI
 struct ShelfStackView: View {
     let item: ShelfItem
     let isSelected: Bool
+    var isKeyboardFocused: Bool = false
     /// 浮层展开中：卡片保持 accent 高亮，提示「再次点击收起」。
     let isExpanded: Bool
     /// additive 为 true 表示 ⌘点击（切换选中），否则单选。
@@ -17,6 +18,7 @@ struct ShelfStackView: View {
     let onToggleExpanded: () -> Void
     var onRemove: (() -> Void)?
     var onRecover: (() -> Void)? = nil
+    var onCopy: (() -> Void)? = nil
     /// S5 拖出内容计算（多选整批/stack 语义由 ShelfView 决定）。
     var dragContentsProvider: ((ShelfItem) -> DragOutContents)?
 
@@ -24,6 +26,7 @@ struct ShelfStackView: View {
         ShelfItemCard(
             item: item,
             isSelected: isSelected || isExpanded,
+            isKeyboardFocused: isKeyboardFocused,
             onSelect: { additive in
                 if additive {
                     onSelect(true)
@@ -34,6 +37,7 @@ struct ShelfStackView: View {
             },
             onRemove: onRemove,
             onRecover: onRecover,
+            onCopy: onCopy,
             thumbnailItem: item.children?.first(where: { $0.fileURL != nil }),
             dragContentsProvider: dragContentsProvider
         )
@@ -57,7 +61,7 @@ struct ShelfStackView: View {
 /// Stack 展开浮层（§3：.ultraThinMaterial 背景 + 等宽网格排列子项）。
 ///
 /// 由 ShelfView 以全区域 overlay 承载（点击外部遮罩收起）。子项支持多选
-/// （⌘点击切换、普通点击单选），选择存于局部状态 `childSelection` —— 子项
+/// （⌘点击切换、普通点击单选），选择存于共享的 `ShelfInteractionState` —— 子项
 /// 不属于顶层 `ShelfStore.items`，故不走 store.selection。
 /// S5：子项卡片可拖出（命中 childSelection 多选时整批拖出）；子项拖出
 /// 不从 stack 移除（移除语义随 S6 的 stack 批量操作一起设计）。
@@ -67,13 +71,12 @@ struct ShelfStackView: View {
 struct ShelfStackExpandedView: View {
     let stack: ShelfItem
     let onDismiss: () -> Void
+    let interaction: ShelfInteractionState
     /// UX4: 子项移除回调（参数为子项 id）。nil 时子项卡片不渲染 ✕。
     var onRemoveChild: ((UUID) -> Void)?
     /// v1.2: child-specific availability recovery.
     var onRecoverChild: ((ShelfItem) -> Void)? = nil
-
-    /// 子项局部多选集合（S5 批量拖出读取）。
-    @State private var childSelection: Set<UUID> = []
+    var onCopyChild: ((ShelfItem) -> Void)? = nil
 
     private let columns = [GridItem(.adaptive(minimum: 88), spacing: 12)]
 
@@ -85,12 +88,14 @@ struct ShelfStackExpandedView: View {
                     ForEach(stack.children ?? []) { child in
                         ShelfItemCard(
                             item: child,
-                            isSelected: childSelection.contains(child.id),
+                            isSelected: interaction.childSelection.contains(child.id),
+                            isKeyboardFocused: interaction.focusedItemID == child.id,
                             onSelect: { additive in
+                                interaction.focusedItemID = child.id
                                 if additive {
-                                    childSelection.formSymmetricDifference([child.id])
+                                    interaction.childSelection.formSymmetricDifference([child.id])
                                 } else {
-                                    childSelection = [child.id]
+                                    interaction.childSelection = [child.id]
                                 }
                             },
                             onRemove: onRemoveChild.map { remove in
@@ -99,12 +104,15 @@ struct ShelfStackExpandedView: View {
                             onRecover: onRecoverChild.map { recover in
                                 { recover(child) }
                             },
+                            onCopy: child.availability == .available
+                                ? onCopyChild.map { copy in { copy(child) } }
+                                : nil,
                             dragContentsProvider: dragContents(for:)
                         )
                     }
                 }
                 .padding(2)
-                .animation(ShelfView.cardAnimation, value: childSelection)
+                .animation(ShelfView.cardAnimation, value: interaction.childSelection)
                 .animation(ShelfView.cardAnimation, value: stack.children)
             }
             .frame(maxHeight: 320)
@@ -124,8 +132,8 @@ struct ShelfStackExpandedView: View {
     /// （子项不从 stack 移除）。
     private func dragContents(for anchor: ShelfItem) -> DragOutContents {
         let children = stack.children ?? []
-        let dragged = childSelection.contains(anchor.id) && childSelection.count > 1
-            ? children.filter { childSelection.contains($0.id) }
+        let dragged = interaction.childSelection.contains(anchor.id) && interaction.childSelection.count > 1
+            ? children.filter { interaction.childSelection.contains($0.id) }
             : [anchor]
         return DragOutContents(items: dragged, topLevelIDs: [])
     }
@@ -168,7 +176,9 @@ struct ShelfStackExpandedView: View {
 }
 
 #Preview("Stack expanded") {
-    ShelfStackExpandedView(stack: ShelfPreviewFixtures.sampleStack(), onDismiss: {})
+    ShelfStackExpandedView(stack: ShelfPreviewFixtures.sampleStack(),
+                           onDismiss: {},
+                           interaction: ShelfInteractionState())
         .frame(width: 288)
         .padding()
 }
