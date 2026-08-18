@@ -98,6 +98,14 @@ private struct GeneralSettingsTab: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            // Sparkle: 自动检查更新（应用唯一的联网行为；手动检查在菜单栏菜单）。
+            Section("Updates") {
+                Toggle("Automatically check for updates", isOn: $settings.autoUpdateCheckEnabled)
+                Text("Update checks contact GitHub Pages and releases only; nothing else uses the network.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
     }
@@ -334,7 +342,7 @@ private struct AboutSettingsTab: View {
             }
 
             Section("Acknowledgments") {
-                Text("Open-Yoink is an independent clean-room implementation crafted for macOS. Its design was informed by studying the publicly observable behavior of several MIT-licensed open-source projects — HoldMac, DropKit, ShelfMate, NotchPocket, nab, and Dropshit. No third-party code, artwork, or proprietary assets are included. A complete attribution record is available in THIRD_PARTY_NOTICES.md in the source repository.")
+                Text("Open-Yoink is an independent clean-room implementation crafted for macOS. Its design was informed by studying the publicly observable behavior of several MIT-licensed open-source projects — HoldMac, DropKit, ShelfMate, NotchPocket, nab, and Dropshit. The only third-party code included is Sparkle (MIT), which powers automatic updates. A complete attribution record is available in THIRD_PARTY_NOTICES.md in the source repository.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

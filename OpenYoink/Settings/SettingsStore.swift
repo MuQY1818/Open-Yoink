@@ -95,6 +95,13 @@ final class SettingsStore {
         didSet { defaults.set(language.rawValue, forKey: Keys.language) }
     }
 
+    /// Sparkle 自动检查更新（唯一联网行为）。Default: true。
+    /// 由 UpdateController 应用到 SPUUpdater.automaticallyChecksForUpdates
+    /// （启动时一次性 + UserDefaults 变更时同步）。
+    var autoUpdateCheckEnabled: Bool {
+        didSet { defaults.set(autoUpdateCheckEnabled, forKey: Keys.autoUpdateCheckEnabled) }
+    }
+
     /// EdgeTab: vertical placement of the shelf (and its edge tab) along the
     /// attached edge — 0 pins to the bottom of the visible area, 1 to the top.
     /// Default: 0.5 (vertically centered, matching the pre-EdgeTab look).
@@ -237,6 +244,7 @@ final class SettingsStore {
         static let autoHideWhenEmpty = prefix + "autoHideWhenEmpty"
         static let dragOutRemovalPolicy = prefix + "dragOutRemovalPolicy"
         static let language = prefix + "language"
+        static let autoUpdateCheckEnabled = prefix + "autoUpdateCheckEnabled"
         static let customShelfFrame = prefix + "customShelfFrame"
         static let hotKeyEnabled = prefix + "hotKeyEnabled"
         static let hotKeyDoublePressSavesClipboard = prefix + "hotKeyDoublePressSavesClipboard"
@@ -269,6 +277,7 @@ final class SettingsStore {
             Keys.autoHideWhenEmpty: true,
             Keys.dragOutRemovalPolicy: DragOutRemovalPolicy.keep.rawValue,
             Keys.language: LanguagePreference.system.rawValue,
+            Keys.autoUpdateCheckEnabled: true,
             Keys.hotKeyEnabled: true,
             Keys.hotKeyDoublePressSavesClipboard: true,
             Keys.shakeTriggerEnabled: false,
@@ -290,6 +299,7 @@ final class SettingsStore {
         ) ?? .keep
         language = LanguagePreference(rawValue: defaults.string(forKey: Keys.language) ?? "")
             ?? .system
+        autoUpdateCheckEnabled = defaults.bool(forKey: Keys.autoUpdateCheckEnabled)
         if let data = defaults.data(forKey: Keys.customShelfFrame) {
             // 解码失败视为无自定义位置（下次选 custom 从右缘默认起步）。
             customShelfFrame = try? JSONDecoder().decode(CGRect.self, from: data)

@@ -8,5 +8,19 @@
 	<true/>
 	<key>com.apple.security.files.bookmarks.app-scope</key>
 	<true/>
+	<!-- Sparkle 更新检查是应用唯一的联网行为（GitHub Pages appcast + Releases DMG）。
+	     有了 network.client，按 Sparkle 沙箱文档即不应再启用 Downloader XPC：
+	     "If your sandboxed application already needs to use this entitlement for
+	     network access, then you should not enable the Downloader XPC Service."
+	     — https://sparkle-project.org/documentation/sandboxing/ -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<!-- Sparkle 沙箱模式要求：允许 lookup 其安装器工具的 Mach 服务（-spki 安装 /
+	     -spks 状态）。同上文档 "Communication" 一节要求的 temporary exception。 -->
+	<key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
+	<array>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER)-spks</string>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER)-spki</string>
+	</array>
 </dict>
 </plist>

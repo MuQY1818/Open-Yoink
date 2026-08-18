@@ -46,9 +46,11 @@ OpenYoink 常驻菜单栏（无 Dock 图标）。开始拖拽时，紧凑的暂�
 - Quick Look（空格或双击，支持多选翻页）、打开 / 在 Finder 显示 / 右键菜单
 - Stack、框选、手动排序、最近项目菜单
 - 多屏 / 多 Space / 全屏应用适配；中英文界面
+- 基于 Sparkle 2 的自动更新——EdDSA 签名，从 GitHub Releases 分发
 
 **隐私优先**
-- App Sandbox、不联网、不申请辅助功能权限、无统计上报——一切只存在你的 Mac 上
+- App Sandbox、不申请辅助功能权限、无统计上报——一切只存在你的 Mac 上
+- 唯一的联网行为是更新检查（Sparkle → GitHub Pages feed 与 Releases 下载），可在「设置 → 通用」关闭
 
 ## 安装
 
@@ -63,6 +65,8 @@ OpenYoink 常驻菜单栏（无 Dock 图标）。开始拖拽时，紧凑的暂�
 ```bash
 xattr -dr com.apple.quarantine /Applications/OpenYoink.app
 ```
+
+新版本会自动送达：OpenYoink 检查 GitHub Pages 上的更新 feed，从 GitHub Releases 下载签名更新包（菜单栏菜单 →「检查更新…」可手动触发；「设置 → 通用」可关闭自动检查）。
 
 **从源码构建** —— 需要 macOS 26+ 与 Xcode 26+。
 
@@ -126,7 +130,7 @@ xcodebuild -project Open-Yoink.xcodeproj -scheme OpenYoink -destination 'platfor
 
 ## 致谢
 
-OpenYoink 是净室实现：研究了多款 MIT 开源 shelf 应用的公开可观察行为，不包含任何第三方代码或素材。「Yoink」是 Eternal Storms Software 的产品，OpenYoink 与其无任何隶属关系。完整记录见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+OpenYoink 是净室实现：研究了多款 MIT 开源 shelf 应用的公开可观察行为，不包含这些项目的代码或素材。应用内唯一的第三方代码是 [Sparkle](https://github.com/sparkle-project/Sparkle)（MIT），用于自动更新。「Yoink」是 Eternal Storms Software 的产品，OpenYoink 与其无任何隶属关系。完整记录见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 ## 许可证
 

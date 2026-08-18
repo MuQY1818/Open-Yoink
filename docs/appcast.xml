@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+    <!-- OpenYoink Sparkle 更新 feed。托管于 GitHub Pages（docs/ 目录），
+         由 Scripts/make-release.sh 在每次发布时更新：新增/替换 <item>，
+         附带 EdDSA 签名（私钥存本机登录钥匙串）。
+         所有 item 均属 stable channel（Sparkle 2 的 channel 为 item 级元素）。 -->
+    <channel>
+        <title>OpenYoink Updates</title>
+        <link>https://muqy1818.github.io/Open-Yoink/appcast.xml</link>
+        <description>Most recent changes with links to updates for OpenYoink.</description>
+        <language>en</language>
+    </channel>
+</rss>

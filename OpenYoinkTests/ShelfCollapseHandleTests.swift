@@ -19,7 +19,7 @@ final class ShelfCollapseHandleTests: XCTestCase {
     /// 把手宽度必须 ≤ 面板边距带（外层 8pt + 内容 8pt padding）——它以覆盖层
     /// 形式放在边距带内，不挤占网格宽度（列数推算与卡片坐标系不受污染的约束）。
     func testHandleWidth_fitsInsidePanelMarginBand() {
-        XCTAssertEqual(ShelfLayoutEngine.innerEdgeHandleWidth, 14)
+        XCTAssertEqual(ShelfLayoutEngine.innerEdgeHandleWidth, 10)
         XCTAssertLessThanOrEqual(ShelfLayoutEngine.innerEdgeHandleWidth, 16)
     }
 }

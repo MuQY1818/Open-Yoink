@@ -48,9 +48,11 @@ OpenYoink lives in your menu bar (no Dock icon). When you start dragging somethi
 - Quick Look (Space or double-click, multi-item), Open / Reveal in Finder / context menu
 - Stacks, marquee selection, manual ordering, recent-items menu
 - Multi-display, multi-Space and full-screen aware; English & 中文 UI
+- Automatic updates via Sparkle 2 — EdDSA-signed, delivered from GitHub Releases
 
 **Privacy first**
-- App Sandbox, no network access, no Accessibility permission, no analytics — everything stays on your Mac
+- App Sandbox, no Accessibility permission, no analytics — everything stays on your Mac
+- The only network access is the update check (Sparkle → GitHub Pages feed & GitHub Releases downloads), and you can turn it off in Settings → General
 
 ## Install
 
@@ -65,6 +67,8 @@ The build is ad-hoc signed (not notarized). On first launch, right-click the app
 ```bash
 xattr -dr com.apple.quarantine /Applications/OpenYoink.app
 ```
+
+New versions arrive automatically: OpenYoink checks its update feed on GitHub Pages and downloads signed updates from GitHub Releases (menu-bar menu → Check for Updates… for a manual check; Settings → General to disable).
 
 **Build from source** — requirements: macOS 26+, Xcode 26+.
 
@@ -128,7 +132,7 @@ Issues and PRs are welcome. Please keep the architecture conventions (AppKit own
 
 ## Acknowledgments
 
-OpenYoink is a clean-room implementation. It studied publicly observable behavior of several MIT-licensed open-source shelf apps — no third-party code or assets are included. "Yoink" is a product of Eternal Storms Software; OpenYoink is independent and unaffiliated. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the full record.
+OpenYoink is a clean-room implementation. It studied publicly observable behavior of several MIT-licensed open-source shelf apps — none of their code or assets are included. The only third-party code in the app is [Sparkle](https://github.com/sparkle-project/Sparkle) (MIT), used for automatic updates. "Yoink" is a product of Eternal Storms Software; OpenYoink is independent and unaffiliated. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the full record.
 
 ## License
 

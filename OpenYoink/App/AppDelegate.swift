@@ -24,6 +24,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let settingsStore = SettingsStore()
     /// S5: 最近拖出历史（内存 + recents.json；S10 已接入菜单栏「最近项目」）。
     private let recentItemsService = RecentItemsService()
+    /// Sparkle 2 自动更新封装（懒加载：首次 start/手动检查时创建
+    /// SPUStandardUpdaterController；terminate 无需显式释放——XPC 连接与
+    /// 调度器随进程终止，无后台常驻资源）。
+    lazy var updateController = UpdateController(settings: settingsStore)
 
     private lazy var shelfWindowController = ShelfWindowController(appState: appState,
                                                                    store: shelfStore,
@@ -45,6 +49,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         },
         onShowSettings: { [weak self] in
             self?.settingsWindowController.show()
+        },
+        onCheckForUpdates: { [weak self] in
+            self?.updateController.checkForUpdates()
         }
     )
 
@@ -148,6 +155,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         _ = menuBarController
         // EdgeTab: 拉环随启动就位（shelf 初始隐藏，拉环立即在边缘就位）。
         _ = edgeTabController
+        // Sparkle: 启动 updater（应用「自动检查」设置后 start；幂等）。
+        updateController.start()
         // UX1: 成功导入（拖入/剪贴板保存）→ 标记拖拽自动唤出会话「本轮
         // 已有内容落入」，拖结束时不再自动收回。
         dropImportCoordinator.onImportHandled = { [weak self] in
@@ -387,6 +396,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private nonisolated func userDefaultsDidChange(_ notification: Notification) {
         Task { @MainActor in
             self.applyTriggerSettings()
+            // Sparkle: 「自动检查更新」开关同步（值未变时不写，幂等）。
+            self.updateController.applySettings()
         }
     }
 }

@@ -26,5 +26,20 @@
 	<string>public.app-category.utilities</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2026 weijue. MIT License.</string>
+	<!-- Sparkle 2 自动更新。Feed 托管在 GitHub Pages（docs/appcast.xml）。 -->
+	<key>SUFeedURL</key>
+	<string>https://muqy1818.github.io/Open-Yoink/appcast.xml</string>
+	<!-- EdDSA 公钥（私钥存登录钥匙串，条目 "Private key for signing Sparkle updates"）。 -->
+	<key>SUPublicEDKey</key>
+	<string>fjAcTFLXwbNHK8rgG6ecCzWjZIDZc/BKo0AFAYVW968=</string>
+	<!-- 沙箱下必须启用 Installer XPC 服务才能替换自身，依据 Sparkle 沙箱文档：
+	     "The Installer XPC Service is required for Sandboxed applications. …
+	     you must set SUEnableInstallerLauncherService boolean to `YES` in your
+	     application's Info.plist."
+	     — https://sparkle-project.org/documentation/sandboxing/
+	     XPC 服务随 Sparkle.framework（SwiftPM binary target）内嵌，
+	     由 Sparkle 从框架包内加载（SPUUpdater 校验逻辑亦如此要求）。 -->
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
 </dict>
 </plist>

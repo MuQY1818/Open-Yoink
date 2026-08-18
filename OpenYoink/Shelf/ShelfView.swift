@@ -47,8 +47,9 @@ struct ShelfView: View {
     static let cardAnimation = Animation.spring(response: 0.35, dampingFraction: 0.7)
     static let cornerRadius: CGFloat = 16
     static let gridSpacing: CGFloat = 12
-    /// 网格列宽基准（§3：~88pt 等宽列，adaptive 使 S8 宽度可调时自动增减列数）。
-    static let columnWidth: CGFloat = 88
+    /// 网格列宽基准（配合把手让位收窄为 84：把手 10pt + 2pt 间隙不再与
+    /// 首列卡片交叠；`ShelfLayoutEngine.gridColumnMinimum` 同步）。
+    static let columnWidth: CGFloat = 84
 
     private let columns = [GridItem(.adaptive(minimum: Self.columnWidth), spacing: Self.gridSpacing)]
 
@@ -93,6 +94,11 @@ struct ShelfView: View {
             }
         }
         .padding(8)
+        // 内缘把手让位：把手可见（左/右锚）时在把手侧额外加 4pt —— 把手
+        // 10pt 占带 + 2pt 间隙，内容与首列卡片不再与把手交叠（custom 无
+        // 把手不让位；`ShelfLayoutEngine.handleContentAllowance` 同步）。
+        .padding(collapseHandleSide == .leading ? .leading : .trailing,
+                 collapseHandleSide == nil ? 0 : ShelfLayoutEngine.handleContentAllowance)
         .background {
             // 空白处点击：清除选择并收起 Stack（卡片自身的点击优先命中，不会触达这里）。
             // C5: 同一背景上挂框选拖拽手势 —— 起始于卡片的事件被

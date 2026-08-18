@@ -51,6 +51,20 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每次询问" } }
       }
     },
+    "Automatically check for updates" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Automatically check for updates" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "自动检查更新" } }
+      }
+    },
+    "Check for Updates…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Check for Updates…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "检查更新…" } }
+      }
+    },
     "Choose Application…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -447,12 +461,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开" } }
       }
     },
-    "Open-Yoink is an independent clean-room implementation crafted for macOS. Its design was informed by studying the publicly observable behavior of several MIT-licensed open-source projects — HoldMac, DropKit, ShelfMate, NotchPocket, nab, and Dropshit. No third-party code, artwork, or proprietary assets are included. A complete attribution record is available in THIRD_PARTY_NOTICES.md in the source repository." : {
+    "Open-Yoink is an independent clean-room implementation crafted for macOS. Its design was informed by studying the publicly observable behavior of several MIT-licensed open-source projects — HoldMac, DropKit, ShelfMate, NotchPocket, nab, and Dropshit. The only third-party code included is Sparkle (MIT), which powers automatic updates. A complete attribution record is available in THIRD_PARTY_NOTICES.md in the source repository." : {
       "extractionState" : "manual",
       "comment" : "致谢段：按作者要求两种语言均展示英文原文。",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open-Yoink is an independent clean-room implementation crafted for macOS. Its design was informed by studying the publicly observable behavior of several MIT-licensed open-source projects — HoldMac, DropKit, ShelfMate, NotchPocket, nab, and Dropshit. No third-party code, artwork, or proprietary assets are included. A complete attribution record is available in THIRD_PARTY_NOTICES.md in the source repository." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Open-Yoink is an independent clean-room implementation crafted for macOS. Its design was informed by studying the publicly observable behavior of several MIT-licensed open-source projects — HoldMac, DropKit, ShelfMate, NotchPocket, nab, and Dropshit. No third-party code, artwork, or proprietary assets are included. A complete attribution record is available in THIRD_PARTY_NOTICES.md in the source repository." } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open-Yoink is an independent clean-room implementation crafted for macOS. Its design was informed by studying the publicly observable behavior of several MIT-licensed open-source projects — HoldMac, DropKit, ShelfMate, NotchPocket, nab, and Dropshit. The only third-party code included is Sparkle (MIT), which powers automatic updates. A complete attribution record is available in THIRD_PARTY_NOTICES.md in the source repository." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Open-Yoink is an independent clean-room implementation crafted for macOS. Its design was informed by studying the publicly observable behavior of several MIT-licensed open-source projects — HoldMac, DropKit, ShelfMate, NotchPocket, nab, and Dropshit. The only third-party code included is Sparkle (MIT), which powers automatic updates. A complete attribution record is available in THIRD_PARTY_NOTICES.md in the source repository." } }
       }
     },
     "Position" : {
@@ -708,6 +722,21 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Unknown" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未知" } }
+      }
+    },
+    "Update checks contact GitHub Pages and releases only; nothing else uses the network." : {
+      "extractionState" : "manual",
+      "comment" : "Footnote under the automatic update check setting",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Update checks contact GitHub Pages and releases only; nothing else uses the network." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "更新检查只会访问 GitHub Pages 与 Releases，除此之外不联网。" } }
+      }
+    },
+    "Updates" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Updates" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "更新" } }
       }
     },
     "Version" : {

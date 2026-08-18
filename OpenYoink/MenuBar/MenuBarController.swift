@@ -15,6 +15,8 @@ final class MenuBarController: NSObject {
     private let onReaddRecent: (RecentEntry) -> Void
     /// 打开设置窗口（由 AppDelegate 的 SettingsWindowController 提供）。
     private let onShowSettings: () -> Void
+    /// Sparkle 手动检查更新（由 AppDelegate 的 UpdateController 提供）。
+    private let onCheckForUpdates: () -> Void
 
     private let statusItem: NSStatusItem
     private let toggleItem = NSMenuItem()
@@ -25,12 +27,14 @@ final class MenuBarController: NSObject {
          recents: RecentItemsService,
          onToggleShelf: @escaping () -> Void,
          onReaddRecent: @escaping (RecentEntry) -> Void,
-         onShowSettings: @escaping () -> Void) {
+         onShowSettings: @escaping () -> Void,
+         onCheckForUpdates: @escaping () -> Void) {
         self.appState = appState
         self.recents = recents
         self.onToggleShelf = onToggleShelf
         self.onReaddRecent = onReaddRecent
         self.onShowSettings = onShowSettings
+        self.onCheckForUpdates = onCheckForUpdates
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
         configureButton()
@@ -70,6 +74,13 @@ final class MenuBarController: NSObject {
         settingsItem.target = self
         menu.addItem(settingsItem)
 
+        // Sparkle: 手动触发更新检查（自动检查开关在设置-通用）。
+        let updateItem = NSMenuItem(title: String(localized: "Check for Updates…"),
+                                    action: #selector(checkForUpdates(_:)),
+                                    keyEquivalent: "")
+        updateItem.target = self
+        menu.addItem(updateItem)
+
         menu.addItem(.separator())
 
         let quitItem = NSMenuItem(title: String(localized: "Quit OpenYoink"),
@@ -92,6 +103,11 @@ final class MenuBarController: NSObject {
     /// 焦点处理（activate 前置）由 SettingsWindowController.show() 负责。
     @objc private func showSettings(_ sender: Any?) {
         onShowSettings()
+    }
+
+    /// 手动检查更新（Sparkle；空 feed 时走「已是最新」安全路径）。
+    @objc private func checkForUpdates(_ sender: Any?) {
+        onCheckForUpdates()
     }
 
     // MARK: - Recent Items submenu (S10)

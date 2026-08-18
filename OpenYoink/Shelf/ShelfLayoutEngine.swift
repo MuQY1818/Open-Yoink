@@ -20,10 +20,14 @@ enum ShelfLayoutEngine {
 
     /// 网格列最小宽度与间距 —— 与 `ShelfView.columnWidth` / `.gridSpacing`
     /// 保持一致（列数推算必须与 SwiftUI adaptive 网格的排布一致）。
-    static let gridColumnMinimum: CGFloat = 88
+    static let gridColumnMinimum: CGFloat = 84
     static let gridSpacing: CGFloat = 12
     /// 面板内水平/垂直固定边距合计：窗口外层 padding 8×2 + 内容 padding 8×2。
     static let contentPadding: CGFloat = 32
+    /// 内缘收起把手可见时（左/右锚，非 custom），内容区在把手侧额外让出的
+    /// 水平宽度 —— 修复「把手与第一列卡片水平交叠」（把手 10pt 占带 +
+    /// 2pt 间隙 = 内容从形状缘 12pt 起排，列数推算必须同步扣减）。
+    static let handleContentAllowance: CGFloat = 4
     /// 标题栏块高度（含 VStack 间距）。
     static let headerHeight: CGFloat = 28
     /// 单行卡片高度估算：缩略图区 52 + 间距 5 + 名称行 ~15 + 卡片 padding 12。
@@ -45,8 +49,10 @@ enum ShelfLayoutEngine {
 
     /// UX5: 由面板宽度推算网格列数（与 SwiftUI `adaptive(minimum:spacing:)`
     /// 的排布规则一致：n 列需 n×min + (n-1)×spacing ≤ 可用宽度）。
+    /// 扣减固定边距外的把手让位（`handleContentAllowance`）——columnCount
+    /// 只服务左/右锚的紧凑高度计算，把手恒定可见；custom 不走此路径。
     static func columnCount(forPanelWidth width: CGFloat) -> Int {
-        let gridWidth = width - contentPadding
+        let gridWidth = width - contentPadding - handleContentAllowance
         return max(1, Int((gridWidth + gridSpacing) / (gridColumnMinimum + gridSpacing)))
     }
 
@@ -180,11 +186,10 @@ enum ShelfLayoutEngine {
 
     // MARK: - 内缘收起把手（任务三）
 
-    /// 把手宽度（点）。14pt ≤ 面板边距带（外层 8 + 内容 8 = 16pt）——把手以
-    /// 覆盖层形式放在边距带内，不挤占网格宽度，因此列数推算
-    /// （`columnCount(forPanelWidth:)`）与 `ShelfGridGeometry` 上报的卡片
-    /// 坐标系完全不受把手影响（任务三的硬性约束）。
-    static let innerEdgeHandleWidth: CGFloat = 14
+    /// 把手宽度（点）。10pt，贴在形状贴缘侧；配合 `handleContentAllowance`
+    /// （内容区从形状缘 12pt 起排）与第一列卡片无交叠——此前 14pt 无让位
+    /// 会与首列卡片水平重叠 6pt（真机验收发现）。
+    static let innerEdgeHandleWidth: CGFloat = 10
 
     /// 内缘收起把手的贴附侧。
     enum InnerEdgeHandleSide: Sendable, Equatable {
