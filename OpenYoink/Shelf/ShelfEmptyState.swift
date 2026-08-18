@@ -26,6 +26,7 @@ struct ShelfEmptyState: View {
             }
         }
         .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("shelf.emptyState")
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(16)
         .overlay {

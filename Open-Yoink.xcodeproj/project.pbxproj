@@ -14,6 +14,13 @@
 			remoteGlobalIDString = 0E00000000000000000001;
 			remoteInfo = OpenYoink;
 		};
+		0C00000000000000000002 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0D00000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0E00000000000000000001;
+			remoteInfo = OpenYoink;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXBuildFile section */
@@ -23,6 +30,7 @@
 /* Begin PBXFileReference section */
 		0F00000000000000000001 /* OpenYoink.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OpenYoink.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0F00000000000000000002 /* OpenYoinkTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OpenYoinkTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		0F00000000000000000003 /* OpenYoinkUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OpenYoinkUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -49,6 +57,11 @@
 			path = OpenYoinkTests;
 			sourceTree = "<group>";
 		};
+		110000000000000000005 /* OpenYoinkUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = OpenYoinkUITests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -67,6 +80,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		100000000000000000003 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -75,6 +95,7 @@
 			children = (
 				110000000000000000002 /* OpenYoink */,
 				110000000000000000003 /* OpenYoinkTests */,
+				110000000000000000005 /* OpenYoinkUITests */,
 				110000000000000000004 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -84,6 +105,7 @@
 			children = (
 				0F00000000000000000001 /* OpenYoink.app */,
 				0F00000000000000000002 /* OpenYoinkTests.xctest */,
+				0F00000000000000000003 /* OpenYoinkUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -135,6 +157,29 @@
 			productReference = 0F00000000000000000002 /* OpenYoinkTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		0E00000000000000000003 /* OpenYoinkUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 120000000000000000004 /* Build configuration list for PBXNativeTarget "OpenYoinkUITests" */;
+			buildPhases = (
+				130000000000000000003 /* Sources */,
+				100000000000000000003 /* Frameworks */,
+				140000000000000000003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				150000000000000000002 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				110000000000000000005 /* OpenYoinkUITests */,
+			);
+			name = OpenYoinkUITests;
+			packageProductDependencies = (
+			);
+			productName = OpenYoinkUITests;
+			productReference = 0F00000000000000000003 /* OpenYoinkUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -173,6 +218,7 @@
 			targets = (
 				0E00000000000000000001 /* OpenYoink */,
 				0E00000000000000000002 /* OpenYoinkTests */,
+				0E00000000000000000003 /* OpenYoinkUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -186,6 +232,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		140000000000000000002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		140000000000000000003 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -209,6 +262,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		130000000000000000003 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -216,6 +276,11 @@
 			isa = PBXTargetDependency;
 			target = 0E00000000000000000001 /* OpenYoink */;
 			targetProxy = 0C00000000000000000001 /* PBXContainerItemProxy */;
+		};
+		150000000000000000002 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0E00000000000000000001 /* OpenYoink */;
+			targetProxy = 0C00000000000000000002 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -348,7 +413,7 @@
 				CODE_SIGN_ENTITLEMENTS = OpenYoink/Resources/OpenYoink.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -359,7 +424,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.10;
+				MARKETING_VERSION = 1.1.11;
 				PRODUCT_BUNDLE_IDENTIFIER = com.weijue.OpenYoink;
 				PRODUCT_BUNDLE_PACKAGE_TYPE = APPL;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -377,7 +442,7 @@
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -388,7 +453,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.10;
+				MARKETING_VERSION = 1.1.11;
 				PRODUCT_BUNDLE_IDENTIFIER = com.weijue.OpenYoink;
 				PRODUCT_BUNDLE_PACKAGE_TYPE = APPL;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -402,10 +467,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.1.10;
+				MARKETING_VERSION = 1.1.11;
 				PRODUCT_BUNDLE_IDENTIFIER = com.weijue.OpenYoinkTests;
 				PRODUCT_BUNDLE_PACKAGE_TYPE = BNDL;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -420,16 +485,52 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.1.10;
+				MARKETING_VERSION = 1.1.11;
 				PRODUCT_BUNDLE_IDENTIFIER = com.weijue.OpenYoinkTests;
 				PRODUCT_BUNDLE_PACKAGE_TYPE = BNDL;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 6.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OpenYoink.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/OpenYoink";
+			};
+			name = Release;
+		};
+		160000000000000000007 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 16;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.1.11;
+				PRODUCT_BUNDLE_IDENTIFIER = com.weijue.OpenYoinkUITests;
+				PRODUCT_BUNDLE_PACKAGE_TYPE = BNDL;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TEST_TARGET_NAME = OpenYoink;
+			};
+			name = Debug;
+		};
+		160000000000000000008 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 16;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.1.11;
+				PRODUCT_BUNDLE_IDENTIFIER = com.weijue.OpenYoinkUITests;
+				PRODUCT_BUNDLE_PACKAGE_TYPE = BNDL;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TEST_TARGET_NAME = OpenYoink;
 			};
 			name = Release;
 		};
@@ -459,6 +560,15 @@
 			buildConfigurations = (
 				160000000000000000005 /* Debug */,
 				160000000000000000006 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		120000000000000000004 /* Build configuration list for PBXNativeTarget "OpenYoinkUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				160000000000000000007 /* Debug */,
+				160000000000000000008 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

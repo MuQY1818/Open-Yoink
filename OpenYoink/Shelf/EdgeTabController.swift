@@ -53,6 +53,7 @@ final class EdgeTabController: NSObject {
             defer: false
         )
         panel.contentView = tabView
+        panel.setAccessibilityLabel(String(localized: "Show Shelf"))
         return panel
     }()
 
@@ -408,13 +409,23 @@ final class EdgeTabView: NSView {
         vibrancyView.wantsLayer = true
         vibrancyView.layer?.cornerRadius = Self.cornerRadius
         vibrancyView.layer?.masksToBounds = true
+        vibrancyView.setAccessibilityElement(false)
+        vibrancyView.setAccessibilityHidden(true)
         addSubview(vibrancyView)
 
-        iconView.image = NSImage(systemSymbolName: "tray.and.arrow.down",
-                                 accessibilityDescription: nil)
+        iconView.image = NSImage(
+            systemSymbolName: "tray.and.arrow.down",
+            accessibilityDescription: String(localized: "Show Shelf")
+        )
         iconView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
         iconView.contentTintColor = .secondaryLabelColor
         iconView.imageScaling = .scaleProportionallyUpOrDown
+        // The containing EdgeTabView is the actual button and already exposes
+        // a localized "Show Shelf" label. Keep the decorative symbol out of
+        // the accessibility tree so audits and VoiceOver do not encounter a
+        // second, unlabeled element for the same control.
+        iconView.setAccessibilityElement(false)
+        iconView.setAccessibilityHidden(true)
         addSubview(iconView)
 
         // 内描边/强调填充层：path 只对朝内两角加圆弧，inset 0.5。

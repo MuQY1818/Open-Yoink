@@ -29,6 +29,7 @@ struct SettingsView: View {
                 ForEach(SettingsPane.allCases) { pane in
                     Label(pane.title, systemImage: pane.systemImage)
                         .tag(pane)
+                        .accessibilityIdentifier("settings.pane.\(pane.rawValue)")
                 }
             }
             .listStyle(.sidebar)
@@ -39,6 +40,7 @@ struct SettingsView: View {
 
             selectedContent(for: navigation.selectedPane)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .accessibilityIdentifier("settings.content.\(navigation.selectedPane.rawValue)")
         }
         .frame(
             minWidth: 680,
@@ -348,6 +350,7 @@ private struct GeneralSettingsTab: View {
                     Text("Remove").tag(SettingsStore.DragOutRemovalPolicy.remove)
                     Text("Ask Every Time").tag(SettingsStore.DragOutRemovalPolicy.ask)
                 }
+                .accessibilityIdentifier("settings.dragOutRemovalPolicy")
 
                 // F-05: 双模式拖入说明（静态文案）。
                 Text("Dropping files keeps a reference. Hold ⌘ while dropping to move the original into the shelf — the original goes to the Trash, so it can be restored.")
@@ -361,6 +364,7 @@ private struct GeneralSettingsTab: View {
                     Text("English").tag(SettingsStore.LanguagePreference.english)
                     Text("中文").tag(SettingsStore.LanguagePreference.chinese)
                 }
+                .accessibilityIdentifier("settings.language")
                 // S10: AppleLanguages 覆盖在启动最早期应用（AppDelegate.
                 // applicationWillFinishLaunching），运行期切换故需重启生效。
                 Text("Takes effect after relaunch.")

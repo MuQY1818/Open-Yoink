@@ -5,6 +5,13 @@ import OSLog
 enum AppDirectories {
     /// `Application Support/OpenYoink` inside the sandbox container.
     static func applicationSupport() -> URL {
+        // UI automation launches the real app process, so isolate all file
+        // mutations from the user's shelf. AppDelegate clears this exact
+        // app-owned directory before each UI-test launch.
+        if ProcessInfo.processInfo.environment["OPENYOINK_UI_TESTING"] == "1" {
+            return FileManager.default.temporaryDirectory
+                .appendingPathComponent("OpenYoinkUITests", isDirectory: true)
+        }
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
         return base.appendingPathComponent("OpenYoink", isDirectory: true)

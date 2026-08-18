@@ -3,6 +3,21 @@ import OSLog
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private static let uiTestingDefaultsSuite = "com.weijue.OpenYoink.UITests"
+
+    private static var isUITestingEnvironment: Bool {
+        ProcessInfo.processInfo.environment["OPENYOINK_UI_TESTING"] == "1"
+    }
+
+    private static func makeSettingsDefaults() -> UserDefaults {
+        guard isUITestingEnvironment else { return .standard }
+        guard let defaults = UserDefaults(suiteName: uiTestingDefaultsSuite) else {
+            fatalError("Unable to create the isolated UI-testing defaults suite")
+        }
+        defaults.removePersistentDomain(forName: uiTestingDefaultsSuite)
+        return defaults
+    }
+
     private let appState = AppState()
     /// JSON 持久化（原子写 + 500ms 防抖）；store 的一切变更经它落盘。
     private let persistence = PersistenceController()
@@ -23,6 +38,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 仅承载活动 tutorial item 的 token，避免 shelf 与 onboarding lazy init 成环。
     private let onboardingDragContext = OnboardingDragContext()
     private let logger = Logger(subsystem: "com.weijue.OpenYoink", category: "App")
+    private var isUITesting: Bool {
+        Self.isUITestingEnvironment
+    }
     /// shelf.json 在整个启动链路中只读取一次。读取失败会隔离损坏文件；若再读
     /// 一次就会得到 `.missing`，从而错误放行 Materialized 孤儿清理。
     private lazy var initialShelfLoadResult = persistence.loadResult()
@@ -37,7 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                                                    pendingImportJournal: pendingImportJournal)
     /// 用户设置（S5 起拖出后移除策略被 DragSessionController 读取；S8 由
     /// SettingsView 编辑）。internal：OpenYoinkApp 的 Settings scene 注入环境用。
-    let settingsStore = SettingsStore()
+    let settingsStore = SettingsStore(defaults: AppDelegate.makeSettingsDefaults())
     /// 设置窗口的共享导航状态，允许不可用的托管项目直接打开“存储”页。
     let settingsNavigation = SettingsNavigationModel()
     /// 系统登录项状态（不复制到 UserDefaults；SMAppService 是唯一事实源）。
@@ -211,7 +229,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// willFinishLaunching（SwiftUI scene 与任何 UI 构建之前）。
     /// 设置页注明「重启后生效」：运行期切换只写偏好，下次启动由此应用。
     func applicationWillFinishLaunching(_ notification: Notification) {
-        applyLanguageOverride()
+        if isUITesting {
+            // This is a fixed child of the app container's temporary
+            // directory, selected only by the explicit UI-test environment.
+            // Clearing it makes every launch deterministic without touching
+            // the user's real Application Support data.
+            try? FileManager.default.removeItem(at: AppDirectories.applicationSupport())
+        }
+        if !isUITesting {
+            applyLanguageOverride()
+        }
     }
 
     /// 按 `SettingsStore.language` 覆盖 `AppleLanguages`；`.system` 时移除覆盖，
@@ -236,13 +263,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // EdgeTab: 拉环随启动就位（shelf 初始隐藏，拉环立即在边缘就位）。
         _ = edgeTabController
         // Sparkle: 启动 updater（应用「自动检查」设置后 start；幂等）。
-        updateController.start()
+        if !isUITesting {
+            updateController.start()
+        }
         // UX1: 成功导入（拖入/剪贴板保存）→ 标记拖拽自动唤出会话「本轮
         // 已有内容落入」，拖结束时不再自动收回。
         dropImportCoordinator.onImportHandled = { [weak self] in
             self?.dragAutoShowSession.noteImport()
         }
-        applyTriggerSettings()
+        if !isUITesting {
+            applyTriggerSettings()
+        }
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(userDefaultsDidChange(_:)),
                                                name: UserDefaults.didChangeNotification,
@@ -274,9 +305,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         // 引导必须排在 shelf 读取、事务恢复、bookmark 解析和安全清理之后，
         // 此时「空架」才是可信事实。
-        onboardingController.startAtLaunch(
-            hasLegacyInstallEvidence: hasLegacyInstallEvidence
-        )
+        if isUITesting {
+            presentRequestedUITestSurface()
+        } else {
+            onboardingController.startAtLaunch(
+                hasLegacyInstallEvidence: hasLegacyInstallEvidence
+            )
+        }
+    }
+
+    private func presentRequestedUITestSurface() {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("--ui-testing-open-settings") {
+            settingsWindowController.show(pane: .general)
+        } else if arguments.contains("--ui-testing-show-shelf") {
+            shelfWindowController.showShelf(animated: false)
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

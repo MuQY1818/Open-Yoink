@@ -94,6 +94,8 @@ struct ShelfView: View {
             .onChange(of: transferStore.currentTask, initial: true) { _, task in
                 announcementCenter?.announce(task: task)
             }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("shelf.root")
     }
 
     // MARK: - Content

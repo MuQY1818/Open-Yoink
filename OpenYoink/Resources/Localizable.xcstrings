@@ -1002,6 +1002,13 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设置分类" } }
       }
     },
+    "OpenYoink Settings" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "OpenYoink Settings" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "OpenYoink 设置" } }
+      }
+    },
     "Storage" : {
       "extractionState" : "manual",
       "localizations" : {

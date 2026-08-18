@@ -53,6 +53,9 @@ final class SettingsWindowController {
                 .environment(navigation)
                 .environment(supportController)
             let hostingController = NSHostingController(rootView: rootView)
+            hostingController.view.setAccessibilityLabel(
+                String(localized: "OpenYoink Settings")
+            )
 
             let window = NSWindow(contentViewController: hostingController)
             window.title = String(localized: "OpenYoink Settings")
