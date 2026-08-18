@@ -1603,6 +1603,104 @@
         "en" : { "stringUnit" : { "state" : "translated", "value" : "The selected items could not be copied." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法复制所选项目。" } }
       }
+    },
+    "Started receiving content." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Started receiving content." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开始接收内容。" } }
+      }
+    },
+    "Started delivering content." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Started delivering content." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开始交付内容。" } }
+      }
+    },
+    "%lld items delivered; %lld not delivered. Undelivered items remain on the shelf." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld items delivered; %lld not delivered. Undelivered items remain on the shelf." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已交付 %lld 项，%lld 项未交付。未交付项目仍保留在暂存架。" } }
+      }
+    },
+    "%lld items added; %lld not added." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld items added; %lld not added." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已加入 %lld 项，%lld 项未加入。" } }
+      }
+    },
+    "Delivery failed. The items remain on the shelf." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delivery failed. The items remain on the shelf." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "交付失败，项目仍保留在暂存架。" } }
+      }
+    },
+    "The content could not be added." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The content could not be added." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法加入此内容。" } }
+      }
+    },
+    "Received; batch still in progress" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Received; batch still in progress" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已接收，批次仍在处理中" } }
+      }
+    },
+    "Delivery in progress" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delivery in progress" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在交付" } }
+      }
+    },
+    "Destination accepted" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Destination accepted" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "目标已接受" } }
+      }
+    },
+    "Added to the shelf" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Added to the shelf" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已加入暂存架" } }
+      }
+    },
+    "Delivered" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delivered" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已交付" } }
+      }
+    },
+    "Delivery failed; item remains on the shelf" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delivery failed; item remains on the shelf" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "交付失败，项目仍保留在暂存架" } }
+      }
+    },
+    "Press Return to review the stack." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Press Return to review the stack." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "按回车键查看堆叠。" } }
+      }
+    },
+    "Press Space for Quick Look or Return to open." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Press Space for Quick Look or Return to open." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "按空格键快速查看，或按回车键打开。" } }
+      }
     }
   },
   "version" : "1.0"

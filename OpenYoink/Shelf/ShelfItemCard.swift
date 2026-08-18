@@ -36,6 +36,8 @@ struct ShelfItemCard: View {
     var onRecover: (() -> Void)?
     /// One-shot copy action, exposed in the context menu and accessibility rotor.
     var onCopy: (() -> Void)?
+    /// Runtime-only import/export state appended to the VoiceOver label.
+    var transferStatus: TransferItemAccessibilityStatus?
     /// 决定缩略图内容的项目；默认与 `item` 相同。Stack 卡片传入第一个文件类子项。
     var thumbnailItem: ShelfItem?
     /// S5 拖出内容计算：给定被拖卡片项目，返回本次拖出的项目集合与涉及的顶层
@@ -56,6 +58,9 @@ struct ShelfItemCard: View {
     @Environment(\.quickLookCoordinator) private var quickLookCoordinator
     /// S6: text 项打开/定位需写临时 .txt（见 `ItemActions`）。
     @Environment(\.tempFileService) private var tempFileService
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     static let cornerRadius: CGFloat = 12
     /// 缩略图区高度（点）；宽度随网格列（~88pt）。
@@ -68,6 +73,7 @@ struct ShelfItemCard: View {
          onRemove: (() -> Void)? = nil,
          onRecover: (() -> Void)? = nil,
          onCopy: (() -> Void)? = nil,
+         transferStatus: TransferItemAccessibilityStatus? = nil,
          thumbnailItem: ShelfItem? = nil,
          dragContentsProvider: ((ShelfItem) -> DragOutContents)? = nil) {
         self.item = item
@@ -77,6 +83,7 @@ struct ShelfItemCard: View {
         self.onRemove = onRemove
         self.onRecover = onRecover
         self.onCopy = onCopy
+        self.transferStatus = transferStatus
         self.thumbnailItem = thumbnailItem
         self.dragContentsProvider = dragContentsProvider
     }
@@ -97,6 +104,7 @@ struct ShelfItemCard: View {
         .contentShape(RoundedRectangle(cornerRadius: Self.cornerRadius))
         .overlay { availabilityBorder }
         .overlay { keyboardFocusRing }
+        .overlay(alignment: .topLeading) { selectionBadge }
         // F-05: 剪切项角标（左下剪刀，与左上 stale 角标不同位置/颜色）。
         .overlay(alignment: .bottomLeading) { cutBadge }
         // S5 拖出事件层：透明 NSView 覆盖整卡，成为左键事件权威
@@ -125,17 +133,40 @@ struct ShelfItemCard: View {
         // 透明且关闭命中测试，不影响卡片的点击/拖拽/框选。
         .overlay(alignment: .topTrailing) { removeButton }
         .onHover { isHovering = $0 }
-        .animation(.easeInOut(duration: 0.15), value: isHovering)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.15), value: isHovering)
         .contextMenu { contextMenu }
         // D9: 卡片作为整体暴露给 VoiceOver —— 名称 + 本地化 kind（stack 附带
         // 子项数）+ stale 态；选中态走 .isSelected trait；双击 = Quick Look。
         // UX4: 卡片忽略子元素（✕ 对 VoiceOver 不可见），移除操作改以自定义
         // action 暴露（rotor「操作」中可触发）。
         .accessibilityElement(children: item.availability == .available ? .ignore : .contain)
+        .accessibilityIdentifier("shelf.item.\(item.id.uuidString)")
         .accessibilityLabel(cardAccessibilityLabel)
-        .accessibilityHint(Text("Double-click for Quick Look"))
+        .accessibilityHint(Text(cardAccessibilityHint))
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
         .accessibilityActions {
+            if item.availability == .available,
+               quickLookCoordinator != nil,
+               ItemActions.canQuickLook(item) {
+                Button("Quick Look") { quickLookCoordinator?.toggle(contextItem: item) }
+            }
+            if item.availability == .available, ItemActions.canOpen(item) {
+                Button("Open") {
+                    ItemActions.open(item,
+                                     bookmarkService: bookmarkService,
+                                     tempFileService: tempFileService)
+                }
+            }
+            if item.availability == .available, ItemActions.canRevealInFinder(item) {
+                Button("Show in Finder") {
+                    ItemActions.revealInFinder(item,
+                                               bookmarkService: bookmarkService,
+                                               tempFileService: tempFileService)
+                }
+            }
+            if let onRecover {
+                Button(availabilityActionTitle, action: onRecover)
+            }
             if let onCopy {
                 Button("Copy", action: onCopy)
             }
@@ -160,7 +191,7 @@ struct ShelfItemCard: View {
                 Image(systemName: "xmark")
                     .font(.system(size: 8, weight: .bold))
                     .foregroundStyle(.secondary)
-                    .frame(width: 16, height: 16)
+                    .frame(width: 22, height: 22)
                     .background { Circle().fill(.regularMaterial) }
                     .overlay {
                         Circle()
@@ -169,10 +200,11 @@ struct ShelfItemCard: View {
             }
             .buttonStyle(.plain)
             .padding(4)
-            .opacity(isHovering ? 1 : 0)
-            .allowsHitTesting(isHovering)
+            .opacity(isHovering || isKeyboardFocused ? 1 : 0)
+            .allowsHitTesting(isHovering || isKeyboardFocused)
             .help("Remove from Shelf")
             .accessibilityLabel(Text("Remove from Shelf"))
+            .accessibilityIdentifier("shelf.item.\(item.id.uuidString).remove")
         }
     }
 
@@ -204,7 +236,20 @@ struct ShelfItemCard: View {
                 ? "Contains unavailable items"
                 : "Managed copy missing")
         }
+        if let transferStatus {
+            label += ", " + transferStatus.localizedDescription
+        }
         return Text(label)
+    }
+
+    private var cardAccessibilityHint: String {
+        if item.availability != .available {
+            return availabilityActionHint
+        }
+        if item.kind == .stack {
+            return String(localized: "Press Return to review the stack.")
+        }
+        return String(localized: "Press Space for Quick Look or Return to open.")
     }
 
     /// 本地化的 kind 名称（可访问性标签用）。
@@ -301,18 +346,21 @@ struct ShelfItemCard: View {
         VStack(spacing: 2) {
             Label(availabilityStatusText, systemImage: availabilitySymbolName)
                 .font(.caption2.weight(.semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
             if let onRecover {
                 Button(availabilityActionTitle, action: onRecover)
                     .buttonStyle(.borderless)
-                    .controlSize(.mini)
+                    .controlSize(.small)
+                    .frame(minHeight: 24)
+                    .accessibilityIdentifier("shelf.item.\(item.id.uuidString).recover")
                     .accessibilityHint(Text(availabilityActionHint))
             }
         }
         .foregroundStyle(.primary)
         .frame(maxWidth: .infinity)
-        .frame(height: Self.thumbnailHeight)
+        .frame(minHeight: Self.thumbnailHeight)
     }
 
     private var availabilityStatusText: String {
@@ -356,9 +404,10 @@ struct ShelfItemCard: View {
 
     // MARK: - Name row
 
-    /// 名称行：来源应用 12pt 小图标 + 单行中间截断名称（§3）。
+    /// 名称行：来源应用图标 + 最多两行名称。语义字体随系统文字大小变化；
+    /// 卡片纵向扩展而不缩小文字。
     private var nameRow: some View {
-        HStack(spacing: 3) {
+        HStack(alignment: .top, spacing: 3) {
             if let sourceAppIcon {
                 Image(nsImage: sourceAppIcon)
                     .resizable()
@@ -366,8 +415,9 @@ struct ShelfItemCard: View {
             }
             Text(item.displayName)
                 .font(.caption)
-                .lineLimit(1)
-                .truncationMode(.middle)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity)
     }
@@ -404,8 +454,21 @@ struct ShelfItemCard: View {
     private var keyboardFocusRing: some View {
         if isKeyboardFocused {
             RoundedRectangle(cornerRadius: Self.cornerRadius - 2)
-                .strokeBorder(Color.accentColor, lineWidth: 3)
+                .strokeBorder(Color(nsColor: .keyboardFocusIndicatorColor),
+                              lineWidth: colorSchemeContrast == .increased ? 4 : 3)
                 .padding(2)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+    }
+
+    @ViewBuilder
+    private var selectionBadge: some View {
+        if isSelected && differentiateWithoutColor {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.caption.weight(.bold))
+                .symbolRenderingMode(.hierarchical)
+                .padding(5)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }

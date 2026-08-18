@@ -201,6 +201,34 @@ final class TransferStoreTests: XCTestCase {
         XCTAssertEqual(store.currentTask?.itemIDs, [deliveredID])
     }
 
+    func testAccessibilityStatusTracksEachExportItemIndependently() {
+        let store = TransferStore()
+        let deliveredID = UUID()
+        let failedID = UUID()
+        let taskID = store.beginExport(itemIDs: [deliveredID, failedID])
+        let failure = TransferFailure(reason: .deliveryFailed,
+                                      recoveryAction: .retryByDraggingOut(itemID: failedID))
+
+        XCTAssertEqual(store.accessibilityStatus(for: deliveredID), .delivering)
+        store.recordExportDelivered(taskID: taskID, itemID: deliveredID)
+        store.recordExportFailure(taskID: taskID, itemID: failedID, failure: failure)
+        store.finishExportSession(taskID: taskID, accepted: true)
+
+        XCTAssertEqual(store.accessibilityStatus(for: deliveredID), .delivered)
+        XCTAssertEqual(store.accessibilityStatus(for: failedID), .deliveryFailed)
+    }
+
+    func testAccessibilityStatusAnnotatesSuccessfulImportWhileBatchContinues() {
+        let store = TransferStore()
+        let taskID = store.beginImport(expectedCount: 2)
+        let itemID = UUID()
+
+        store.recordSuccess(taskID: taskID, itemID: itemID)
+
+        XCTAssertEqual(store.accessibilityStatus(for: itemID), .receiving)
+        XCTAssertNil(store.accessibilityStatus(for: UUID()))
+    }
+
     func testCancelledExportDoesNotShowAnError() {
         let store = TransferStore()
         let taskID = store.beginExport(itemIDs: [UUID()])

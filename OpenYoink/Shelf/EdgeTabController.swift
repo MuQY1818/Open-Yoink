@@ -135,6 +135,7 @@ final class EdgeTabController: NSObject {
 
     /// 统一状态评估：可见性 / 设置 / 屏幕参数 / 拖拽状态变更后调用。
     private func applyState(animated: Bool) {
+        let animated = animated && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         // 贴附侧同步给视图（圆角朝向 / 换边基准）；拖动会话期间位置由手势
         // 自管（可能已实时换边但尚未持久化），此处不覆盖。
         if !isTabBeingDragged {
@@ -172,6 +173,7 @@ final class EdgeTabController: NSObject {
     }
 
     private func showTab(_ frame: NSRect, animated: Bool) {
+        let animated = animated && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         panel.setFrame(frame, display: false)
         guard animated else {
             panel.alphaValue = 1
@@ -188,6 +190,7 @@ final class EdgeTabController: NSObject {
     }
 
     private func hideTab(animated: Bool) {
+        let animated = animated && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         guard panel.isVisible else { return }
         guard animated else {
             panel.orderOut(nil)
@@ -238,6 +241,7 @@ final class EdgeTabController: NSObject {
     /// 强调态 = 投放悬停 ||（拖拽进行中且非拖动拉环本身）。变化时同步视图
     /// 高亮并动画切换 frame（常态 ↔ 轻微放大）。
     private func updateEmphasis(animated: Bool) {
+        let animated = animated && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         let emphasized = panel.isVisible
             && (isDropTargeted || (dragStartMonitor.isDragInProgress && !isTabBeingDragged))
         guard emphasized != isEmphasized else { return }
@@ -357,7 +361,9 @@ final class EdgeTabView: NSView {
     var isEmphasized = false {
         didSet {
             guard oldValue != isEmphasized else { return }
-            applyEmphasisAppearance(animated: true)
+            applyEmphasisAppearance(
+                animated: !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+            )
         }
     }
 

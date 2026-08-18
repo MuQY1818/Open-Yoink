@@ -5,6 +5,7 @@ import SwiftUI
 struct ShelfActivityStrip: View {
     @Environment(TransferStore.self) private var transferStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     var body: some View {
         if let task = transferStore.currentTask {
@@ -16,12 +17,14 @@ struct ShelfActivityStrip: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title(for: task))
                         .font(.caption.weight(.medium))
-                        .lineLimit(1)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                     if let detail = detail(for: task) {
                         Text(detail)
                             .font(.caption2)
                             .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                            .lineLimit(3)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -39,6 +42,7 @@ struct ShelfActivityStrip: View {
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
                     .accessibilityLabel(Text("Dismiss transfer status"))
+                    .accessibilityIdentifier("activity.dismiss")
                     .help(Text("Dismiss"))
                 }
             }
@@ -52,7 +56,8 @@ struct ShelfActivityStrip: View {
             }
             .overlay {
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .strokeBorder(borderColor(for: task), lineWidth: 1)
+                    .strokeBorder(borderColor(for: task),
+                                  lineWidth: colorSchemeContrast == .increased ? 2 : 1)
             }
             .accessibilityElement(children: .contain)
             .accessibilityLabel(Text(accessibilitySummary(for: task)))

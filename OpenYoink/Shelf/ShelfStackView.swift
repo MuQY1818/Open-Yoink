@@ -19,6 +19,7 @@ struct ShelfStackView: View {
     var onRemove: (() -> Void)?
     var onRecover: (() -> Void)? = nil
     var onCopy: (() -> Void)? = nil
+    var transferStatus: TransferItemAccessibilityStatus? = nil
     /// S5 拖出内容计算（多选整批/stack 语义由 ShelfView 决定）。
     var dragContentsProvider: ((ShelfItem) -> DragOutContents)?
 
@@ -38,6 +39,7 @@ struct ShelfStackView: View {
             onRemove: onRemove,
             onRecover: onRecover,
             onCopy: onCopy,
+            transferStatus: transferStatus,
             thumbnailItem: item.children?.first(where: { $0.fileURL != nil }),
             dragContentsProvider: dragContentsProvider
         )
@@ -69,6 +71,8 @@ struct ShelfStackView: View {
 /// （`ShelfStore.removeChild(_:fromStack:)`：剩 1 项自动解散为普通项，
 /// 剩 0 项移除 stack；stack 消失后本浮层由 ShelfView 自动收起）。
 struct ShelfStackExpandedView: View {
+    @Environment(TransferStore.self) private var transferStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let stack: ShelfItem
     let onDismiss: () -> Void
     let interaction: ShelfInteractionState
@@ -107,13 +111,16 @@ struct ShelfStackExpandedView: View {
                             onCopy: child.availability == .available
                                 ? onCopyChild.map { copy in { copy(child) } }
                                 : nil,
+                            transferStatus: transferStore.accessibilityStatus(for: child.id),
                             dragContentsProvider: dragContents(for:)
                         )
                     }
                 }
                 .padding(2)
-                .animation(ShelfView.cardAnimation, value: interaction.childSelection)
-                .animation(ShelfView.cardAnimation, value: stack.children)
+                .animation(reduceMotion ? nil : ShelfView.cardAnimation,
+                           value: interaction.childSelection)
+                .animation(reduceMotion ? nil : ShelfView.cardAnimation,
+                           value: stack.children)
             }
             .frame(maxHeight: 320)
         }
@@ -142,8 +149,8 @@ struct ShelfStackExpandedView: View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text(stack.displayName)
                 .font(.headline)
-                .lineLimit(1)
-                .truncationMode(.middle)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
             Text("\(stack.children?.count ?? 0) items")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -157,6 +164,7 @@ struct ShelfStackExpandedView: View {
             .buttonStyle(.plain)
             .help("Collapse stack")
             .accessibilityLabel(Text("Collapse stack"))
+            .accessibilityIdentifier("shelf.stack.\(stack.id.uuidString).collapse")
         }
     }
 }

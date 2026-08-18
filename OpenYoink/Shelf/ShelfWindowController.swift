@@ -80,6 +80,9 @@ final class ShelfWindowController: NSObject {
     /// v1.2: distinguishes external references from managed-copy loss and owns
     /// the safe user-driven recovery actions.
     private let itemRecoveryController: ItemRecoveryController
+    /// Batch-level VoiceOver announcements live for the controller lifetime so
+    /// SwiftUI redraws cannot repeat already spoken events.
+    private let accessibilityAnnouncementCenter = AccessibilityAnnouncementCenter()
     /// 任务二：拖拽进行中状态（`DragStartMonitor.isDragInProgress`），供给
     /// 空架自动隐藏的门控 —— 拖拽期间任何自动显隐不得收起已可见的 shelf。
     private let dragStartMonitor: DragStartMonitor
@@ -113,6 +116,8 @@ final class ShelfWindowController: NSObject {
                 .environment(\.quickLookCoordinator, quickLookCoordinator)
                 .environment(\.tempFileService, tempFileService)
                 .environment(\.itemRecoveryController, itemRecoveryController)
+                .environment(\.accessibilityAnnouncementCenter,
+                              accessibilityAnnouncementCenter)
                 // 任务三：内缘收起把手点击 → 走标准 hideShelf 滑出动画。
                 .environment(\.shelfHideAction, { [weak self] in
                     self?.hideShelf(animated: true)
@@ -244,6 +249,7 @@ final class ShelfWindowController: NSObject {
 
     /// 从贴附缘滑入并淡入（贴左缘时自左侧滑入，贴右缘时自右侧滑入）。
     func showShelf(animated: Bool = true, takeKeyboardFocus: Bool = false) {
+        let animated = animated && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         itemRecoveryController.refreshAll()
         interaction.normalize(for: store.items)
         if takeKeyboardFocus, interaction.focusedItemID == nil {
@@ -297,6 +303,7 @@ final class ShelfWindowController: NSObject {
 
     /// 向贴附缘滑出并淡出，结束后 orderOut。
     func hideShelf(animated: Bool = true) {
+        let animated = animated && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         appState.hideShelf()
         // S6: shelf 隐藏时关掉 Quick Look 并释放会话资源（不恢复键盘焦点）。
         quickLookCoordinator.closeForShelfHide()
@@ -589,6 +596,10 @@ final class ShelfWindowController: NSObject {
         guard appState.isShelfVisible else { return }
         let target = targetFrame()
         guard target != panel.frame else { return }
+        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
+            panel.setFrame(target, display: true)
+            return
+        }
         NSAnimationContext.runAnimationGroup { context in
             context.duration = Self.animationDuration
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
@@ -612,10 +623,14 @@ final class ShelfWindowController: NSObject {
         if appState.isShelfVisible {
             let target = targetFrame()
             if target != panel.frame {
-                NSAnimationContext.runAnimationGroup { context in
-                    context.duration = Self.animationDuration
-                    context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                    panel.animator().setFrame(target, display: true)
+                if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+                    panel.setFrame(target, display: true)
+                } else {
+                    NSAnimationContext.runAnimationGroup { context in
+                        context.duration = Self.animationDuration
+                        context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                        panel.animator().setFrame(target, display: true)
+                    }
                 }
             }
         }
@@ -631,6 +646,10 @@ final class ShelfWindowController: NSObject {
         guard appState.isShelfVisible else { return }
         let target = targetFrame()
         guard target != panel.frame else { return }
+        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
+            panel.setFrame(target, display: true)
+            return
+        }
         NSAnimationContext.runAnimationGroup { context in
             context.duration = Self.animationDuration
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)

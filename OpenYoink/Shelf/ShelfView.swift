@@ -36,6 +36,7 @@ struct ShelfView: View {
     /// v1.2: runtime-only asynchronous batch status.
     @Environment(TransferStore.self) private var transferStore
     @Environment(ShelfInteractionState.self) private var interaction
+    @Environment(\.accessibilityAnnouncementCenter) private var announcementCenter
     /// v1.2: unavailable-item actions (external reconnect vs managed recovery).
     @Environment(\.itemRecoveryController) private var itemRecoveryController
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -71,10 +72,12 @@ struct ShelfView: View {
             .overlay(alignment: .bottom) { dropModeHint }
             .animation(reduceMotion ? nil : Self.cardAnimation,
                        value: interaction.expandedStackID)
-            .animation(.easeInOut(duration: 0.2), value: notices.message != nil)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2),
+                       value: notices.message != nil)
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.2),
                        value: transferStore.hasVisibleActivity)
-            .animation(.easeInOut(duration: 0.2), value: dropTargetState.mode)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2),
+                       value: dropTargetState.mode)
             .padding(8)
             // 外缘隐形收起热区挂在 padding **之后**（窗口内容坐标系）：拉环
             // 原位置是面板贴缘的 14pt —— 挂在 padding 前会被形状内缩 8pt
@@ -87,6 +90,9 @@ struct ShelfView: View {
             .onChange(of: store.items) {
                 dropTargetState.reset()
                 interaction.normalize(for: store.items)
+            }
+            .onChange(of: transferStore.currentTask, initial: true) { _, task in
+                announcementCenter?.announce(task: task)
             }
     }
 
@@ -224,6 +230,7 @@ struct ShelfView: View {
                 onRemove: { store.remove(ids: [item.id]) },
                 onRecover: { toggleStackExpansion(item.id) },
                 onCopy: { copyToClipboard([item]) },
+                transferStatus: stackTransferStatus(for: item),
                 dragContentsProvider: dragContents(for:)
             )
         } else {
@@ -237,6 +244,7 @@ struct ShelfView: View {
                 onCopy: item.availability == .available
                     ? { copyToClipboard([item]) }
                     : nil,
+                transferStatus: transferStore.accessibilityStatus(for: item.id),
                 dragContentsProvider: dragContents(for:)
             )
         }
@@ -357,6 +365,7 @@ struct ShelfView: View {
             .frame(maxHeight: .infinity)
             .contentShape(Rectangle())
             .accessibilityLabel(Text("Hide Shelf"))
+            .accessibilityIdentifier("shelf.hide.edge")
             .help(Text("Hide Shelf"))
         }
     }
@@ -432,6 +441,19 @@ struct ShelfView: View {
     private func copyToClipboard(_ items: [ShelfItem]) {
         let result = ClipboardController.copy(items, bookmarkService: bookmarkService)
         notices.show(ClipboardController.statusMessage(for: result))
+    }
+
+    private func stackTransferStatus(for stack: ShelfItem) -> TransferItemAccessibilityStatus? {
+        let statuses = (stack.children ?? []).compactMap {
+            transferStore.accessibilityStatus(for: $0.id)
+        }
+        if statuses.contains(.deliveryFailed) { return .deliveryFailed }
+        if statuses.contains(.delivering) { return .delivering }
+        if statuses.contains(.receiving) { return .receiving }
+        if statuses.contains(.destinationAccepted) { return .destinationAccepted }
+        if statuses.contains(.delivered) { return .delivered }
+        if statuses.contains(.added) { return .added }
+        return nil
     }
 
     // MARK: - Marquee selection (C5)

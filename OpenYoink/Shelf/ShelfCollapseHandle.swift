@@ -20,6 +20,7 @@ struct ShelfCollapseHandle: View {
     let action: @MainActor () -> Void
 
     @State private var isHovering = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// chevron 指向屏幕缘（收起滑出方向）：把手在左缘（右锚）→ 向右。
     private var chevronName: String {
@@ -37,8 +38,9 @@ struct ShelfCollapseHandle: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
-        .animation(.easeInOut(duration: 0.15), value: isHovering)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.15), value: isHovering)
         .accessibilityLabel(Text("Hide Shelf"))
+        .accessibilityIdentifier("shelf.hide.handle")
         .help(Text("Hide Shelf"))
     }
 }

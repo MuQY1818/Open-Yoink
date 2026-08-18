@@ -84,6 +84,28 @@ struct TransferTask: Identifiable, Equatable, Sendable {
     var expectedCount: Int?
 }
 
+/// Runtime status appended to a card's VoiceOver label. It intentionally stays
+/// outside ShelfItem so transient transfer state never enters shelf.json.
+enum TransferItemAccessibilityStatus: Equatable, Sendable {
+    case receiving
+    case delivering
+    case destinationAccepted
+    case added
+    case delivered
+    case deliveryFailed
+
+    var localizedDescription: String {
+        switch self {
+        case .receiving: String(localized: "Received; batch still in progress")
+        case .delivering: String(localized: "Delivery in progress")
+        case .destinationAccepted: String(localized: "Destination accepted")
+        case .added: String(localized: "Added to the shelf")
+        case .delivered: String(localized: "Delivered")
+        case .deliveryFailed: String(localized: "Delivery failed; item remains on the shelf")
+        }
+    }
+}
+
 /// Runtime-only source of truth for import/export activity. ShelfItem remains a
 /// stable persisted content model; transient progress and failures never enter
 /// shelf.json.
@@ -123,6 +145,33 @@ final class TransferStore {
     }
 
     var hasVisibleActivity: Bool { currentTask != nil }
+
+    /// Card-level status for the newest visible batch. Import failures have no
+    /// card to annotate; export status can be mapped through the private
+    /// expected-item progress without exposing delivery internals to the UI.
+    func accessibilityStatus(for itemID: UUID) -> TransferItemAccessibilityStatus? {
+        guard let task = currentTask else { return nil }
+        if task.direction == .exportFromShelf,
+           let progress = exportProgressByTaskID[task.id],
+           progress.expectedItemIDs.contains(itemID) {
+            if progress.failuresByItemID[itemID] != nil { return .deliveryFailed }
+            if progress.deliveredItemIDs.contains(itemID) { return .delivered }
+            if progress.acceptedItemIDs.contains(itemID) { return .destinationAccepted }
+            switch task.phase {
+            case .failed: return .deliveryFailed
+            case .cancelled: return nil
+            default: return .delivering
+            }
+        }
+
+        guard task.direction == .importIntoShelf,
+              task.itemIDs.contains(itemID) else { return nil }
+        switch task.phase {
+        case .preparing, .receiving, .finalizing: return .receiving
+        case .delivered, .partiallySucceeded: return .added
+        case .targetAccepted, .failed, .cancelled: return nil
+        }
+    }
 
     /// Creates an import batch only when the caller has actually dispatched
     /// asynchronous work. Supplying a stable id lets fallback materializers
