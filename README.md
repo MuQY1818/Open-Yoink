@@ -1,108 +1,177 @@
 <p align="center">
-  <img src="OpenYoink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-128.png" width="96" alt="OpenYoink 图标">
+  <a href="https://muqy1818.github.io/OpenYoink/">
+    <img src="OpenYoink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-128.png" width="104" alt="OpenYoink 图标">
+  </a>
 </p>
 
 <h1 align="center">OpenYoink</h1>
 
+<p align="center"><strong>随手一拖，先放一下。</strong></p>
+
 <p align="center">
-  macOS 拖拽暂存架：把文件、文本、图片、链接先放进屏幕边缘，再拖到目标位置。<br>
-  <a href="README.en.md">English</a> · <a href="#安装">安装</a> · <a href="#使用">使用</a>
+  原生 macOS 拖拽暂存架：把文件、文本、图片和链接暂存在屏幕边缘，<br>
+  切换到目标位置后再拖出去。
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/platform-macOS%2026%2B-blue" alt="platform">
-  <img src="https://img.shields.io/badge/swift-6-orange" alt="swift">
-  <img src="https://img.shields.io/badge/license-MIT-green" alt="license">
-  <img src="https://img.shields.io/badge/tests-328%20passing-brightgreen" alt="tests">
+  <a href="https://github.com/MuQY1818/OpenYoink/releases/latest"><img src="https://img.shields.io/github/v/release/MuQY1818/OpenYoink?display_name=tag&sort=semver&style=flat-square" alt="最新版本"></a>
+  <img src="https://img.shields.io/badge/macOS-15%2B-000000?style=flat-square&logo=apple&logoColor=white" alt="macOS 15+"><img src="https://img.shields.io/badge/Swift-6-F05138?style=flat-square&logo=swift&logoColor=white" alt="Swift 6">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/MuQY1818/OpenYoink?style=flat-square" alt="MIT 许可证"></a>
 </p>
 
 <p align="center">
-  <img src="docs/images/banner.jpg" width="720" alt="OpenYoink — 随手一拖，先放一下">
+  <a href="https://github.com/MuQY1818/OpenYoink/releases/latest">下载</a> ·
+  <a href="#安装">安装</a> ·
+  <a href="https://muqy1818.github.io/OpenYoink/">官网</a> ·
+  <a href="README.en.md">English</a>
 </p>
 
-开始拖拽时暂存架会从屏幕边缘滑出，东西丢上去，腾出手切换窗口，再拖出去。常驻菜单栏，无 Dock 图标。
+<p align="center">
+  <a href="https://github.com/MuQY1818/OpenYoink/releases/latest">
+    <img src="docs/images/banner.jpg" width="760" alt="OpenYoink — 随手一拖，先放一下">
+  </a>
+</p>
 
-## 功能
+## 它解决什么问题
 
-- 拖入：文件/文件夹、文本、富文本、图片、链接，以及邮件、日历事件、联系人等（自动物化为文件）
-- 拖出：`fileURL` + file promise 双表示，浏览器上传区也能用；拖到 Finder 一律复制，不动原文件
-- 按住 ⌘ 拖入 = 移动进暂存架（原文件进废纸篓，可恢复）
-- 出现方式：拖拽自动出现 / 边缘拉环 / ⌘⇧Space（双击存剪贴板）/ 摇动，可按应用忽略
-- Quick Look、多选、Stack、框选、手动排序、最近项目
-- 多屏、多 Space、全屏应用适配；中英文界面
-- 隐私：App Sandbox、无统计上报；仅更新检查联网（可在设置关闭）
+在 Finder、浏览器、邮件或其他应用之间搬东西时，目标窗口往往不在眼前。OpenYoink 提供一个临时落脚点，让一次跨窗口拖拽变成三个简单动作：
+
+| 1. 拖入 | 2. 切换 | 3. 拖出 |
+|:---:|:---:|:---:|
+| 开始拖拽，暂存架自动从屏幕边缘出现 | 自由切换窗口、Space 或全屏应用 | 把内容从暂存架拖到最终位置 |
+
+<p align="center">
+  <img src="docs/images/usage-demo.gif" width="720" alt="将文件拖入 OpenYoink 暂存架的演示">
+</p>
+
+OpenYoink 常驻菜单栏，不显示 Dock 图标；需要时出现，用完后收起。
+
+## 核心亮点
+
+- **接住常用内容**：文件、文件夹、纯文本、富文本、图片、链接，以及邮件、日历事件、联系人等内容。
+- **多种唤出方式**：开始拖拽时自动出现，也可以使用边缘拉环、全局快捷键或鼠标摇动手势。
+- **整理而不打断**：支持 Quick Look、多选、框选、Stack、手动排序和最近项目。
+- **适应复杂桌面**：支持多显示器、多 Space 和全屏应用，还可以按应用关闭自动唤出。
+- **可预期的文件语义**：默认引用原文件；拖到 Finder 时只请求复制。按住 ⌘ 拖入会启用托管移动流程，详见[文件安全与生命周期](#文件安全与生命周期)。
+- **原生且克制**：SwiftUI + AppKit，支持中英文界面、登录时启动和 Sparkle 自动更新。
 
 ## 安装
+
+**系统要求：macOS 15 Sequoia 或更高版本。** Release 构建同时面向 Apple Silicon 与 Intel Mac。
+
+### Homebrew（推荐）
 
 ```bash
 brew install --cask muqy1818/tap/openyoink
 ```
 
-brew 安装不触发 Gatekeeper 弹窗。或从 [Releases](https://github.com/MuQY1818/OpenYoink/releases) 下载 DMG 拖进 Applications——当前为 ad-hoc 签名，首次打开在终端执行：
+Homebrew cask 下载对应版本的 GitHub Release DMG，并在安装后移除这一应用的隔离属性，因此通常不会出现 Gatekeeper 拦截。这个步骤不会改变安装包的签名，也不等同于 Apple 公证。安装后，OpenYoink 可以通过 Sparkle 检查后续更新。
+
+### 手动安装
+
+1. 从 [GitHub Releases](https://github.com/MuQY1818/OpenYoink/releases/latest) 下载最新 DMG。
+2. 打开 DMG，将 OpenYoink 拖入 `Applications`。
+3. 首次启动若被 macOS 拦截，在 Finder 中右键 OpenYoink 并选择“打开”，或前往“系统设置 → 隐私与安全性”允许打开。
+
+> [!NOTE]
+> GitHub Releases 中的免费社区构建使用 ad-hoc 签名，但没有经过 Apple 公证，因此首次手动安装可能触发系统提示。Sparkle EdDSA 签名保护的是安装后的更新包完整性，不能替代首次下载校验或 Apple 公证。
+
+<details>
+<summary>仍然无法打开？</summary>
+
+仅在确认应用来自上面的 OpenYoink 官方 Release 地址后使用。可以先运行 `shasum -a 256 OpenYoink-VERSION.dmg`（把 `VERSION` 换成实际版本号），并与同版本 [Homebrew cask](https://github.com/MuQY1818/homebrew-tap/blob/main/Casks/openyoink.rb) 中的 `sha256` 比对。下面的命令会明确绕过这一个应用的 Gatekeeper 隔离检查：
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/OpenYoink.app
 ```
 
-（也可以在 系统设置 → 隐私与安全性 点「仍要打开」。）之后的新版本由 Sparkle 自动更新送达。
+</details>
 
-## 使用
-
-<p align="center">
-  <img src="docs/images/usage-demo.gif" width="640" alt="拖入暂存架演示">
-</p>
+## 快速上手
 
 | 操作 | 方式 |
 |---|---|
-| 显示 / 隐藏 | ⌘⇧Space、菜单栏菜单、单击边缘拉环（同位置再点收起） |
-| 添加 | 把任意内容拖到暂存架或拉环上 |
-| 移动而非引用 | 按住 ⌘ 拖入 |
-| Quick Look | 空格或双击卡片 |
-| 移除 | 悬停 ✕、Delete 键或右键菜单 |
-| 调位置 | 沿屏幕边缘拖动拉环，或设置中选择 |
+| 显示 / 隐藏暂存架 | `⌘⇧Space`、菜单栏菜单，或单击屏幕边缘的拉环 |
+| 添加内容 | 把内容拖到暂存架或边缘拉环上 |
+| 移动而非引用 | 按住 `⌘` 拖入文件或文件夹 |
+| 暂存当前剪贴板内容 | 连按两次 `⌘⇧Space` |
+| Quick Look | 选中卡片后按 `Space`，或双击卡片 |
+| 多选 | 按住 `⌘` 点选，或在空白处拖动框选 |
+| 移除 | 悬停后点 `×`、按 `Delete`，或使用右键菜单 |
+| 调整位置 | 沿屏幕边缘拖动拉环，或在设置中选择位置 |
 
-设置（菜单栏 → 设置…）：位置与宽度、自动隐藏、拖出后策略、触发方式与灵敏度、忽略的应用、语言。
+菜单栏中的“设置…”还可以调整暂存架宽度、自动隐藏、拖出后处理策略、触发灵敏度、忽略的应用、登录时启动、存储管理和界面语言。普通项目拖出后的默认策略是保留在暂存架，可改为移除或每次询问。
+
+## 支持的内容
+
+| 内容 | OpenYoink 的处理方式 |
+|---|---|
+| 文件与文件夹 | 默认保留对原位置的 sandbox bookmark，不复制一份到暂存架 |
+| 纯文本与链接 | 直接记录在暂存架数据中 |
+| 图片、HTML 与 RTF | 在应用沙箱的托管目录中物化为文件 |
+| 联系人、日历事件与邮件 | 当来源应用提供可读数据时，物化为 `.vcf`、`.ics` 与 `.eml` 文件 |
+
+拖出文件时，OpenYoink 同时提供文件 URL 与 file promise，以兼容 Finder 和常见浏览器上传区域；最终是否接受仍由目标应用或网站决定。
+
+## 文件安全与生命周期
+
+- **普通文件与文件夹拖入**只保存对原位置的引用。移除卡片或选择“拖出后移除”不会删除原文件；如果原文件被移动、删除或所在磁盘离线，卡片会显示为不可用，直到 bookmark 能再次解析。
+- **按住 ⌘ 拖入文件或文件夹**时，OpenYoink 会先把内容复制到应用沙箱的托管目录并确认副本存在，再把原文件移入废纸篓。任一步失败都会保留原文件并回退为普通引用。原文件仅在废纸篓尚未清空时可恢复。
+- **托管移动项目拖出成功**后，目标位置收到文件，暂存架卡片和托管副本随即删除；该行为不受普通项目的“拖出后处理”设置影响。取消或交付失败时，项目与托管副本会保留以便重试。
+- **文本与链接**随卡片保存在暂存架数据中，移除卡片时一并移除。图片、富文本、邮件等物化文件在卡片被手动移除或按策略移除后会失去引用，并在下次启动的安全清理中删除；也可以在“设置 → 存储”中立即查看和清理。
+
+## 隐私与设计
+
+- 启用 App Sandbox；暂存架数据和物化文件保存在沙箱内的 `Application Support/OpenYoink`，可从“设置 → 存储”打开数据目录或清理未使用文件。
+- 不需要账号，也不包含分析统计或遥测上报。正常使用不要求辅助功能或输入监控权限；文件访问范围来自用户主动拖入的内容。
+- 当前版本的自动更新检查默认开启，可在设置中关闭。自动或手动检查更新都会访问 GitHub Pages / Releases；当前版本没有其他后台联网功能。
+- 当前版本只有在用户执行“连按两次快捷键暂存剪贴板”时，才会读取当前剪贴板内容。
+- 持久化采用 security-scoped bookmarks 与原子 JSON 写入，以减少不必要的原文件复制和部分写入造成的快照损坏风险。
 
 ## 从源码构建
 
-需要 macOS 26+ 与 Xcode 26+。
+开发环境需要 macOS 15+ 与 Xcode 26+。
 
 ```bash
 git clone https://github.com/MuQY1818/OpenYoink.git
-cd Open-Yoink
-xcodebuild -project Open-Yoink.xcodeproj -scheme OpenYoink -destination 'platform=macOS' build
-xcodebuild -project Open-Yoink.xcodeproj -scheme OpenYoink -destination 'platform=macOS' test
+cd OpenYoink
+
+xcodebuild \
+  -project Open-Yoink.xcodeproj \
+  -scheme OpenYoink \
+  -destination 'platform=macOS' \
+  build
+
+xcodebuild \
+  -project Open-Yoink.xcodeproj \
+  -scheme OpenYoink \
+  -destination 'platform=macOS' \
+  test
 ```
 
-SwiftUI 渲染，AppKit 管窗口与拖放；引用式存储 + security-scoped bookmark，JSON 原子写持久化。`DEVELOPMENT_TEAM` 留空供源码本地构建。推荐的正式发版使用 Developer ID、Hardened Runtime 和 Apple 公证：
+本地构建无需设置 `DEVELOPMENT_TEAM`。项目使用 SwiftUI 渲染界面，以 AppKit 管理窗口、拖放和全局事件；测试覆盖持久化、拖入拖出、快捷键、触发器和布局等核心行为。
 
-发布前先把公证凭据存入钥匙串，再提供签名身份与 Team ID：
+维护者可通过 [`Scripts/make-release.sh`](Scripts/make-release.sh) 生成 Developer ID + 公证的正式构建，或显式使用 `--adhoc` 生成免费社区构建。脚本不会在签名失败时静默降级发布模式。
 
-```bash
-xcrun notarytool store-credentials openyoink-notary
-export DEVELOPER_ID_APPLICATION='Developer ID Application: Your Name (ABCDE12345)'
-export DEVELOPMENT_TEAM_ID='ABCDE12345'
-export NOTARY_PROFILE='openyoink-notary'
-./Scripts/make-release.sh 1.0.2 4
-```
+## 参与项目
 
-Developer ID 模式下，脚本在公证和 Gatekeeper 校验通过后才会生成 Sparkle 签名并改写 appcast；上传 GitHub Release、再用脚本输出的 SHA 更新 Homebrew cask，仍需人工确认。
+欢迎提交 [Issue](https://github.com/MuQY1818/OpenYoink/issues) 和 Pull Request。
 
-没有付费 Apple Developer 会员时，可显式生成免费 GitHub 社区发布包：
-
-```bash
-./Scripts/make-release.sh 1.0.2 4 --adhoc
-```
-
-此模式仍使用 Sparkle EdDSA 签名保护自动更新完整性，但不会进行 Apple 公证；用户首次手动下载时可能需要右键选择「打开」或在系统设置中允许应用。脚本不会静默回退到该模式，必须明确传入 `--adhoc`。
+- Bug 报告请附上 macOS 版本、OpenYoink 版本、复现步骤和预期行为。
+- 较大的功能改动建议先开 Issue 讨论，避免双方在目标上产生偏差。
+- 提交代码前请运行完整测试，并保持改动聚焦、说明清楚。
 
 ## Roadmap
 
-- v2：剪贴板历史（可选开启，含隐私过滤）
-- v3：Handoff、系统扩展
+- [ ] 可选的剪贴板历史与隐私过滤
+- [ ] Handoff 与更深的系统集成
+
+Roadmap 表示探索方向，不承诺具体版本或时间；优先级会根据稳定性和用户反馈调整。
 
 ## 致谢与许可
 
-净室实现：研究了多款 MIT 开源 shelf 应用的公开行为，未复制其代码；内置 Sparkle（MIT）用于更新。完整记录见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+OpenYoink 是独立的开源实现，与商业应用 Yoink 及其开发者没有隶属、授权或背书关系。自动更新由 [Sparkle](https://sparkle-project.org/) 提供。
 
-[MIT](LICENSE) © 2026 weijue
+第三方组件与许可证见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。项目基于 [MIT License](LICENSE) 开源。
+
+© 2026 weijue
