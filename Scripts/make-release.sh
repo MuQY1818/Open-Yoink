@@ -104,6 +104,9 @@ fi
 PUB_DATE="$(LC_TIME=C date '+%a, %d %b %Y %H:%M:%S %z')"
 
 # ---- 5. 更新 docs/appcast.xml（同 shortVersionString 替换而非追加）----
+# 注意：item 不写 <sparkle:channel> —— 应用的 Info.plist 未声明 SUChannel，
+# 带 channel 的 item 会被 Sparkle 过滤（「无频道订阅只看默认频道」），
+# 导致明明有新版却判为最新（1.0.1 发布时实测踩坑）。
 echo "==> 更新 $APPCAST"
 python3 - "$APPCAST" "$VERSION" "$SHORT_VERSION" "$BUNDLE_VERSION" "$RELEASE_URL" "$ED_SIGNATURE" "$DMG_LENGTH" "$PUB_DATE" <<'PYEOF'
 import sys
@@ -130,7 +133,6 @@ ET.SubElement(item, "title").text = f"Version {short_version}"
 ET.SubElement(item, "pubDate").text = pub_date
 ET.SubElement(item, f"{{{SPARKLE}}}version").text = bundle_version
 ET.SubElement(item, f"{{{SPARKLE}}}shortVersionString").text = short_version
-ET.SubElement(item, f"{{{SPARKLE}}}channel").text = "stable"
 ET.SubElement(item, "enclosure", {
     "url": url,
     f"{{{SPARKLE}}}edSignature": ed_signature,
