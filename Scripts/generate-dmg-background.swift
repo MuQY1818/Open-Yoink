@@ -44,8 +44,9 @@ let bg = NSGradient(colors: [
 ])!
 bg.draw(in: NSRect(x: 0, y: 0, width: W, height: H), angle: -90)
 
-// 2. 引导箭头：点状虚线 + 实心箭头头部，灰蓝色，垂直居中（图标行 y=180 距顶）。
-let arrowY: CGFloat = H - 180
+// 2. 引导箭头：点状虚线 + 实心箭头头部，灰蓝色，位于图标行（距顶 165，
+//    用户反馈垂直不居中、偏下，从 180 上移 15pt）。
+let arrowY: CGFloat = H - 165
 let startX: CGFloat = 228   // app 图标右缘 204 → 留 24pt
 let endX: CGFloat = 372     // Applications 左缘 396 → 留 24pt
 let dotColor = NSColor(srgbRed: 0.4, green: 0.52, blue: 0.76, alpha: 0.95)

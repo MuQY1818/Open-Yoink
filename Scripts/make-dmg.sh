@@ -27,8 +27,8 @@ BACKGROUND_SRC="$REPO_ROOT/Scripts/dmg-background.png"
 
 # 窗口/图标布局（与 generate-dmg-background.swift 的坐标约定一致）。
 WIN_W=600; WIN_H=360
-APP_X=140; APP_Y=180
-ALIAS_X=460; ALIAS_Y=180
+APP_X=140; APP_Y=165
+ALIAS_X=460; ALIAS_Y=165
 ICON_SIZE=128
 
 if [ ! -d "$APP_PATH" ]; then
@@ -65,6 +65,7 @@ tell application "Finder"
         set current view of container window to icon view
         set toolbar visible of container window to false
         set statusbar visible of container window to false
+        set pathbar visible of container window to false
         set the bounds of container window to {400, 200, 400 + $WIN_W, 200 + $WIN_H}
         set viewOptions to the icon view options of container window
         set arrangement of viewOptions to not arranged
