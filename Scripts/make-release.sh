@@ -47,7 +47,7 @@ if [ -z "${SPARKLE_BIN:-}" ]; then
 fi
 SIGN_UPDATE="$SPARKLE_BIN/sign_update"
 if [ ! -x "$SIGN_UPDATE" ]; then
-    echo "error: 未找到 sign_update（试过 SPARKLE_BIN=$SPARKLE_BIN）。先跑 xcodebuild -resolvePackageDependencies，或设 SPARKLE_BIN。" >&2
+    echo "error: 未找到 sign_update（试过 SPARKLE_BIN=${SPARKLE_BIN}）。先跑 xcodebuild -resolvePackageDependencies，或设 SPARKLE_BIN。" >&2
     exit 1
 fi
 echo "==> sign_update: $SIGN_UPDATE"
@@ -57,7 +57,7 @@ VERSION_ARGS=(MARKETING_VERSION="$VERSION")
 if [ -n "$BUILD_NUMBER" ]; then
     VERSION_ARGS+=(CURRENT_PROJECT_VERSION="$BUILD_NUMBER")
 fi
-echo "==> archive（Release, $VERSION）"
+echo "==> archive（Release, ${VERSION}）"
 rm -rf "$ARCHIVE_PATH"
 xcodebuild -project "$PROJECT" -scheme "$SCHEME" -configuration Release \
     -destination 'platform=macOS' \
@@ -104,7 +104,7 @@ import xml.etree.ElementTree as ET
 SPARKLE = "http://www.andymatuschak.org/xml-namespaces/sparkle"
 ET.register_namespace("sparkle", SPARKLE)
 
-tree = ET.parse(appcast_path)
+tree = ET.parse(appcast_path, parser=ET.XMLParser(target=ET.TreeBuilder(insert_comments=True)))
 channel = tree.getroot().find("channel")
 
 # 幂等：移除同 shortVersionString 的旧 item。
