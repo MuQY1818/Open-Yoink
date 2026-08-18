@@ -49,11 +49,7 @@ xattr -dr com.apple.quarantine /Applications/OpenYoink.app
 ## 使用
 
 <p align="center">
-  <img src="docs/screenshots/drag-in-action.png" width="560" alt="拖入暂存架">
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/shelf-hero.png" width="640" alt="暂存架中的项目">
+  <img src="docs/images/usage-demo.gif" width="640" alt="拖入暂存架演示">
 </p>
 
 | 操作 | 方式 |

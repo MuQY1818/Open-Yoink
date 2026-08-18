@@ -45,11 +45,7 @@ xattr -dr com.apple.quarantine /Applications/OpenYoink.app
 ## Usage
 
 <p align="center">
-  <img src="docs/screenshots/drag-in-action.png" width="560" alt="Dragging files into the shelf">
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/shelf-hero.png" width="640" alt="Items on the shelf">
+  <img src="docs/images/usage-demo.gif" width="640" alt="Dragging files into the shelf">
 </p>
 
 | Action | How |
