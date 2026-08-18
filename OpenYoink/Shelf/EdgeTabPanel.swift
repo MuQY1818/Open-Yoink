@@ -1,6 +1,6 @@
 import AppKit
 
-/// EdgeTab 拉环窗口：shelf 隐藏时贴在屏幕边缘的常驻小长条。
+/// EdgeTab 拉环窗口：贴在屏幕边缘的常驻小长条（shelf 展开时驻点面板下角）。
 ///
 /// 窗口行为与 `ShelfPanel` 同一套基线：non-activating、borderless、浮动、
 /// 跨 Space、全屏辅助；透明背景，vibrancy/圆角/描边由内容层

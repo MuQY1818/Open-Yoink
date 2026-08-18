@@ -66,10 +66,10 @@ private struct GeneralSettingsTab: View {
                 // UX6: 非空→空迁移时自动收回（手动唤出的空架不受影响）。
                 Toggle("Hide automatically when empty", isOn: $settings.autoHideWhenEmpty)
 
-                // EdgeTab: shelf 隐藏时的屏幕边缘常驻拉环（custom 模式无贴附缘，
-                // 开关不生效 —— 说明文案覆盖）。
-                Toggle("Show edge tab while shelf is hidden", isOn: $settings.edgeTabEnabled)
-                Text("Click the tab to show the shelf, drag it along the edge to reposition, or drop files onto it. Not shown in custom position mode.")
+                // EdgeTab: 屏幕边缘常驻拉环——shelf 展开时驻留面板下角，
+                // 原地再点即收起（custom 模式无贴附缘，开关不生效 —— 说明文案覆盖）。
+                Toggle("Show edge tab at the screen edge", isOn: $settings.edgeTabEnabled)
+                Text("Click the tab to show or hide the shelf — while the shelf is open, the tab stays docked at its lower corner. Drag it along the edge to reposition, or drop files onto it. Not shown in custom position mode.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 

@@ -105,8 +105,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// UX1/2: 拖拽自动唤出会话裁决（纯逻辑状态机，见 Triggers/DragStartMonitor）。
     private var dragAutoShowSession = DragAutoShowSession()
 
-    /// EdgeTab: shelf 隐藏时贴屏幕边缘的常驻拉环（单击唤出 / 拖入接收 /
-    /// 沿边拖动换位）。与 ShelfWindowController 并列，可见性互斥。
+    /// EdgeTab: 贴屏幕边缘的常驻拉环（单击展开/收起 / 拖入接收 / 沿边拖动
+    /// 换位）。shelf 展开时拉环驻留面板下角（目标 frame 由
+    /// `ShelfWindowController.onShelfTargetFrameDidChange` 推送，
+    /// applicationDidFinishLaunching 接线）。
     private lazy var edgeTabController = EdgeTabController(
         appState: appState,
         settings: settingsStore,
@@ -145,8 +147,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         _ = menuBarController
-        // EdgeTab: 拉环随启动就位（shelf 初始隐藏，拉环应在位）。
+        // EdgeTab: 拉环随启动就位（shelf 初始隐藏，拉环立即在边缘就位）。
         _ = edgeTabController
+        // EdgeTab 驻点：shelf 目标 frame 推送给拉环 —— shelf 展开时拉环吸附
+        // 面板贴缘侧下角（原地可点收起），紧凑高度随内容变化时跟随重新驻点。
+        shelfWindowController.onShelfTargetFrameDidChange = { [weak self] frame in
+            self?.edgeTabController.shelfTargetFrameDidChange(frame)
+        }
         // UX1: 成功导入（拖入/剪贴板保存）→ 标记拖拽自动唤出会话「本轮
         // 已有内容落入」，拖结束时不再自动收回。
         dropImportCoordinator.onImportHandled = { [weak self] in
@@ -361,8 +368,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             edgeTriggerMonitor.stop()
         }
 
-        // EdgeTab 可见性与拉环同一判定（shelf 隐藏 && 开启 && 非 custom），
-        // 但 monitor 注册只需后两者 —— 拉环一在位就需要拖拽状态。
+        // EdgeTab 拉环常驻（开启 && 非 custom 即在位，不再随 shelf 显隐），
+        // monitor 注册与拉环在位同一判定 —— 拉环一在位就需要拖拽状态。
         let edgeTabActive = settingsStore.edgeTabEnabled
             && settingsStore.shelfPosition != .custom
         if settingsStore.dragAutoAppearMode == .immediate || edgeActive || edgeTabActive {

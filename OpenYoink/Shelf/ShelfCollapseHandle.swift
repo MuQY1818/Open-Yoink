@@ -9,9 +9,9 @@ import SwiftUI
 /// 卡片 frame（窗口 .global 坐标）、框选与拖入插入定位全部不受影响。
 /// custom 自由位置模式不显示（`ShelfLayoutEngine.innerEdgeHandleSide` 判空）。
 ///
-/// 视觉（按用户反馈调整）：常态**整条透明**，只有低调的 secondary 色
-/// chevron（指向屏幕缘，即收起方向）；hover 时不点亮整条，仅 chevron 本身
-/// 变亮并带一个小圆形浅底（视觉焦点只在箭头，避免整条亮起的违和感）。
+/// 视觉（按用户反馈两轮调整）：常态**整条透明**，只有低调的 secondary 色
+/// chevron（指向屏幕缘，即收起方向）；hover 时**仅 chevron 变亮**——不加
+/// 圆点/圆底等任何背景装饰（用户明确反馈圆圈不好看）。
 /// 点击热区仍为整条窄列（`contentShape(Rectangle())`），可用性不受影响。
 struct ShelfCollapseHandle: View {
     /// 把手贴附侧（决定 chevron 方向）。
@@ -31,11 +31,6 @@ struct ShelfCollapseHandle: View {
             Image(systemName: chevronName)
                 .font(.system(size: 9, weight: .bold))
                 .foregroundStyle(isHovering ? Color.primary : Color.secondary)
-                .padding(5)
-                .background {
-                    Circle()
-                        .fill(Color.primary.opacity(isHovering ? 0.12 : 0))
-                }
                 .frame(width: ShelfLayoutEngine.innerEdgeHandleWidth)
                 .frame(maxHeight: .infinity)
                 .contentShape(Rectangle())

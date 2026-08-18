@@ -66,12 +66,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "点击后按下新的快捷键" } }
       }
     },
-    "Click the tab to show the shelf, drag it along the edge to reposition, or drop files onto it. Not shown in custom position mode." : {
+    "Click the tab to show or hide the shelf — while the shelf is open, the tab stays docked at its lower corner. Drag it along the edge to reposition, or drop files onto it. Not shown in custom position mode." : {
       "extractionState" : "manual",
       "comment" : "Footnote under the edge tab setting explaining its interactions",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Click the tab to show the shelf, drag it along the edge to reposition, or drop files onto it. Not shown in custom position mode." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "单击拉环唤出暂存架，沿屏幕边缘拖动可调整位置，也可将文件直接拖到拉环上。自定义位置模式下不显示。" } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Click the tab to show or hide the shelf — while the shelf is open, the tab stays docked at its lower corner. Drag it along the edge to reposition, or drop files onto it. Not shown in custom position mode." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "单击拉环展开或收起暂存架——暂存架展开时，拉环驻留在其下角，可再次点击收起。沿屏幕边缘拖动可调整位置，也可将文件直接拖到拉环上。自定义位置模式下不显示。" } }
       }
     },
     "Clear Recent" : {
@@ -597,12 +597,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖到屏幕边缘时显示" } }
       }
     },
-    "Show edge tab while shelf is hidden" : {
+    "Show edge tab at the screen edge" : {
       "extractionState" : "manual",
-      "comment" : "General setting: keep a small tab on the shelf's screen edge while the shelf is hidden",
+      "comment" : "General setting: keep a small tab on the shelf's screen edge (stays docked at the shelf's lower corner while the shelf is open)",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show edge tab while shelf is hidden" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂存架隐藏时显示边缘拉环" } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show edge tab at the screen edge" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在屏幕边缘显示拉环" } }
       }
     },
     "Show immediately" : {
@@ -687,6 +687,14 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "The shelf won't appear automatically while dragging." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖拽时暂存架不会自动出现。" } }
+      }
+    },
+    "Toggle Shelf" : {
+      "extractionState" : "manual",
+      "comment" : "Accessibility label of the edge tab (a click shows or hides the shelf)",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Toggle Shelf" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示/隐藏暂存架" } }
       }
     },
     "Triggers" : {

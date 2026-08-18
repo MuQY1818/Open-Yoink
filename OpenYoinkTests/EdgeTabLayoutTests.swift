@@ -3,7 +3,8 @@ import XCTest
 @testable import OpenYoink
 
 /// EdgeTab 布局纯逻辑单测：拉环 frame（贴缘/offset 映射/夹取）、offset 反解、
-/// 换边判定、强调态放大 frame，以及 shelf 本体的 edgeOffset 垂直定位。
+/// 换边判定、强调态放大 frame、shelf 展开时的驻点 frame（dockedTabFrame），
+/// 以及 shelf 本体的 edgeOffset 垂直定位。
 ///
 /// 测试几何与 ShelfLayoutEngineTests 相同：主屏 frame (0,0 1920×1080)、
 /// Dock 占底部 60 → visibleFrame (0,60 1920×1020)。
@@ -226,6 +227,99 @@ final class EdgeTabLayoutTests: XCTestCase {
             ShelfLayoutEngine.edgeTabEmphasisFrame(from: base, position: .custom,
                                                    visibleFrame: mainScreen.visibleFrame),
             base
+        )
+    }
+
+    // MARK: - dockedTabFrame：shelf 展开时的驻点布局
+
+    func testDockedTabFrame_docksBelowPanelWhenSpaceAllows() {
+        // 右锚 shelf（1600,498 320×144）：下方空间 498-60=438 ≥ 90 →
+        // 驻点面板下缘外侧：x 对齐面板右缘（1600+320-14=1906），
+        // y = 面板底 498 − 间隙 6 − 拉环高 84 = 408。
+        XCTAssertEqual(
+            ShelfLayoutEngine.dockedTabFrame(shelfFrame: CGRect(x: 1600, y: 498, width: 320, height: 144),
+                                             position: .right,
+                                             visibleFrame: mainScreen.visibleFrame),
+            CGRect(x: 1906, y: 408, width: 14, height: 84)
+        )
+    }
+
+    func testDockedTabFrame_leftSideMirrorsX() {
+        // 左锚 shelf（0,498 320×144）：x 对齐面板左缘（=0），y 与右锚一致。
+        XCTAssertEqual(
+            ShelfLayoutEngine.dockedTabFrame(shelfFrame: CGRect(x: 0, y: 498, width: 320, height: 144),
+                                             position: .left,
+                                             visibleFrame: mainScreen.visibleFrame),
+            CGRect(x: 0, y: 408, width: 14, height: 84)
+        )
+    }
+
+    func testDockedTabFrame_alignsToPanelEdgeSideEvenWhenPanelNotFlush() {
+        // 面板未贴缘（x=1500，防护性情形）：拉环仍对齐面板贴缘侧而非屏幕缘
+        // → x = 1500+320−14 = 1806（而非 1906）。
+        XCTAssertEqual(
+            ShelfLayoutEngine.dockedTabFrame(shelfFrame: CGRect(x: 1500, y: 498, width: 320, height: 144),
+                                             position: .right,
+                                             visibleFrame: mainScreen.visibleFrame),
+            CGRect(x: 1806, y: 408, width: 14, height: 84)
+        )
+    }
+
+    func testDockedTabFrame_belowSpaceExactlySufficientStillDocksBelow() {
+        // 下方空间恰为 拉环高 84 + 间隙 6 = 90（面板底 60+90=150）→ 仍驻下方，
+        // 拉环底缘恰好贴可见区底缘：y = 150−90 = 60。
+        XCTAssertEqual(
+            ShelfLayoutEngine.dockedTabFrame(shelfFrame: CGRect(x: 1600, y: 150, width: 320, height: 144),
+                                             position: .right,
+                                             visibleFrame: mainScreen.visibleFrame),
+            CGRect(x: 1906, y: 60, width: 14, height: 84)
+        )
+    }
+
+    func testDockedTabFrame_fallsBackAboveWhenBelowTooTight() {
+        // 面板贴底（下方 0）：回退上缘外侧 —— y = 面板顶 560 + 间隙 6 = 566。
+        XCTAssertEqual(
+            ShelfLayoutEngine.dockedTabFrame(shelfFrame: CGRect(x: 1600, y: 60, width: 320, height: 500),
+                                             position: .right,
+                                             visibleFrame: mainScreen.visibleFrame),
+            CGRect(x: 1906, y: 566, width: 14, height: 84)
+        )
+        // 下方差 1pt 不足（89 < 90）：同样回退上方 —— y = 293+6 = 299。
+        XCTAssertEqual(
+            ShelfLayoutEngine.dockedTabFrame(shelfFrame: CGRect(x: 1600, y: 149, width: 320, height: 144),
+                                             position: .right,
+                                             visibleFrame: mainScreen.visibleFrame),
+            CGRect(x: 1906, y: 299, width: 14, height: 84)
+        )
+    }
+
+    func testDockedTabFrame_straddlesPanelBottomEdgeWhenPanelNearlyFullHeight() {
+        // 面板几乎全高（下 85 < 90、上 85 < 90）：挂在面板下缘上，顶缘与面板
+        // 重叠 2pt —— y = 面板底 145 + 2 − 84 = 63（≥ 60，无需夹取）。
+        XCTAssertEqual(
+            ShelfLayoutEngine.dockedTabFrame(shelfFrame: CGRect(x: 1600, y: 145, width: 320, height: 850),
+                                             position: .right,
+                                             visibleFrame: mainScreen.visibleFrame),
+            CGRect(x: 1906, y: 63, width: 14, height: 84)
+        )
+    }
+
+    func testDockedTabFrame_clampsIntoVisibleFrameWhenEvenStraddleOverflows() {
+        // 更极端（面板底距可见区底仅 5pt）：挂钩位 y=−17 越界 → 夹回可见区
+        // 底缘 60，拉环完整可点（与面板重叠大于 2pt，属设计内兜底）。
+        XCTAssertEqual(
+            ShelfLayoutEngine.dockedTabFrame(shelfFrame: CGRect(x: 1600, y: 65, width: 320, height: 1000),
+                                             position: .right,
+                                             visibleFrame: mainScreen.visibleFrame),
+            CGRect(x: 1906, y: 60, width: 14, height: 84)
+        )
+    }
+
+    func testDockedTabFrame_customReturnsNil() {
+        XCTAssertNil(
+            ShelfLayoutEngine.dockedTabFrame(shelfFrame: CGRect(x: 1600, y: 498, width: 320, height: 144),
+                                             position: .custom,
+                                             visibleFrame: mainScreen.visibleFrame)
         )
     }
 

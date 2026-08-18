@@ -178,6 +178,47 @@ enum ShelfLayoutEngine {
         }
     }
 
+    /// 拉环驻点与 shelf 面板的间隙（shelf 可见时吸附面板贴缘侧下/上缘外侧）。
+    static let edgeTabDockGap: CGFloat = 6
+    /// 上下外侧都放不下时的兜底驻点：拉环顶缘与面板底缘的挂钩重叠量
+    /// （拉环挂在面板下缘上，提示从属关系）。
+    static let edgeTabDockOverlap: CGFloat = 2
+
+    /// shelf 可见时的拉环驻点 frame（拉环常驻设计：展开后驻留面板贴缘侧
+    /// 下角，原地再点即收起）：
+    /// - x 与面板贴缘边对齐（右锚 → 面板右缘、左锚 → 面板左缘）；
+    /// - 首选面板**下缘外侧**：拉环顶缘距面板底 `edgeTabDockGap`，要求面板底
+    ///   距可见区底的空间 ≥ 拉环高 + 间隙；
+    /// - 下方不足回退面板**上缘外侧**（同样的间隙与空间要求）；
+    /// - 上下都不足（面板几乎全高）→ 挂在面板下缘上：拉环顶缘与面板重叠
+    ///   `edgeTabDockOverlap`（2pt），其余垂在面板下方；最终结果夹取进
+    ///   visibleFrame —— 空间极端不足时拉环被推回面板内侧（重叠大于 2pt），
+    ///   保证完整可见可点。
+    /// custom 无贴附缘，返回 nil（调用方不显示拉环）。
+    static func dockedTabFrame(shelfFrame: CGRect,
+                               position: SettingsStore.ShelfPosition,
+                               visibleFrame: CGRect) -> CGRect? {
+        let x: CGFloat
+        switch position {
+        case .left: x = shelfFrame.minX
+        case .right: x = shelfFrame.maxX - edgeTabWidth
+        case .custom: return nil
+        }
+        let belowSpace = shelfFrame.minY - visibleFrame.minY
+        if belowSpace >= edgeTabHeight + edgeTabDockGap {
+            return CGRect(x: x, y: shelfFrame.minY - edgeTabDockGap - edgeTabHeight,
+                          width: edgeTabWidth, height: edgeTabHeight)
+        }
+        let aboveSpace = visibleFrame.maxY - shelfFrame.maxY
+        if aboveSpace >= edgeTabHeight + edgeTabDockGap {
+            return CGRect(x: x, y: shelfFrame.maxY + edgeTabDockGap,
+                          width: edgeTabWidth, height: edgeTabHeight)
+        }
+        let straddled = CGRect(x: x, y: shelfFrame.minY + edgeTabDockOverlap - edgeTabHeight,
+                               width: edgeTabWidth, height: edgeTabHeight)
+        return clamped(straddled, into: visibleFrame)
+    }
+
     // MARK: - 内缘收起把手（任务三）
 
     /// 把手宽度（点）。14pt ≤ 面板边距带（外层 8 + 内容 8 = 16pt）——把手以

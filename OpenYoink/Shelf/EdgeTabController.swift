@@ -1,24 +1,29 @@
 import AppKit
 
-/// EdgeTab：shelf 隐藏时贴在屏幕边缘的常驻拉环（用户确认的交互设计）：
+/// EdgeTab：贴在屏幕边缘的常驻拉环（用户确认的交互设计）：
 /// 1. 单击 → 展开/收起 shelf（`onToggleShelf`）；
 /// 2. 拖文件到拉环上 → 复用 `DropImportCoordinator` 导入并唤出 shelf；
 /// 3. 按住拖动 → 沿边上下移动（持久化 `shelfEdgeOffset`）；光标越过屏幕
 ///    中线逼近对缘（`ShelfLayoutEngine.shouldFlipSide`）→ 实时换边，抬起时
 ///    持久化 `shelfPosition`；
-/// 4. 可见性状态机：`shelf 隐藏 && edgeTabEnabled && position != .custom`
-///    时在位，与 shelf 反向淡入淡出；custom 自由位置模式无拉环（标题栏
-///    拖拽已覆盖，见 `WindowDragHandle`）；
+/// 4. 可见性状态机：`edgeTabEnabled && position != .custom` 时**常驻**——
+///    shelf 展开后拉环不消失，而是驻点到面板贴缘侧下角（
+///    `ShelfLayoutEngine.dockedTabFrame`），原地再点即收起（真机验收：
+///    「展开后拉环不见了，同一位置再点没反应」）；custom 自由位置模式
+///    无拉环（标题栏拖拽已覆盖，见 `WindowDragHandle`）；
 /// 5. 拖拽进行中（`DragStartMonitor.isDragInProgress`）→ accent 描边/浅填充
 ///    + 轻微放大（`ShelfLayoutEngine.edgeTabEmphasisFrame`）的投放暗示。
 ///
-/// 布局全部为 `ShelfLayoutEngine` 纯函数（frame/offset/换边/强调 frame），
-/// 本类只做窗口与状态机；贴附屏判定与 shelf 同规则（鼠标所在屏，
-/// 见 `ShelfWindowController.screen(containing:)`）。
+/// 布局全部为 `ShelfLayoutEngine` 纯函数（frame/offset/换边/强调/驻点
+/// frame），本类只做窗口与状态机；常态位贴附屏判定与 shelf 同规则（鼠标
+/// 所在屏，见 `ShelfWindowController.screen(containing:)`），驻点位取
+/// shelf 面板所在屏（`layoutVisibleFrame`）。
 @MainActor
 final class EdgeTabController: NSObject {
     private static let fadeDuration: TimeInterval = 0.18
     private static let emphasisDuration: TimeInterval = 0.15
+    /// 驻点/回位等 frame 迁移时长（与 ShelfWindowController 显隐动画同拍）。
+    private static let moveDuration: TimeInterval = 0.2
 
     private let appState: AppState
     private let settings: SettingsStore
@@ -122,9 +127,23 @@ final class EdgeTabController: NSObject {
 
     // MARK: - Visibility state machine
 
-    /// 拉环应在位 ⇔ shelf 隐藏 && 设置开启 && 非 custom（custom 无贴附缘）。
+    /// 拉环应在位 ⇔ 设置开启 && 非 custom（custom 无贴附缘）。shelf 展开时
+    /// 拉环驻留面板下角（见 baseFrame），不随 shelf 隐藏。
     private var shouldBeVisible: Bool {
-        !appState.isShelfVisible && settings.edgeTabEnabled && settings.shelfPosition != .custom
+        settings.edgeTabEnabled && settings.shelfPosition != .custom
+    }
+
+    /// ShelfWindowController 推送的 shelf 布局目标 frame（驻点布局数据源；
+    /// nil = shelf 隐藏或尚未布局）。显示动画进行中即为最终目标 —— 拉环
+    /// 与面板同步动画就位，不等面板停稳。
+    private var shelfTargetFrame: NSRect?
+
+    /// Shelf 目标 frame 变更推送（显示/隐藏/设置/items/屏幕参数，由
+    /// ShelfWindowController.onShelfTargetFrameDidChange 接入）：记录并立即
+    /// 重估 —— shelf 紧凑高度随内容变化时拉环跟随重新驻点。
+    func shelfTargetFrameDidChange(_ frame: NSRect?) {
+        shelfTargetFrame = frame
+        applyState(animated: true)
     }
 
     /// 统一状态评估：可见性 / 设置 / 屏幕参数 / 拖拽状态变更后调用。
@@ -146,9 +165,18 @@ final class EdgeTabController: NSObject {
         }
         let target = currentTargetFrame()
         if panel.isVisible {
-            // 拖动拉环期间 frame 由手势直控，此处不抢夺。
+            // 拖动拉环期间 frame 由手势直控，此处不抢夺。驻点迁移（shelf
+            // 展开/收起/高度变化）动画过渡，与 shelf 的 0.2s 显隐动画同拍。
             if !isTabBeingDragged, panel.frame != target {
-                panel.setFrame(target, display: true)
+                if animated {
+                    NSAnimationContext.runAnimationGroup { context in
+                        context.duration = Self.moveDuration
+                        context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                        panel.animator().setFrame(target, display: true)
+                    }
+                } else {
+                    panel.setFrame(target, display: true)
+                }
             }
         } else {
             showTab(target, animated: animated)
@@ -183,7 +211,7 @@ final class EdgeTabController: NSObject {
             context.timingFunction = CAMediaTimingFunction(name: .easeIn)
             panel.animator().alphaValue = 0
         }, completionHandler: { [weak self] in
-            // 淡出期间若状态又变为应在位（shelf 快速隐藏），不抢断。
+            // 淡出期间若状态又变为应在位（设置重新开启），不抢断。
             MainActor.assumeIsolated {
                 guard let self, !self.shouldBeVisible else { return }
                 self.panel.orderOut(nil)
@@ -198,11 +226,29 @@ final class EdgeTabController: NSObject {
         ShelfWindowController.screen(containing: NSEvent.mouseLocation).visibleFrame
     }
 
-    /// 常态 frame（custom 的 nil 只在状态机失守时出现，兜底一个原点 frame）。
+    /// 布局所用可见区：驻点时取 shelf 面板所在屏（与鼠标位置解耦 —— 鼠标
+    /// 移到别的屏不应把驻点拉环拽离面板）；常态位取鼠标屏。
+    private func layoutVisibleFrame() -> CGRect {
+        if appState.isShelfVisible, let shelfFrame = shelfTargetFrame {
+            return ShelfWindowController.screen(
+                containing: CGPoint(x: shelfFrame.midX, y: shelfFrame.midY)
+            ).visibleFrame
+        }
+        return targetVisibleFrame()
+    }
+
+    /// 常态 frame：shelf 可见且有布局目标 → 驻点面板贴缘侧下角；否则边缘
+    /// 常态位（custom 的 nil 只在状态机失守时出现，兜底一个原点 frame）。
     private func baseFrame() -> NSRect {
-        ShelfLayoutEngine.edgeTabFrame(position: settings.shelfPosition,
-                                       offset: CGFloat(settings.shelfEdgeOffset),
-                                       visibleFrame: targetVisibleFrame())
+        if appState.isShelfVisible, let shelfFrame = shelfTargetFrame,
+           let docked = ShelfLayoutEngine.dockedTabFrame(shelfFrame: shelfFrame,
+                                                         position: settings.shelfPosition,
+                                                         visibleFrame: layoutVisibleFrame()) {
+            return docked
+        }
+        return ShelfLayoutEngine.edgeTabFrame(position: settings.shelfPosition,
+                                              offset: CGFloat(settings.shelfEdgeOffset),
+                                              visibleFrame: targetVisibleFrame())
             ?? NSRect(x: 0, y: 0,
                       width: ShelfLayoutEngine.edgeTabWidth,
                       height: ShelfLayoutEngine.edgeTabHeight)
@@ -214,7 +260,7 @@ final class EdgeTabController: NSObject {
         guard isEmphasized else { return base }
         return ShelfLayoutEngine.edgeTabEmphasisFrame(from: base,
                                                       position: settings.shelfPosition,
-                                                      visibleFrame: targetVisibleFrame())
+                                                      visibleFrame: layoutVisibleFrame())
     }
 
     // MARK: - Emphasis (drag affordance / drop hover)
@@ -380,7 +426,8 @@ final class EdgeTabView: NSView {
         registerForDraggedTypes(PasteboardTypes.dragInTypes)
 
         setAccessibilityRole(.button)
-        setAccessibilityLabel(String(localized: "Show Shelf"))
+        // 拉环是原地 toggle：shelf 展开时驻留面板下角，再点即收起。
+        setAccessibilityLabel(String(localized: "Toggle Shelf"))
 
         updateCornering()
         applyEmphasisAppearance(animated: false)
