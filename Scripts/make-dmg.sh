@@ -56,9 +56,13 @@ echo "==> 挂载"
 MOUNT_DIR="$(hdiutil attach -readwrite -noverify "$RW_DMG" | tail -1 | sed -E 's/.*(\/Volumes\/.*)$/\1/')"
 echo "    mounted at $MOUNT_DIR"
 
-# Finder 窗口布局（需要自动化权限；失败时跳过美化但保留 DMG）。
+# Finder 窗口布局（需要自动化权限）。失败时自动重试一次（实测 Finder 事件
+# 偶发 -1712 超时/资源忙，重试可过）；再失败则**中止**——宁可不发也不能
+# 把没布局的 DMG 当正式产物发出去（v1.0 曾因此把默认布局的 DMG 推上 Release）。
 echo "==> 设置窗口布局（可能弹「自动化」授权）"
-if osascript <<EOF 2>/dev/null
+layout_ok=0
+for attempt in 1 2; do
+    if osascript <<EOF 2>/dev/null
 tell application "Finder"
     tell disk "OpenYoink"
         open
@@ -80,10 +84,17 @@ tell application "Finder"
     end tell
 end tell
 EOF
-then
-    echo "    布局完成"
-else
-    echo "    ⚠️  Finder 自动化未授权或失败，跳过窗口美化（DMG 仍可用）" >&2
+    then
+        layout_ok=1
+        echo "    布局完成"
+        break
+    fi
+    [ "$attempt" -eq 1 ] && { echo "    布局失败，5s 后重试…" >&2; sleep 5; }
+done
+if [ "$layout_ok" -ne 1 ]; then
+    echo "error: Finder 布局连续失败，已中止（检查「自动化」授权或手动重跑）" >&2
+    hdiutil detach "$MOUNT_DIR" -quiet || true
+    exit 1
 fi
 
 echo "==> 卸载并压缩"

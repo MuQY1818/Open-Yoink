@@ -128,7 +128,7 @@ final class UpdateController: NSObject {
         if let error, !Self.isNoUpdateError(error) {
             status = .error(error.localizedDescription)
             logger.error("Sparkle update cycle failed: \(error.localizedDescription, privacy: .public)")
-        } else if let error {
+        } else if error != nil {
             status = .upToDate
         } else if status == .checking {
             status = .idle
