@@ -60,6 +60,7 @@ final class LaunchAtLoginController {
 
     func setRequested(_ requested: Bool) {
         errorMessage = nil
+        guard isAvailable else { return }
         do {
             if requested {
                 guard !isRequested else { return }
@@ -80,11 +81,19 @@ final class LaunchAtLoginController {
 }
 
 @MainActor
-private final class SystemLaunchAtLoginService: LaunchAtLoginServicing {
+final class SystemLaunchAtLoginService: LaunchAtLoginServicing {
     private let service = SMAppService.mainApp
 
     var status: LaunchAtLoginController.Status {
-        switch service.status {
+        Self.map(service.status)
+    }
+
+    /// `mainApp` 第一次查询时，Background Task Management 数据库里还没有
+    /// 对应记录，系统可能返回 `.notFound`。这并不代表主应用无法注册；首次
+    /// `register()` 正是用来创建这条记录。因此把它归一化为“尚未注册”，
+    /// 避免 UI 在用户有机会注册之前就错误地禁用开关。
+    static func map(_ status: SMAppService.Status) -> LaunchAtLoginController.Status {
+        switch status {
         case .notRegistered:
             .notRegistered
         case .enabled:
@@ -92,7 +101,7 @@ private final class SystemLaunchAtLoginService: LaunchAtLoginServicing {
         case .requiresApproval:
             .requiresApproval
         case .notFound:
-            .unavailable
+            .notRegistered
         @unknown default:
             .unavailable
         }

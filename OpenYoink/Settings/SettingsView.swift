@@ -2,9 +2,10 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Settings window (S8): four tabs — General / Triggers / Ignored Apps /
-/// About — in the system form style (Form + grouped sections + native
-/// controls). All user-visible strings are LocalizedStringKey literals,
+/// Settings window (S8): native sidebar navigation with grouped forms. The
+/// sidebar keeps all five destinations readable in Chinese and at larger text
+/// sizes without crowding the title bar. All user-visible strings are
+/// LocalizedStringKey literals,
 /// resolved through Localizable.xcstrings (S10); runtime-computed fallbacks
 /// use `String(localized:)` explicitly.
 ///
@@ -12,21 +13,79 @@ import UniformTypeIdentifiers
 /// the menu bar (`MenuBarController.showSettings`). `SettingsStore` and
 /// `HotKeyMonitor` arrive through the environment.
 struct SettingsView: View {
+    @State private var selectedPane: SettingsPane = .general
+
     var body: some View {
-        TabView {
-            GeneralSettingsTab()
-                .tabItem { Label("General", systemImage: "gear") }
-            TriggerSettingsTab()
-                .tabItem { Label("Triggers", systemImage: "keyboard") }
-            IgnoredAppsSettingsTab()
-                .tabItem { Label("Ignored Apps", systemImage: "hand.raised") }
-            StorageSettingsTab()
-                .tabItem { Label("Storage", systemImage: "externaldrive") }
-            AboutSettingsTab()
-                .tabItem { Label("About", systemImage: "info.circle") }
+        HStack(spacing: 0) {
+            List(selection: $selectedPane) {
+                ForEach(SettingsPane.allCases) { pane in
+                    Label(pane.title, systemImage: pane.systemImage)
+                        .tag(pane)
+                }
+            }
+            .listStyle(.sidebar)
+            .frame(minWidth: 156, idealWidth: 168, maxWidth: 188)
+            .accessibilityLabel("Settings Categories")
+
+            Divider()
+
+            selectedContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        // 用户反馈：480×380 偏小，通用页脚注被裁半行；放大到宽松尺寸。
-        .frame(width: 560, height: 480)
+        .frame(
+            minWidth: 680,
+            idealWidth: 720,
+            maxWidth: .infinity,
+            minHeight: 480,
+            idealHeight: 520,
+            maxHeight: .infinity
+        )
+    }
+
+    @ViewBuilder
+    private var selectedContent: some View {
+        switch selectedPane {
+        case .general:
+            GeneralSettingsTab()
+        case .triggers:
+            TriggerSettingsTab()
+        case .ignoredApps:
+            IgnoredAppsSettingsTab()
+        case .storage:
+            StorageSettingsTab()
+        case .about:
+            AboutSettingsTab()
+        }
+    }
+}
+
+private enum SettingsPane: String, CaseIterable, Identifiable {
+    case general
+    case triggers
+    case ignoredApps
+    case storage
+    case about
+
+    var id: Self { self }
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .general: "General"
+        case .triggers: "Triggers"
+        case .ignoredApps: "Ignored Apps"
+        case .storage: "Storage"
+        case .about: "About"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .general: "gear"
+        case .triggers: "keyboard"
+        case .ignoredApps: "hand.raised"
+        case .storage: "externaldrive"
+        case .about: "info.circle"
+        }
     }
 }
 

@@ -1,4 +1,5 @@
 import XCTest
+import ServiceManagement
 @testable import OpenYoink
 
 @MainActor
@@ -59,6 +60,23 @@ final class LaunchAtLoginControllerTests: XCTestCase {
 
         XCTAssertNil(controller.errorMessage)
         XCTAssertEqual(controller.status, .enabled)
+    }
+
+    func testMissingInitialSystemRecordIsTreatedAsNotRegistered() {
+        XCTAssertEqual(
+            SystemLaunchAtLoginService.map(.notFound),
+            .notRegistered
+        )
+    }
+
+    func testUnavailableFutureStatusDoesNotAttemptRegistration() {
+        let service = FakeLaunchAtLoginService(status: .unavailable)
+        let controller = LaunchAtLoginController(service: service)
+
+        controller.setRequested(true)
+
+        XCTAssertEqual(service.registerCount, 0)
+        XCTAssertEqual(controller.status, .unavailable)
     }
 }
 

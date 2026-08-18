@@ -833,6 +833,13 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "手动下载最新版本…" } }
       }
     },
+    "Settings Categories" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Settings Categories" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设置分类" } }
+      }
+    },
     "Storage" : {
       "extractionState" : "manual",
       "localizations" : {
