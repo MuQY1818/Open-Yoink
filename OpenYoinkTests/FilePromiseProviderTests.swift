@@ -128,6 +128,25 @@ final class FilePromiseProviderTests: XCTestCase {
         XCTAssertFalse(queue === OperationQueue.main, "promise 写入不得在主队列")
     }
 
+    /// 回归（真机闪退修复）：目标应用请求 promise 内容时，系统经
+    /// `NSFileProviderXPCMessenger` 在**自己的 XPC 队列**同步调 delegate——
+    /// delegate 必须是 nonisolated，否则模块默认 MainActor 隔离会在非主队列
+    /// 触发 `_dispatch_assert_queue_fail`（拖到 QSpace Pro 必现的 SIGTRAP）。
+    /// 用后台队列同步调用两个 delegate 方法复现该场景（GCD `sync` 闭包不
+    /// 逃逸，无 Sendable 约束；若 delegate 带 MainActor 隔离此处必崩）。
+    func testDelegate_methodsCallableFromBackgroundQueue() {
+        let provider = FilePromiseProvider(
+            payload: makePayload(sourceURL: URL(fileURLWithPath: "/tmp/bg.txt"),
+                                 suggestedName: "bg.txt"),
+            bookmarkService: BookmarkService()
+        )
+        let delegate = provider.delegate
+        DispatchQueue.global().sync {
+            _ = delegate?.filePromiseProvider(provider, fileNameForType: "public.data")
+            _ = delegate?.operationQueue?(for: provider)
+        }
+    }
+
     func testDelegate_writePromiseTo_successReportsNilError() throws {
         let bookmarkService = BookmarkService()
         defer { bookmarkService.stopAccessingAll() }
