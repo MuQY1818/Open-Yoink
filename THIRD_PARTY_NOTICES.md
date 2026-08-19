@@ -4,7 +4,50 @@ Open-Yoink 是一个**清洁实现（clean-room implementation）**。我们参�
 
 ## 第三方代码
 
-应用内包含的第三方代码仅有一处：**Sparkle**（自动更新框架，Swift Package Manager 引入，`upToNextMajorVersion: 2.6.0`，实际解析 2.9.6）。Sparkle 以 binary framework 形式链入 app，用于检查更新（GitHub Pages 上的 appcast feed）与安装更新包（GitHub Releases 上的 DMG，EdDSA 签名校验）。
+应用内包含以下第三方代码：
+
+1. **Sparkle**（自动更新框架，Swift Package Manager 引入，`upToNextMajorVersion: 2.6.0`，实际解析 2.9.6）。Sparkle 以 binary framework 形式链入 app，用于检查更新（GitHub Pages 上的 appcast feed）与安装更新包（GitHub Releases 上的 DMG，EdDSA 签名校验）。
+2. **mediaremote-adapter**（仅供默认关闭的实验性 Now Playing 模块使用）。OpenYoink 固定于上游提交 `3ac3d4bdf862c7b5399b4fba4df5689f5c38609a`，捆绑其 Perl 适配脚本、从该提交源码构建的通用二进制 `MediaRemoteAdapter.framework` 和 capability probe 客户端。应用不直接链接私有 MediaRemote 符号；用户未启用媒体模块时不会启动 helper。
+
+### mediaremote-adapter
+
+- 项目名：mediaremote-adapter
+- 仓库：https://github.com/ungive/mediaremote-adapter
+- 许可证：BSD 3-Clause
+- 版权：Copyright (c) 2025, Jonas van den Berg and contributors
+
+```
+BSD 3-Clause License
+
+Copyright (c) 2025, Jonas van den Berg and contributors
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its contributors
+   may be used to endorse or promote products derived from this software without
+   specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+### Sparkle
 
 - 项目名：Sparkle
 - 仓库：https://github.com/sparkle-project/Sparkle
@@ -167,7 +210,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 ## 当前版本确认声明
 
-**Open-Yoink v1.0 包含的第三方代码仅有 Sparkle（MIT，见上「第三方代码」一节），除此之外不含任何第三方代码、库、图片、字体或其他资源。** 「行为参考」表所列项目仅为行为级参考，无任何代码或素材进入本仓库。如未来版本引入更多第三方代码或资源，将在此文件追加其许可证文本与版权归属。
+**OpenYoink v1.4.x 包含 Sparkle（MIT）与 mediaremote-adapter（BSD 3-Clause）；除此之外不含其他第三方代码、库、图片或字体。** 「行为参考」表所列其他项目仅为行为级参考，无任何代码或素材进入本仓库。如未来版本引入更多第三方代码或资源，将在此文件追加其许可证文本与版权归属。
 
 ## 商标声明
 

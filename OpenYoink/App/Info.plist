@@ -26,6 +26,8 @@
 	<string>public.app-category.utilities</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2026 weijue. MIT License.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>When experimental Now Playing is enabled and the compatibility helper is unavailable, OpenYoink can read and control Apple Music or Spotify.</string>
 	<!-- Sparkle 2 自动更新。Feed 托管在 GitHub Pages（docs/appcast.xml）。 -->
 	<key>SUFeedURL</key>
 	<string>https://muqy1818.github.io/OpenYoink/appcast.xml</string>

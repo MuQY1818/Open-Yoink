@@ -8,6 +8,15 @@
 	<true/>
 	<key>com.apple.security.files.bookmarks.app-scope</key>
 	<true/>
+	<!-- v1.4.1 experimental media fallback. Apple Events are requested only
+	     after the user enables Now Playing and the bundled adapter is unavailable. -->
+	<key>com.apple.security.automation.apple-events</key>
+	<true/>
+	<key>com.apple.security.temporary-exception.apple-events</key>
+	<array>
+		<string>com.apple.Music</string>
+		<string>com.spotify.client</string>
+	</array>
 	<!-- Sparkle 更新检查是应用唯一的联网行为（GitHub Pages appcast + Releases DMG）。
 	     有了 network.client，按 Sparkle 沙箱文档即不应再启用 Downloader XPC：
 	     "If your sandboxed application already needs to use this entitlement for
