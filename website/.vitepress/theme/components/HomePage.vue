@@ -53,7 +53,7 @@ const guides = [
           <p class="oy-kicker">
             <img :src="withBase('/images/icon.png')" alt="" width="20" height="20">
             <span>OpenYoink for macOS 15+</span>
-            <span class="oy-pill">v1.3.0 · MIT</span>
+            <span class="oy-pill">v1.4.1 · MIT</span>
           </p>
           <h1>
             <span class="oy-h1-line">随手一拖，</span>
@@ -182,7 +182,7 @@ const guides = [
           <div class="oy-section-heading oy-heading-left">
             <p class="oy-eyebrow">REAL APP, REAL PIXELS</p>
             <h2>它真的长在 Mac 顶部</h2>
-            <p>下面是当前开发版在真实刘海屏上的画面。黑色轮廓与屏幕顶边连续，内容按模块切换，不会用一块通用浮窗冒充 Island。</p>
+            <p>下面是 v1.4.1 在真实刘海屏上的画面。黑色轮廓与屏幕顶边连续，内容按模块切换，不会用一块通用浮窗冒充 Island。</p>
           </div>
           <div class="oy-shot-grid">
             <figure>
@@ -202,7 +202,7 @@ const guides = [
               <figcaption><b>电池</b><span>事件驱动，不在后台持续轮询</span></figcaption>
             </figure>
           </div>
-          <p class="oy-preview-note">开发预览界面，正式发布前可能继续调整。</p>
+          <p class="oy-preview-note">实机界面会随屏幕尺寸、系统语言与正在播放的内容自然适配。</p>
         </div>
       </section>
 
