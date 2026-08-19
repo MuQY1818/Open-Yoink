@@ -2154,6 +2154,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已接通电源" } }
       }
     },
+    "Control playback without expanding the Island" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Control playback without expanding the Island" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无需展开灵动岛即可控制播放" } }
+      }
+    },
     "Custom: %lld min" : {
       "extractionState" : "manual", "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Custom: %lld min" } },
@@ -2232,6 +2238,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前没有播放内容" } }
       }
     },
+    "Drag or click to seek" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Drag or click to seek" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖动或点击以调整播放位置" } }
+      }
+    },
     "Not applicable" : {
       "extractionState" : "manual", "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Not applicable" } },
@@ -2298,6 +2310,12 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "播放" } }
       }
     },
+    "Playback position" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Playback position" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "播放位置" } }
+      }
+    },
     "Power connected" : {
       "extractionState" : "manual", "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Power connected" } },
@@ -2326,6 +2344,12 @@
       "extractionState" : "manual", "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Running on battery" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在使用电池" } }
+      }
+    },
+    "Seeking is unavailable for this player" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Seeking is unavailable for this player" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前播放器不支持调整播放位置" } }
       }
     },
     "Start" : {
@@ -2404,6 +2428,198 @@
       "extractionState" : "manual", "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Transfers" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "传输" } }
+      }
+    },
+    "All caught up" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "All caught up" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "全部完成" } }
+      }
+    },
+    "Choose a duration" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose a duration" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择时长" } }
+      }
+    },
+    "Experimental" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Experimental" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "实验性功能" } }
+      }
+    },
+    "Experimental Now Playing" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Experimental Now Playing" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "实验性正在播放" } }
+      }
+    },
+    "Music and media controls" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Music and media controls" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "音乐与媒体控制" } }
+      }
+    },
+    "Running" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Running" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "计时中" } }
+      }
+    },
+    "Unknown artist" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unknown artist" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未知艺人" } }
+      }
+    },
+    "Album artwork" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Album artwork" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "专辑封面" } }
+      }
+    },
+    "Enable Now Playing" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enable Now Playing" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "启用正在播放" } }
+      }
+    },
+    "Off" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Off" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已关闭" } }
+      }
+    },
+    "OpenYoink could not read the current player. Other Island features still work normally." : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "OpenYoink could not read the current player. Other Island features still work normally." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "OpenYoink 暂时无法读取当前播放器，其他灵动岛功能仍可正常使用。" } }
+      }
+    },
+    "Playing" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Playing" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在播放" } }
+      }
+    },
+    "Show album artwork, playback progress, and media controls in the Island." : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show album artwork, playback progress, and media controls in the Island." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在灵动岛中显示专辑封面、播放进度和媒体控制。" } }
+      }
+    },
+    "Shows artwork and controls from the active media player. Processing stays on this Mac; compatibility can vary after macOS updates." : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Shows artwork and controls from the active media player. Processing stays on this Mac; compatibility can vary after macOS updates." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示当前播放器的封面和控制，处理均在本机完成；macOS 更新后兼容性可能发生变化。" } }
+      }
+    },
+    "Open-Yoink is an independent clean-room implementation crafted for macOS. Bundled third-party components are Sparkle (MIT) for updates and mediaremote-adapter (BSD 3-Clause) for the optional local Now Playing module. A complete attribution record is available in THIRD_PARTY_NOTICES.md in the source repository." : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open-Yoink is an independent clean-room implementation crafted for macOS. Bundled third-party components are Sparkle (MIT) for updates and mediaremote-adapter (BSD 3-Clause) for the optional local Now Playing module. A complete attribution record is available in THIRD_PARTY_NOTICES.md in the source repository." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Open-Yoink 是面向 macOS 的独立洁净室实现。内置第三方组件包括用于更新的 Sparkle（MIT），以及用于可选本地“正在播放”模块的 mediaremote-adapter（BSD 3-Clause）。完整署名记录见源码仓库中的 THIRD_PARTY_NOTICES.md。" } }
+      }
+    },
+    "Side Shelf" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Side Shelf" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "侧边暂存架" } }
+      }
+    },
+    "Enable Side Shelf" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enable Side Shelf" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "启用侧边暂存架" } }
+      }
+    },
+    "Shelf Behavior" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Shelf Behavior" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂存架行为" } }
+      }
+    },
+    "Primary Shelf" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Primary Shelf" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "主暂存架" } }
+      }
+    },
+    "Island Shelf" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Island Shelf" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "灵动岛暂存架" } }
+      }
+    },
+    "The shortcut and automatic drag reveal use the primary shelf. The other surface stays available independently." : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The shortcut and automatic drag reveal use the primary shelf. The other surface stays available independently." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "快捷键和拖拽自动唤出使用主暂存架，另一个界面仍可独立使用。" } }
+      }
+    },
+    "After a successful drop, the receiving shelf stays open so you can drag the item to its destination." : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "After a successful drop, the receiving shelf stays open so you can drag the item to its destination." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "成功拖入后，接收内容的暂存架会保持展开，方便你继续将项目拖到目的地。" } }
+      }
+    },
+    "Enable OpenYoink Island" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enable OpenYoink Island" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "启用 OpenYoink 灵动岛" } }
+      }
+    },
+    "Click is always available. Hover waits briefly before expanding." : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Click is always available. Hover waits briefly before expanding." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "始终可以点击展开；悬停会在短暂延迟后展开。" } }
+      }
+    },
+    "The Island Shelf and Side Shelf use the same items. Turning this module off never deletes them." : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The Island Shelf and Side Shelf use the same items. Turning this module off never deletes them." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "灵动岛暂存架与侧边暂存架共享同一批项目；关闭此模块不会删除任何内容。" } }
+      }
+    },
+    "Ready" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Ready" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "就绪" } }
+      }
+    },
+    "Focus" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Focus" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "专注中" } }
+      }
+    },
+    "Countdown is running" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Countdown is running" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在倒计时" } }
+      }
+    },
+    "Continue whenever you're ready" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Continue whenever you're ready" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "随时可以继续" } }
+      }
+    },
+    "Time's up" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Time's up" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "时间到" } }
+      }
+    },
+    "Your timer is complete" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Your timer is complete" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "计时已完成" } }
+      }
+    },
+    "With Side Shelf enabled, the shelf shortcut controls it. Otherwise the shortcut opens Island Shelf." : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "With Side Shelf enabled, the shelf shortcut controls it. Otherwise the shortcut opens Island Shelf." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "启用侧边暂存架时，暂存架快捷键控制侧边架；关闭后快捷键才会打开灵动岛暂存架。" } }
       }
     },
     "Unpin Island" : {

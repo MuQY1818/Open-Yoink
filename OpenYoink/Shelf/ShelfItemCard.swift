@@ -112,6 +112,7 @@ struct ShelfItemCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+    @Environment(\.shelfPresentationStyle) private var presentationStyle
 
     static let cornerRadius: CGFloat = 12
     /// 缩略图区高度（点）；宽度随网格列（~88pt）。
@@ -154,6 +155,9 @@ struct ShelfItemCard: View {
         }
         .padding(6)
         .frame(maxWidth: .infinity)
+        .foregroundStyle(presentationStyle == .island
+                         ? Color.white.opacity(0.90)
+                         : Color.primary)
         .background { surface }
         .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius))
         .contentShape(RoundedRectangle(cornerRadius: Self.cornerRadius))
@@ -243,12 +247,23 @@ struct ShelfItemCard: View {
             Button(action: onRemove) {
                 Image(systemName: "xmark")
                     .font(.system(size: 8, weight: .bold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(presentationStyle == .island
+                                     ? Color.white.opacity(0.72)
+                                     : Color.secondary)
                     .frame(width: 22, height: 22)
-                    .background { Circle().fill(.regularMaterial) }
+                    .background {
+                        if presentationStyle == .island {
+                            Circle().fill(Color.black.opacity(0.76))
+                        } else {
+                            Circle().fill(.regularMaterial)
+                        }
+                    }
                     .overlay {
                         Circle()
-                            .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)
+                            .strokeBorder(presentationStyle == .island
+                                          ? Color.white.opacity(0.14)
+                                          : Color.primary.opacity(0.12),
+                                          lineWidth: 0.5)
                     }
             }
             .buttonStyle(.plain)
@@ -345,14 +360,18 @@ struct ShelfItemCard: View {
     private var textSnippetPreview: some View {
         Text(item.text ?? "")
             .font(.caption2)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(presentationStyle == .island
+                             ? Color.white.opacity(0.66)
+                             : Color.secondary)
             .multilineTextAlignment(.leading)
             .lineLimit(3)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .padding(4)
             .background {
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(Color(nsColor: .textBackgroundColor))
+                    .fill(presentationStyle == .island
+                          ? Color.white.opacity(0.055)
+                          : Color(nsColor: .textBackgroundColor))
             }
     }
 
@@ -364,11 +383,15 @@ struct ShelfItemCard: View {
             if let host = item.urlString.flatMap({ URL(string: $0)?.host() }) {
                 Text(host)
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(presentationStyle == .island
+                                     ? Color.white.opacity(0.46)
+                                     : Color.secondary.opacity(0.72))
                     .lineLimit(1)
             }
         }
-        .foregroundStyle(.secondary)
+        .foregroundStyle(presentationStyle == .island
+                         ? Color.white.opacity(0.62)
+                         : Color.secondary)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -376,7 +399,9 @@ struct ShelfItemCard: View {
     private var kindPlaceholder: some View {
         Image(systemName: placeholderSymbolName)
             .font(.system(size: 26))
-            .foregroundStyle(.tertiary)
+            .foregroundStyle(presentationStyle == .island
+                             ? Color.white.opacity(0.38)
+                             : Color.secondary.opacity(0.72))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -468,6 +493,9 @@ struct ShelfItemCard: View {
             }
             Text(item.displayName)
                 .font(.caption)
+                .foregroundStyle(presentationStyle == .island
+                                 ? Color.white.opacity(0.90)
+                                 : Color.primary)
                 .lineLimit(2)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
@@ -495,13 +523,28 @@ struct ShelfItemCard: View {
     /// 卡片底色与选中态（§3：accent 描边 + 浅色填充）；非选中用语义色弱底 + 细描边。
     private var surface: some View {
         RoundedRectangle(cornerRadius: Self.cornerRadius)
-            .fill(isSelected ? Color.accentColor.opacity(0.18)
-                             : Color(nsColor: .controlBackgroundColor).opacity(0.6))
+            .fill(cardFill)
             .overlay {
                 RoundedRectangle(cornerRadius: Self.cornerRadius)
-                    .strokeBorder(isSelected ? Color.accentColor : Color.primary.opacity(0.08),
+                    .strokeBorder(cardBorder,
                                   lineWidth: isSelected ? 2 : 0.5)
             }
+    }
+
+    private var cardFill: Color {
+        if isSelected {
+            return Color.accentColor.opacity(presentationStyle == .island ? 0.14 : 0.18)
+        }
+        return presentationStyle == .island
+            ? Color.white.opacity(0.06)
+            : Color(nsColor: .controlBackgroundColor).opacity(0.6)
+    }
+
+    private var cardBorder: Color {
+        if isSelected { return Color.accentColor.opacity(0.95) }
+        return presentationStyle == .island
+            ? Color.white.opacity(0.11)
+            : Color.primary.opacity(0.08)
     }
 
     /// Unavailable state uses a dashed shape in addition to icon/text, so the

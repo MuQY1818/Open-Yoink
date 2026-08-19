@@ -48,6 +48,11 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertFalse(store.hadPersistedOnboardingVersion)
         XCTAssertEqual(store.shelfPresentationMode, .classic)
         XCTAssertEqual(store.shelfPlacement, .right)
+        XCTAssertTrue(store.classicShelfEnabled)
+        XCTAssertTrue(store.islandEnabled)
+        XCTAssertTrue(store.islandShelfEnabled)
+        XCTAssertEqual(store.preferredShelfSurface, .island)
+        XCTAssertEqual(store.effectivePreferredShelfSurface, .classic)
         XCTAssertFalse(store.islandHoverRevealEnabled)
         XCTAssertTrue(store.islandTimerEnabled)
         XCTAssertTrue(store.islandBatteryEnabled)
@@ -88,6 +93,83 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertFalse(reloaded.islandBatteryEnabled)
         XCTAssertTrue(reloaded.islandFullChargeAlertEnabled)
         XCTAssertTrue(reloaded.islandMediaEnabled)
+    }
+
+    func testSideShelfAndIslandPersistIndependently() throws {
+        let (defaults, name) = try makeSuite()
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let store = SettingsStore(defaults: defaults)
+        store.classicShelfEnabled = true
+        store.islandEnabled = true
+        store.islandShelfEnabled = true
+        store.preferredShelfSurface = .island
+
+        let reloaded = SettingsStore(defaults: defaults)
+        XCTAssertTrue(reloaded.classicShelfEnabled)
+        XCTAssertTrue(reloaded.islandEnabled)
+        XCTAssertTrue(reloaded.islandShelfEnabled)
+        XCTAssertEqual(reloaded.preferredShelfSurface, .island)
+        XCTAssertEqual(reloaded.effectivePreferredShelfSurface, .classic)
+
+        reloaded.islandShelfEnabled = false
+        XCTAssertTrue(reloaded.classicShelfEnabled)
+        XCTAssertTrue(reloaded.islandEnabled)
+        XCTAssertEqual(reloaded.preferredShelfSurface, .island)
+        XCTAssertEqual(reloaded.effectivePreferredShelfSurface, .classic)
+    }
+
+    func testLegacyIslandModeMigratesToIndependentSurfaceSettings() throws {
+        let (defaults, name) = try makeSuite()
+        defer { defaults.removePersistentDomain(forName: name) }
+        defaults.set("island", forKey: "OpenYoink.shelfPresentationMode")
+
+        let store = SettingsStore(defaults: defaults)
+        XCTAssertFalse(store.classicShelfEnabled)
+        XCTAssertTrue(store.islandEnabled)
+        XCTAssertTrue(store.islandShelfEnabled)
+        XCTAssertEqual(store.preferredShelfSurface, .island)
+        XCTAssertEqual(store.effectivePreferredShelfSurface, .island)
+
+        let reloaded = SettingsStore(defaults: defaults)
+        XCTAssertFalse(reloaded.classicShelfEnabled)
+        XCTAssertTrue(reloaded.islandEnabled)
+        XCTAssertTrue(reloaded.islandShelfEnabled)
+        XCTAssertEqual(reloaded.preferredShelfSurface, .island)
+    }
+
+    func testExistingClassicUserDoesNotInheritFreshInstallIslandDefault() throws {
+        let (defaults, name) = try makeSuite()
+        defer { defaults.removePersistentDomain(forName: name) }
+        defaults.set(1, forKey: "OpenYoink.onboardingVersion")
+
+        let store = SettingsStore(defaults: defaults)
+
+        XCTAssertTrue(store.classicShelfEnabled)
+        XCTAssertFalse(store.islandEnabled)
+        XCTAssertEqual(store.preferredShelfSurface, .classic)
+    }
+
+    func testEffectivePreferredSurfaceFallsBackWithoutOverwritingPreference() throws {
+        let (defaults, name) = try makeSuite()
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let store = SettingsStore(defaults: defaults)
+        store.classicShelfEnabled = true
+        store.islandEnabled = true
+        store.islandShelfEnabled = true
+        store.preferredShelfSurface = .island
+        XCTAssertEqual(store.effectivePreferredShelfSurface, .classic)
+
+        store.islandEnabled = false
+        XCTAssertEqual(store.effectivePreferredShelfSurface, .classic)
+        XCTAssertEqual(store.preferredShelfSurface, .island)
+
+        store.classicShelfEnabled = false
+        XCTAssertNil(store.effectivePreferredShelfSurface)
+
+        store.islandEnabled = true
+        XCTAssertEqual(store.effectivePreferredShelfSurface, .island)
     }
 
     func testOnboardingVersionPersistsAndKeepsExplicitState() throws {

@@ -1,9 +1,20 @@
 import AppKit
 import SwiftUI
 
-enum ShelfPresentationStyle: Sendable {
+enum ShelfPresentationStyle: Sendable, Equatable {
     case classic
     case island
+}
+
+private struct ShelfPresentationStyleEnvironmentKey: EnvironmentKey {
+    static let defaultValue: ShelfPresentationStyle = .classic
+}
+
+extension EnvironmentValues {
+    var shelfPresentationStyle: ShelfPresentationStyle {
+        get { self[ShelfPresentationStyleEnvironmentKey.self] }
+        set { self[ShelfPresentationStyleEnvironmentKey.self] = newValue }
+    }
 }
 
 /// Shelf 根视图（S3：真实内容渲染）。
@@ -74,6 +85,7 @@ struct ShelfView: View {
 
     var body: some View {
         presentedSurface
+            .environment(\.shelfPresentationStyle, presentationStyle)
             .overlay(alignment: .topLeading) { marqueeOverlay }
             .onChange(of: store.items) {
                 dropTargetState.reset()

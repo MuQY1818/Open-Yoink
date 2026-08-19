@@ -64,4 +64,22 @@ final class IslandTimerStoreTests: XCTestCase {
             return XCTFail("Expected clock jump to finish timer")
         }
     }
+
+    func testTickRefreshesFormattedTimeAndProgress() throws {
+        let (defaults, name) = try suite()
+        defer { defaults.removePersistentDomain(forName: name) }
+        var now = Date(timeIntervalSince1970: 5_000)
+        let timer = IslandTimerStore(defaults: defaults, now: { now })
+        timer.start(duration: 60)
+        let initialTick = timer.tick
+
+        now = now.addingTimeInterval(1)
+        timer.updateForCurrentTime()
+
+        XCTAssertGreaterThan(timer.tick, initialTick)
+        XCTAssertEqual(timer.formattedRemaining, "00:59")
+        XCTAssertEqual(timer.progress, 1.0 / 60.0, accuracy: 0.000_001)
+        XCTAssertEqual(timer.remainingFraction, 59.0 / 60.0, accuracy: 0.000_001)
+        timer.stop()
+    }
 }

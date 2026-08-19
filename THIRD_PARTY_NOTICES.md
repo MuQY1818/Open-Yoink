@@ -7,7 +7,7 @@ Open-Yoink 是一个**清洁实现（clean-room implementation）**。我们参�
 应用内包含以下第三方代码：
 
 1. **Sparkle**（自动更新框架，Swift Package Manager 引入，`upToNextMajorVersion: 2.6.0`，实际解析 2.9.6）。Sparkle 以 binary framework 形式链入 app，用于检查更新（GitHub Pages 上的 appcast feed）与安装更新包（GitHub Releases 上的 DMG，EdDSA 签名校验）。
-2. **mediaremote-adapter**（仅供默认关闭的实验性 Now Playing 模块使用）。OpenYoink 固定于上游提交 `3ac3d4bdf862c7b5399b4fba4df5689f5c38609a`，捆绑其 Perl 适配脚本、从该提交源码构建的通用二进制 `MediaRemoteAdapter.framework` 和 capability probe 客户端。应用不直接链接私有 MediaRemote 符号；用户未启用媒体模块时不会启动 helper。
+2. **mediaremote-adapter**（供默认关闭、完全本地处理的可选 Now Playing 模块使用）。OpenYoink 固定于上游提交 `3ac3d4bdf862c7b5399b4fba4df5689f5c38609a`，捆绑其 Perl 适配脚本、从该提交源码构建的通用二进制 `MediaRemoteAdapter.framework` 和 capability probe 客户端。应用不直接链接私有 MediaRemote 符号；用户未启用媒体模块时不会启动 helper。
 
 ### mediaremote-adapter
 

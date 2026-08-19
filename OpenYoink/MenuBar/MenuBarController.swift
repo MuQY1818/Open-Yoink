@@ -2,13 +2,13 @@ import AppKit
 
 /// 菜单栏入口：NSStatusItem + NSMenu。
 ///
-/// 菜单含「Show/Hide Shelf」（勾选项跟随 `AppState.isShelfVisible`）、
+/// 菜单含「Show/Hide Shelf」（勾选项跟随用户首选 Shelf 入口的展开状态）、
 /// 「Recent Items」最近拖出子菜单（S10，读 `RecentItemsService`）、
 /// 「Quick Start」「Usage Help」「Report an Issue」、设置、更新与退出。
 /// 用户可见字符串经 `String(localized:)` 走 Localizable.xcstrings（S10）。
 @MainActor
 final class MenuBarController: NSObject {
-    private let appState: AppState
+    private let isShelfExpanded: () -> Bool
     private let recents: RecentItemsService
     private let onToggleShelf: () -> Void
     /// S10: 最近项目重新入架（条目构造在 AppDelegate，那里持有 shelfStore）。
@@ -31,7 +31,7 @@ final class MenuBarController: NSObject {
     /// 「Recent Items」父项；子菜单每次打开菜单时重建（entries 随拖出变化）。
     private let recentParentItem = NSMenuItem()
 
-    init(appState: AppState,
+    init(isShelfExpanded: @escaping () -> Bool,
          recents: RecentItemsService,
          onToggleShelf: @escaping () -> Void,
          onReaddRecent: @escaping (RecentEntry) -> Void,
@@ -41,7 +41,7 @@ final class MenuBarController: NSObject {
          onReportIssue: @escaping () -> Void,
          onCheckForUpdates: @escaping () -> Void,
          onOpenManualUpdate: @escaping () -> Void) {
-        self.appState = appState
+        self.isShelfExpanded = isShelfExpanded
         self.recents = recents
         self.onToggleShelf = onToggleShelf
         self.onReaddRecent = onReaddRecent
@@ -254,7 +254,7 @@ extension MenuBarController: NSMenuDelegate {
     /// 每次打开菜单时刷新勾选项与标题（跟随 shelf 实际可见性），并重建
     /// 最近项目子菜单（entries 随拖出/Clear 变化）。
     func menuWillOpen(_ menu: NSMenu) {
-        let isVisible = appState.isShelfVisible
+        let isVisible = isShelfExpanded()
         toggleItem.title = isVisible
             ? String(localized: "Hide Shelf")
             : String(localized: "Show Shelf")

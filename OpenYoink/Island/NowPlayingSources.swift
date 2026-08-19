@@ -62,6 +62,7 @@ final class MediaRemoteAdapterSource: NowPlayingSource {
     private var onFailure: (@MainActor () -> Void)?
 
     var supportsTransportControls: Bool { isReady && !stopped }
+    var supportsSeeking: Bool { isReady && !stopped }
 
     init(assets: MediaRemoteAdapterAssets) {
         self.assets = assets
@@ -101,14 +102,27 @@ final class MediaRemoteAdapterSource: NowPlayingSource {
 
     func send(_ command: NowPlayingCommand) async -> Bool {
         guard supportsTransportControls else { return false }
-        let id: String
         switch command {
-        case .togglePlayPause: id = "2"
-        case .nextTrack: id = "4"
-        case .previousTrack: id = "5"
+        case .seek(let seconds):
+            guard seconds.isFinite else { return false }
+            let microseconds = Int64((max(0, seconds) * 1_000_000).rounded())
+            return await Self.runAndWait(
+                executable: URL(fileURLWithPath: "/usr/bin/perl"),
+                arguments: commonArguments + ["seek", String(microseconds)]
+            ) == 0
+        case .togglePlayPause, .nextTrack, .previousTrack:
+            let id: String
+            switch command {
+            case .togglePlayPause: id = "2"
+            case .nextTrack: id = "4"
+            case .previousTrack: id = "5"
+            case .seek: return false
+            }
+            return await Self.runAndWait(
+                executable: URL(fileURLWithPath: "/usr/bin/perl"),
+                arguments: commonArguments + ["send", id]
+            ) == 0
         }
-        return await Self.runAndWait(executable: URL(fileURLWithPath: "/usr/bin/perl"),
-                                     arguments: commonArguments + ["send", id]) == 0
     }
 
     private var commonArguments: [String] {
@@ -153,7 +167,7 @@ final class MediaRemoteAdapterSource: NowPlayingSource {
         let stderr = Pipe()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
         process.arguments = commonArguments + [
-            "stream", "--no-diff", "--debounce=200", "--no-artwork",
+            "stream", "--no-diff", "--debounce=250",
         ]
         process.standardOutput = stdout
         process.standardError = stderr
@@ -260,6 +274,7 @@ final class AppleScriptNowPlayingSource: NowPlayingSource {
     private var executionFailureCount = 0
 
     var supportsTransportControls: Bool { currentBundleID != nil }
+    var supportsSeeking: Bool { currentBundleID != nil }
 
     func start(onSnapshot: @escaping @MainActor (NowPlayingSnapshot?) -> Void,
                onFailure: @escaping @MainActor () -> Void) {
@@ -286,13 +301,22 @@ final class AppleScriptNowPlayingSource: NowPlayingSource {
     func send(_ command: NowPlayingCommand) async -> Bool {
         guard let bundleID = currentBundleID else { return false }
         let app = bundleID == "com.apple.Music" ? "Music" : "Spotify"
-        let verb: String
         switch command {
-        case .togglePlayPause: verb = "playpause"
-        case .previousTrack: verb = "previous track"
-        case .nextTrack: verb = "next track"
+        case .seek(let seconds):
+            guard seconds.isFinite else { return false }
+            return await Self.execute(
+                "tell application \"\(app)\" to set player position to \(max(0, seconds))"
+            ) != nil
+        case .togglePlayPause, .previousTrack, .nextTrack:
+            let verb: String
+            switch command {
+            case .togglePlayPause: verb = "playpause"
+            case .previousTrack: verb = "previous track"
+            case .nextTrack: verb = "next track"
+            case .seek: return false
+            }
+            return await Self.execute("tell application \"\(app)\" to \(verb)") != nil
         }
-        return await Self.execute("tell application \"\(app)\" to \(verb)") != nil
     }
 
     private func refresh() async {
@@ -303,10 +327,18 @@ final class AppleScriptNowPlayingSource: NowPlayingSource {
 
         var executedSuccessfully = false
         for (bundleID, app) in candidates {
+            let durationExpression = bundleID == "com.spotify.client"
+                ? "((duration of current track) / 1000)"
+                : "(duration of current track)"
             let script = """
             tell application "\(app)"
                 if player state is stopped then return ""
-                return (name of current track) & linefeed & (artist of current track) & linefeed & (player state as text)
+                return (name of current track) & linefeed & ¬
+                    (artist of current track) & linefeed & ¬
+                    (album of current track) & linefeed & ¬
+                    (player state as text) & linefeed & ¬
+                    (\(durationExpression) as text) & linefeed & ¬
+                    (player position as text)
             end tell
             """
             guard let output = await Self.execute(script) else { continue }
@@ -318,9 +350,12 @@ final class AppleScriptNowPlayingSource: NowPlayingSource {
             executionFailureCount = 0
             onSnapshot?(.init(title: title,
                               artist: parts.count > 1 && !parts[1].isEmpty ? parts[1] : nil,
-                              album: nil,
-                              isPlaying: parts.count > 2 && parts[2] == "playing",
-                              sourceName: app))
+                              album: parts.count > 2 && !parts[2].isEmpty ? parts[2] : nil,
+                              isPlaying: parts.count > 3 && parts[3] == "playing",
+                              sourceName: app,
+                              duration: parts.count > 4 ? Double(parts[4]) : nil,
+                              elapsedTime: parts.count > 5 ? Double(parts[5]) : nil,
+                              playbackRate: parts.count > 3 && parts[3] == "playing" ? 1 : 0))
             return
         }
         currentBundleID = nil
@@ -363,6 +398,10 @@ final class FallbackNowPlayingSource: NowPlayingSource {
 
     var supportsTransportControls: Bool {
         active?.supportsTransportControls == true
+    }
+
+    var supportsSeeking: Bool {
+        active?.supportsSeeking == true
     }
 
     func start(onSnapshot: @escaping @MainActor (NowPlayingSnapshot?) -> Void,

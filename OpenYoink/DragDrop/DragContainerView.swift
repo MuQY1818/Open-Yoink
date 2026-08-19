@@ -57,7 +57,15 @@ final class DragContainerView: NSView {
         self.contentViewController = contentViewController
         super.init(frame: .zero)
 
+        // The Island paints only its custom silhouette. Keep both AppKit host
+        // layers genuinely transparent so the rectangular NSView bounds never
+        // become a gray plate behind the screen-attached surface.
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.clear.cgColor
+
         let contentView = contentViewController.view
+        contentView.wantsLayer = true
+        contentView.layer?.backgroundColor = NSColor.clear.cgColor
         contentView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(contentView)
         NSLayoutConstraint.activate([

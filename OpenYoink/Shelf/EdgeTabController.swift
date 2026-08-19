@@ -131,7 +131,7 @@ final class EdgeTabController: NSObject {
     /// 拉环应在位 ⇔ 设置开启 && 非 custom（custom 无贴附缘）&& shelf 隐藏
     /// （拉环与 shelf 互斥：shelf 展开时由面板外缘隐形热区承担同点位收起）。
     private var shouldBeVisible: Bool {
-        settings.shelfPresentationMode == .classic
+        settings.classicShelfEnabled
             && settings.edgeTabEnabled
             && settings.shelfPosition != .custom
             && !appState.isShelfVisible

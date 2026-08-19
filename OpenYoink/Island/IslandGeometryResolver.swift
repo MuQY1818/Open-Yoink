@@ -26,9 +26,9 @@ enum IslandGeometryResolver {
     /// keeping the top edge fused to the screen hardware.
     static let physicalNotchClickExtension: CGFloat = 10
     static let floatingCompactSize = CGSize(width: 224, height: 38)
-    static let maximumExpandedWidth: CGFloat = 520
+    static let maximumExpandedWidth: CGFloat = 440
     static let minimumExpandedWidth: CGFloat = 360
-    static let expandedPreferredHeight: CGFloat = 430
+    static let expandedPreferredHeight: CGFloat = 330
     static let maximumExpandedHeightFraction: CGFloat = 0.6
 
     /// Chooses the screen under the pointer/drag and falls back to the first

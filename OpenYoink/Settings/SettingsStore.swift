@@ -26,6 +26,14 @@ final class SettingsStore {
         case classic, island
     }
 
+    /// Which shelf surface the global shelf command controls when both are
+    /// available. Availability is still governed by the independent surface
+    /// toggles below; this value is only a preference and never disables a
+    /// surface by itself.
+    enum PreferredShelfSurface: String, CaseIterable, Sendable {
+        case classic, island
+    }
+
     /// User-facing placement picker. Keeping this separate from
     /// `ShelfPosition` prevents Island from leaking into edge-only layout and
     /// trigger switches while still presenting one simple control in Settings.
@@ -81,11 +89,62 @@ final class SettingsStore {
         didSet { defaults.set(shelfPosition.rawValue, forKey: Keys.shelfPosition) }
     }
 
-    /// Defaults to classic so an upgrade never moves an existing user's shelf.
-    var shelfPresentationMode: ShelfPresentationMode {
+    /// The side shelf and Island are independent surfaces over one ShelfStore.
+    /// New installs enable both surfaces and start with Island as the preferred
+    /// entry point. Migration below keeps existing users' explicit choices.
+    var classicShelfEnabled: Bool {
+        didSet { defaults.set(classicShelfEnabled, forKey: Keys.classicShelfEnabled) }
+    }
+
+    var islandEnabled: Bool {
+        didSet { defaults.set(islandEnabled, forKey: Keys.islandEnabled) }
+    }
+
+    /// Shelf is an optional Island module. Turning it off never deletes shelf
+    /// contents and doesn't affect the side shelf.
+    var islandShelfEnabled: Bool {
+        didSet { defaults.set(islandShelfEnabled, forKey: Keys.islandShelfEnabled) }
+    }
+
+    var preferredShelfSurface: PreferredShelfSurface {
         didSet {
-            defaults.set(shelfPresentationMode.rawValue,
-                         forKey: Keys.shelfPresentationMode)
+            defaults.set(preferredShelfSurface.rawValue,
+                         forKey: Keys.preferredShelfSurface)
+        }
+    }
+
+    /// Resolves the user's preferred shelf against currently enabled
+    /// surfaces. The stored preference is intentionally retained while its
+    /// surface is disabled, so re-enabling it restores the previous choice.
+    var effectivePreferredShelfSurface: PreferredShelfSurface? {
+        let islandShelfAvailable = islandEnabled && islandShelfEnabled
+        // The established global "Shelf" command belongs to the side shelf
+        // whenever that surface is enabled. Island remains independently
+        // clickable and drag-addressable; it is only the shortcut fallback
+        // when the side shelf is disabled.
+        if classicShelfEnabled { return .classic }
+        if islandShelfAvailable { return .island }
+        return nil
+    }
+
+    /// Compatibility façade for pre-dual-surface call sites and stored
+    /// preferences. New code must use the independent booleans above.
+    var shelfPresentationMode: ShelfPresentationMode {
+        get {
+            effectivePreferredShelfSurface == .island ? .island : .classic
+        }
+        set {
+            switch newValue {
+            case .classic:
+                classicShelfEnabled = true
+                islandEnabled = false
+                preferredShelfSurface = .classic
+            case .island:
+                classicShelfEnabled = false
+                islandEnabled = true
+                islandShelfEnabled = true
+                preferredShelfSurface = .island
+            }
         }
     }
 
@@ -103,16 +162,25 @@ final class SettingsStore {
         set {
             switch newValue {
             case .island:
-                shelfPresentationMode = .island
+                classicShelfEnabled = false
+                islandEnabled = true
+                islandShelfEnabled = true
+                preferredShelfSurface = .island
             case .left:
                 shelfPosition = .left
-                shelfPresentationMode = .classic
+                classicShelfEnabled = true
+                islandEnabled = false
+                preferredShelfSurface = .classic
             case .right:
                 shelfPosition = .right
-                shelfPresentationMode = .classic
+                classicShelfEnabled = true
+                islandEnabled = false
+                preferredShelfSurface = .classic
             case .custom:
                 shelfPosition = .custom
-                shelfPresentationMode = .classic
+                classicShelfEnabled = true
+                islandEnabled = false
+                preferredShelfSurface = .classic
             }
         }
     }
@@ -138,8 +206,9 @@ final class SettingsStore {
         }
     }
 
-    /// v1.4.1 experimental module. It remains opt-in because its cross-player
-    /// source relies on a private, OS-sensitive MediaRemote adapter.
+    /// Optional local Now Playing module. It remains opt-in so a fallback
+    /// player never requests Automation access until the user asks for media
+    /// controls, while the UI itself is a first-class Island module.
     var islandMediaEnabled: Bool {
         didSet { defaults.set(islandMediaEnabled, forKey: Keys.islandMediaEnabled) }
     }
@@ -329,6 +398,11 @@ final class SettingsStore {
         private static let prefix = "OpenYoink."
         static let shelfPosition = prefix + "shelfPosition"
         static let shelfPresentationMode = prefix + "shelfPresentationMode"
+        static let shelfSurfaceSettingsVersion = prefix + "shelfSurfaceSettingsVersion"
+        static let classicShelfEnabled = prefix + "classicShelfEnabled"
+        static let islandEnabled = prefix + "islandEnabled"
+        static let islandShelfEnabled = prefix + "islandShelfEnabled"
+        static let preferredShelfSurface = prefix + "preferredShelfSurface"
         static let islandHoverRevealEnabled = prefix + "islandHoverRevealEnabled"
         static let islandTimerEnabled = prefix + "islandTimerEnabled"
         static let islandBatteryEnabled = prefix + "islandBatteryEnabled"
@@ -367,9 +441,38 @@ final class SettingsStore {
         // 一旦注册，nil 判定即失效，迁移会永远不会发生。
         let legacyEdgeTriggerEnabled = defaults.bool(forKey: Keys.edgeTriggerEnabled)
         let persistedDragMode = defaults.string(forKey: Keys.dragAutoAppearMode)
+        // Preserve settings written by an earlier development build of the
+        // dual-surface feature, which predates the explicit migration version.
+        // Only inspect the app's real persistent domain for `.standard`;
+        // isolated test/UI suites must not inherit the host app's preferences.
+        let standardPersistentDomain: [String: Any]? = if defaults === UserDefaults.standard,
+                                                          let domain = Bundle.main.bundleIdentifier {
+            defaults.persistentDomain(forName: domain)
+        } else {
+            nil
+        }
+        let persistedClassicShelfEnabled = standardPersistentDomain?[Keys.classicShelfEnabled]
+            as? Bool ?? defaults.object(forKey: Keys.classicShelfEnabled) as? Bool
+        let persistedIslandEnabled = standardPersistentDomain?[Keys.islandEnabled]
+            as? Bool ?? defaults.object(forKey: Keys.islandEnabled) as? Bool
+        let persistedIslandShelfEnabled = standardPersistentDomain?[Keys.islandShelfEnabled]
+            as? Bool ?? defaults.object(forKey: Keys.islandShelfEnabled) as? Bool
+        let persistedPreferredSurface = standardPersistentDomain?[Keys.preferredShelfSurface]
+            as? String ?? defaults.string(forKey: Keys.preferredShelfSurface)
+        let persistedLegacyPresentationMode = defaults.string(
+            forKey: Keys.shelfPresentationMode
+        ).flatMap(ShelfPresentationMode.init(rawValue:))
+        let legacyPresentationMode = persistedLegacyPresentationMode ?? .classic
+        let persistedSurfaceSettingsVersion = defaults.integer(
+            forKey: Keys.shelfSurfaceSettingsVersion
+        )
         defaults.register(defaults: [
             Keys.shelfPosition: ShelfPosition.right.rawValue,
             Keys.shelfPresentationMode: ShelfPresentationMode.classic.rawValue,
+            Keys.classicShelfEnabled: true,
+            Keys.islandEnabled: true,
+            Keys.islandShelfEnabled: true,
+            Keys.preferredShelfSurface: PreferredShelfSurface.island.rawValue,
             Keys.islandHoverRevealEnabled: false,
             Keys.islandTimerEnabled: true,
             Keys.islandBatteryEnabled: true,
@@ -394,9 +497,63 @@ final class SettingsStore {
 
         shelfPosition = ShelfPosition(rawValue: defaults.string(forKey: Keys.shelfPosition) ?? "")
             ?? .right
-        shelfPresentationMode = ShelfPresentationMode(
-            rawValue: defaults.string(forKey: Keys.shelfPresentationMode) ?? ""
-        ) ?? .classic
+        let hasPreversionedSurfaceSettings = standardPersistentDomain?[Keys.classicShelfEnabled] != nil
+            || standardPersistentDomain?[Keys.islandEnabled] != nil
+            || standardPersistentDomain?[Keys.islandShelfEnabled] != nil
+            || standardPersistentDomain?[Keys.preferredShelfSurface] != nil
+        let needsSurfaceMigration = persistedSurfaceSettingsVersion < 1
+            && !hasPreversionedSurfaceSettings
+        let resolvedClassicShelfEnabled: Bool
+        let resolvedIslandEnabled: Bool
+        let resolvedIslandShelfEnabled: Bool
+        let resolvedPreferredSurface: PreferredShelfSurface
+        if needsSurfaceMigration {
+            // Registration-domain defaults are process-wide, so a pristine
+            // isolated UserDefaults suite can still appear to contain the
+            // legacy `.classic` value after another SettingsStore is created.
+            // An actual legacy Island choice still overrides that value, while
+            // onboarding persistence identifies an established classic user.
+            let isFreshInstall = !hadPersistedOnboardingVersion
+                && legacyPresentationMode != .island
+            if isFreshInstall {
+                resolvedClassicShelfEnabled = true
+                resolvedIslandEnabled = true
+                resolvedIslandShelfEnabled = true
+                resolvedPreferredSurface = .island
+            } else {
+                resolvedClassicShelfEnabled = legacyPresentationMode == .classic
+                resolvedIslandEnabled = legacyPresentationMode == .island
+                resolvedIslandShelfEnabled = true
+                resolvedPreferredSurface = legacyPresentationMode == .island
+                    ? .island : .classic
+            }
+        } else {
+            resolvedClassicShelfEnabled = persistedClassicShelfEnabled
+                ?? defaults.bool(forKey: Keys.classicShelfEnabled)
+            resolvedIslandEnabled = persistedIslandEnabled
+                ?? defaults.bool(forKey: Keys.islandEnabled)
+            resolvedIslandShelfEnabled = persistedIslandShelfEnabled
+                ?? defaults.bool(forKey: Keys.islandShelfEnabled)
+            resolvedPreferredSurface = PreferredShelfSurface(
+                rawValue: persistedPreferredSurface
+                    ?? defaults.string(forKey: Keys.preferredShelfSurface)
+                    ?? ""
+            ) ?? .classic
+        }
+        classicShelfEnabled = resolvedClassicShelfEnabled
+        islandEnabled = resolvedIslandEnabled
+        islandShelfEnabled = resolvedIslandShelfEnabled
+        preferredShelfSurface = resolvedPreferredSurface
+        if needsSurfaceMigration {
+            defaults.set(resolvedClassicShelfEnabled, forKey: Keys.classicShelfEnabled)
+            defaults.set(resolvedIslandEnabled, forKey: Keys.islandEnabled)
+            defaults.set(resolvedIslandShelfEnabled, forKey: Keys.islandShelfEnabled)
+            defaults.set(resolvedPreferredSurface.rawValue,
+                         forKey: Keys.preferredShelfSurface)
+        }
+        if persistedSurfaceSettingsVersion < 1 {
+            defaults.set(1, forKey: Keys.shelfSurfaceSettingsVersion)
+        }
         islandHoverRevealEnabled = defaults.bool(forKey: Keys.islandHoverRevealEnabled)
         islandTimerEnabled = defaults.bool(forKey: Keys.islandTimerEnabled)
         islandBatteryEnabled = defaults.bool(forKey: Keys.islandBatteryEnabled)

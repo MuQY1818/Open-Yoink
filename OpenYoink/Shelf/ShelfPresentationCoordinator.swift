@@ -1,8 +1,8 @@
 import CoreGraphics
 
-/// Single routing façade for every shelf presentation entry point. It keeps
-/// trigger/menu/hot-key code independent of the concrete classic or Island
-/// surface and guarantees the two presentations cannot be shown together.
+/// Routing façade for the two independent shelf surfaces. Both surfaces share
+/// one ShelfStore; this coordinator chooses the user's preferred entry point
+/// without imposing mutual exclusion.
 @MainActor
 final class ShelfPresentationCoordinator {
     private let windowController: ShelfWindowController
@@ -11,7 +11,9 @@ final class ShelfPresentationCoordinator {
         self.windowController = windowController
     }
 
-    var isExpanded: Bool { windowController.isShelfVisible }
+    var isExpanded: Bool { windowController.isPreferredShelfExpanded }
+    var isClassicVisible: Bool { windowController.isShelfVisible }
+    var isIslandExpanded: Bool { windowController.isIslandExpanded }
 
     func applyCurrentMode(animated: Bool = false) {
         windowController.applyPresentationSettings(animated: animated)
@@ -26,12 +28,38 @@ final class ShelfPresentationCoordinator {
     }
 
     func show(animated: Bool = true, takeKeyboardFocus: Bool = false) {
+        windowController.showPreferredShelf(animated: animated,
+                                            takeKeyboardFocus: takeKeyboardFocus)
+    }
+
+    func hide(animated: Bool = true) {
+        windowController.hidePreferredShelf(animated: animated)
+    }
+
+    func showClassic(animated: Bool = true, takeKeyboardFocus: Bool = false) {
         windowController.showShelf(animated: animated,
                                    takeKeyboardFocus: takeKeyboardFocus)
     }
 
-    func hide(animated: Bool = true) {
+    func hideClassic(animated: Bool = true) {
         windowController.hideShelf(animated: animated)
+    }
+
+    func toggleClassic(animated: Bool = true) {
+        if isClassicVisible {
+            hideClassic(animated: animated)
+        } else {
+            showClassic(animated: animated)
+        }
+    }
+
+    func showIslandShelf(animated: Bool = true, takeKeyboardFocus: Bool = false) {
+        windowController.showIslandShelf(animated: animated,
+                                         takeKeyboardFocus: takeKeyboardFocus)
+    }
+
+    func collapseIsland(animated: Bool = true) {
+        windowController.collapseIsland(animated: animated)
     }
 
     @discardableResult

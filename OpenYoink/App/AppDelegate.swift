@@ -125,7 +125,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                                                          navigation: settingsNavigation,
                                                                          supportController: supportController)
     private lazy var menuBarController = MenuBarController(
-        appState: appState,
+        isShelfExpanded: { [weak self] in
+            self?.shelfPresentationCoordinator.isExpanded ?? false
+        },
         recents: recentItemsService,
         onToggleShelf: { [weak self] in
             self?.toggleShelf()
@@ -189,7 +191,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let self, !self.appState.isShelfVisible else { return }
         // UX2: 拖拽贴边唤出也记入自动唤出会话（拖空无落入自动收回）。
         self.dragAutoShowSession.markShownAutomatically()
-        self.shelfPresentationCoordinator.show(animated: true)
+        self.shelfPresentationCoordinator.showClassic(animated: true)
     })
     /// UX1: 拖拽开始监听（按下 → 位移超阈值判定拖拽 → 抬起结束）。
     /// 同时承担 UX2 贴边唤出的会话记帐：只要任一拖拽驱动唤出路径可能
@@ -223,10 +225,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         importCoordinator: dropImportCoordinator,
         dragStartMonitor: dragStartMonitor,
         onToggleShelf: { [weak self] in
-            self?.toggleShelf()
+            self?.shelfPresentationCoordinator.toggleClassic(animated: true)
         },
         onShowShelf: { [weak self] in
-            self?.shelfPresentationCoordinator.show(animated: true)
+            self?.shelfPresentationCoordinator.showClassic(animated: true)
         }
     )
 
@@ -387,15 +389,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 唤出，不标记、不动它）。`.edgeOnly` 只做记帐，唤出交给边缘触发。
     private func handleDragStart() {
         dragAutoShowSession.dragBegan()
-        if settingsStore.shelfPresentationMode == .island { return }
+        guard settingsStore.effectivePreferredShelfSurface == .classic else { return }
+        guard settingsStore.classicShelfEnabled else { return }
         guard settingsStore.dragAutoAppearMode == .immediate else { return }
         guard !appState.isShelfVisible else { return }
         dragAutoShowSession.markShownAutomatically()
-        shelfPresentationCoordinator.show(animated: true)
+        shelfPresentationCoordinator.showClassic(animated: true)
     }
 
     private func handleDragUpdate(at point: CGPoint) {
-        guard settingsStore.shelfPresentationMode == .island,
+        guard settingsStore.islandEnabled,
+              settingsStore.islandShelfEnabled,
               settingsStore.dragAutoAppearMode != .off else { return }
         if shelfPresentationCoordinator.dragApproachedTop(at: point) {
             islandDragWasActivated = true
@@ -417,7 +421,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if islandDragWasActivated {
             shelfPresentationCoordinator.dragEnded(imported: imported)
             islandDragWasActivated = false
-            return
         }
         guard shouldHideClassic, appState.isShelfVisible else { return }
         shelfPresentationCoordinator.hide(animated: true)
@@ -687,8 +690,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             mouseShakeMonitor.stop()
         }
 
-        let isClassic = settingsStore.shelfPresentationMode == .classic
-        let edgeActive = isClassic
+        let classicActive = settingsStore.classicShelfEnabled
+        let edgeActive = classicActive
             && settingsStore.dragAutoAppearMode == .edgeOnly
             && settingsStore.shelfPosition != .custom
         if edgeActive {
@@ -703,11 +706,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // EdgeTab 拉环常驻（开启 && 非 custom 即在位，不再随 shelf 显隐），
         // monitor 注册与拉环在位同一判定 —— 拉环一在位就需要拖拽状态。
-        let edgeTabActive = isClassic
+        let edgeTabActive = classicActive
             && settingsStore.edgeTabEnabled
             && settingsStore.shelfPosition != .custom
-        let islandDragActive = !isClassic && settingsStore.dragAutoAppearMode != .off
-        if (isClassic && settingsStore.dragAutoAppearMode == .immediate)
+        let islandDragActive = settingsStore.islandEnabled
+            && settingsStore.islandShelfEnabled
+            && settingsStore.dragAutoAppearMode != .off
+        let classicImmediateActive = settingsStore.effectivePreferredShelfSurface == .classic
+            && settingsStore.dragAutoAppearMode == .immediate
+        if classicImmediateActive
             || edgeActive || edgeTabActive || islandDragActive {
             dragStartMonitor.start()
         } else {

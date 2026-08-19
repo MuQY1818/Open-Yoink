@@ -6,28 +6,52 @@ import SwiftUI
 /// labels while preserving full VoiceOver labels, hints and tooltips.
 struct ShelfQuickActionBar: View {
     @Environment(\.shelfActionRunner) private var runner
+    @Environment(\.shelfPresentationStyle) private var presentationStyle
     let items: [ShelfItem]
 
+    @ViewBuilder
     var body: some View {
+        if presentationStyle == .island {
+            actionRows
+                .padding(.horizontal, 6)
+                .frame(height: 34)
+                .background {
+                    Capsule()
+                        .fill(Color.white.opacity(0.065))
+                        .overlay {
+                            Capsule()
+                                .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+                        }
+                }
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(maxWidth: .infinity)
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("shelf.quickActions")
+        } else {
+            actionRows
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 6)
+                .frame(height: 36)
+                .background {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(.regularMaterial)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
+                        }
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("shelf.quickActions")
+        }
+    }
+
+    private var actionRows: some View {
         ViewThatFits(in: .horizontal) {
             fullActionRow
                 .fixedSize(horizontal: true, vertical: false)
             compactActionRow
                 .fixedSize(horizontal: true, vertical: false)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 6)
-        .frame(height: 36)
-        .background {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(.regularMaterial)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
-                }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("shelf.quickActions")
     }
 
     private var fullActionRow: some View {
@@ -49,6 +73,8 @@ struct ShelfQuickActionBar: View {
                 menuButton(.revealInFinder)
             } label: {
                 Label("More", systemImage: "ellipsis.circle")
+                    .foregroundStyle(presentationStyle == .island
+                                     ? Color.white.opacity(0.92) : Color.primary)
             }
             .menuStyle(.button)
             .controlSize(.small)
@@ -69,7 +95,8 @@ struct ShelfQuickActionBar: View {
             systemImage: action.systemImage,
             identifier: action.accessibilityIdentifier,
             isEnabled: runner != nil && ShelfActionCatalog.canPerform(action, on: items),
-            firesOnMouseDown: action == .share
+            firesOnMouseDown: action == .share,
+            usesIslandAppearance: presentationStyle == .island
         ) { anchorView in
             runner?.perform(action, on: items, relativeTo: anchorView)
         }
@@ -99,6 +126,7 @@ private struct ShelfActionButton: NSViewRepresentable {
     let identifier: String
     let isEnabled: Bool
     let firesOnMouseDown: Bool
+    let usesIslandAppearance: Bool
     let perform: @MainActor (NSView) -> Void
 
     @MainActor
@@ -134,6 +162,7 @@ private struct ShelfActionButton: NSViewRepresentable {
         button.setAccessibilityHelp(accessibilityHint)
         button.setAccessibilityIdentifier(identifier)
         button.isEnabled = isEnabled
+        applyAppearance(to: button)
         if firesOnMouseDown {
             button.sendAction(on: .leftMouseDown)
         }
@@ -148,6 +177,39 @@ private struct ShelfActionButton: NSViewRepresentable {
         button.setAccessibilityLabel(accessibilityLabel)
         button.setAccessibilityHelp(accessibilityHint)
         button.isEnabled = isEnabled
+        applyAppearance(to: button)
+    }
+
+    private func applyAppearance(to button: NSButton) {
+        guard usesIslandAppearance else {
+            button.appearance = nil
+            button.contentTintColor = nil
+            button.bezelColor = nil
+            button.bezelStyle = .rounded
+            button.title = title
+            return
+        }
+        let foreground = NSColor.white.withAlphaComponent(button.isEnabled ? 0.92 : 0.42)
+        button.appearance = NSAppearance(named: .darkAqua)
+        button.attributedTitle = NSAttributedString(
+            string: title,
+            attributes: [
+                .foregroundColor: foreground,
+                .font: NSFont.systemFont(
+                    ofSize: NSFont.smallSystemFontSize,
+                    weight: .medium
+                ),
+            ]
+        )
+        button.image = NSImage(
+            systemSymbolName: systemImage,
+            accessibilityDescription: nil
+        )?.withSymbolConfiguration(
+            NSImage.SymbolConfiguration(paletteColors: [foreground])
+        )
+        button.contentTintColor = foreground
+        button.bezelColor = NSColor.white.withAlphaComponent(0.09)
+        button.bezelStyle = .recessed
     }
 }
 

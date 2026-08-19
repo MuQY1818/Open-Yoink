@@ -114,6 +114,10 @@ final class IslandTimerStore: IslandModule {
         case .idle, .finished:
             return 0
         case let .running(endDate, _):
+            // `endDate` itself stays constant while a timer is running. Read
+            // the observable tick so SwiftUI invalidates countdown text and
+            // progress every time the low-frequency ticker advances.
+            _ = tick
             return max(0, endDate.timeIntervalSince(date))
         case let .paused(remaining, _):
             return max(0, remaining)
@@ -130,6 +134,13 @@ final class IslandTimerStore: IslandModule {
         }
         guard original > 0 else { return 0 }
         return min(1, max(0, 1 - remaining() / original))
+    }
+
+    /// Fraction of the selected duration still remaining. The Island timer
+    /// visual uses a shrinking ring, which maps more directly to a countdown
+    /// than the elapsed-progress value above.
+    var remainingFraction: Double {
+        1 - progress
     }
 
     var formattedRemaining: String {

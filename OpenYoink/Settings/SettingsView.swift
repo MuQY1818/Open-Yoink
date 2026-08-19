@@ -274,7 +274,6 @@ private struct GeneralSettingsTab: View {
     @Environment(SettingsStore.self) private var settings
     @Environment(LaunchAtLoginController.self) private var launchAtLoginController
     @Environment(UpdateController.self) private var updateController
-    @State private var showingExperimentalMediaConfirmation = false
 
     var body: some View {
         @Bindable var settings = settings
@@ -308,16 +307,19 @@ private struct GeneralSettingsTab: View {
                 }
             }
 
-            Section("Shelf") {
-                Picker("Position", selection: $settings.shelfPlacement) {
-                    Text("Left").tag(SettingsStore.ShelfPlacement.left)
-                    Text("Right").tag(SettingsStore.ShelfPlacement.right)
-                    Text("Island Beta").tag(SettingsStore.ShelfPlacement.island)
-                    Text("Custom").tag(SettingsStore.ShelfPlacement.custom)
-                }
-                .pickerStyle(.segmented)
+            Section("Side Shelf") {
+                Toggle("Enable Side Shelf", isOn: $settings.classicShelfEnabled)
 
-                if settings.shelfPlacement == .custom {
+                if settings.classicShelfEnabled {
+                    Picker("Position", selection: $settings.shelfPosition) {
+                        Text("Left").tag(SettingsStore.ShelfPosition.left)
+                        Text("Right").tag(SettingsStore.ShelfPosition.right)
+                        Text("Custom").tag(SettingsStore.ShelfPosition.custom)
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                if settings.classicShelfEnabled && settings.shelfPosition == .custom {
                     // S9: custom 模式 —— 面板可拖动，拖动结束持久化 frame；
                     // 首次选中从右缘默认位置起步。边缘触发在无贴附缘时暂停。
                     Text("Drag the shelf by its title bar to place it anywhere. The edge trigger is unavailable in custom mode.")
@@ -325,7 +327,7 @@ private struct GeneralSettingsTab: View {
                         .foregroundStyle(.secondary)
                 }
 
-                if settings.shelfPresentationMode == .classic {
+                if settings.classicShelfEnabled {
                     LabeledContent("Width") {
                         HStack(spacing: 8) {
                             Slider(value: $settings.shelfWidth, in: 240...480, step: 10)
@@ -347,8 +349,12 @@ private struct GeneralSettingsTab: View {
                     Text("Click the tab to show the shelf, drag it along the edge to reposition, or drop files onto it. Not shown in custom position mode.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                } else {
-                    Text("Island uses the built-in camera housing when available. Displays without a notch use a floating pill below the menu bar.")
+                }
+            }
+
+            Section("Shelf Behavior") {
+                if settings.classicShelfEnabled && settings.islandEnabled {
+                    Text("With Side Shelf enabled, the shelf shortcut controls it. Otherwise the shortcut opens Island Shelf.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -364,12 +370,31 @@ private struct GeneralSettingsTab: View {
                 Text("Dropping files keeps a reference. Hold ⌘ while dropping to move the original into the shelf — the original goes to the Trash, so it can be restored.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                Text("After a successful drop, the receiving shelf stays open so you can drag the item to its destination.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
-            if settings.shelfPresentationMode == .island {
-                Section("Island Modules") {
+            Section("OpenYoink Island") {
+                Toggle("Enable OpenYoink Island", isOn: $settings.islandEnabled)
+
+                if settings.islandEnabled {
+                    Text("Island uses the built-in camera housing when available. Displays without a notch use a floating pill below the menu bar.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
                     Toggle("Expand Island on hover", isOn: $settings.islandHoverRevealEnabled)
-                    Text("Hover waits briefly before expanding. Click, drag to the top, and the global shortcut always remain available.")
+                    Text("Click is always available. Hover waits briefly before expanding.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if settings.islandEnabled {
+                Section("Island Modules") {
+                    Toggle("Shelf", isOn: $settings.islandShelfEnabled)
+                    Text("The Island Shelf and Side Shelf use the same items. Turning this module off never deletes them.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -380,26 +405,10 @@ private struct GeneralSettingsTab: View {
                                isOn: $settings.islandFullChargeAlertEnabled)
                     }
 
-                    Toggle("Now Playing (Experimental)", isOn: Binding(
-                        get: { settings.islandMediaEnabled },
-                        set: { enabled in
-                            if enabled && !settings.islandMediaEnabled {
-                                showingExperimentalMediaConfirmation = true
-                            } else {
-                                settings.islandMediaEnabled = false
-                            }
-                        }
-                    ))
-                    Text("Experimental media support may stop working after a macOS update. It stays off unless you enable it.")
+                    Toggle("Now Playing", isOn: $settings.islandMediaEnabled)
+                    Text("Shows artwork and controls from the active media player. Processing stays on this Mac; compatibility can vary after macOS updates.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                }
-                .alert("Enable Experimental Now Playing?",
-                       isPresented: $showingExperimentalMediaConfirmation) {
-                    Button("Cancel", role: .cancel) {}
-                    Button("Enable") { settings.islandMediaEnabled = true }
-                } message: {
-                    Text("This feature uses a bundled compatibility helper and may fail after macOS updates. Shelf, transfers, timer, and battery are unaffected.")
                 }
             }
 
@@ -676,7 +685,7 @@ private struct AboutSettingsTab: View {
             }
 
             Section("Acknowledgments") {
-                Text("Open-Yoink is an independent clean-room implementation crafted for macOS. Bundled third-party components are Sparkle (MIT) for updates and mediaremote-adapter (BSD 3-Clause) for the opt-in experimental Now Playing module. A complete attribution record is available in THIRD_PARTY_NOTICES.md in the source repository.")
+                Text("Open-Yoink is an independent clean-room implementation crafted for macOS. Bundled third-party components are Sparkle (MIT) for updates and mediaremote-adapter (BSD 3-Clause) for the optional local Now Playing module. A complete attribution record is available in THIRD_PARTY_NOTICES.md in the source repository.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

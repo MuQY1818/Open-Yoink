@@ -1,0 +1,13 @@
+{
+  "name": "openyoink-docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build && cp ../docs/appcast.xml .vitepress/dist/appcast.xml",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "vitepress": "1.6.4"
+  }
+}
