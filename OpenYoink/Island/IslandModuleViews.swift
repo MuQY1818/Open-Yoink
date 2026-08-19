@@ -69,7 +69,9 @@ struct IslandRootView: View {
                     compactTrailing
                         .frame(width: IslandGeometryResolver.compactWingWidth)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(maxWidth: .infinity)
+                .frame(height: coordinator.currentLayout?.topInset ?? 32)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             } else {
                 HStack(spacing: 8) {
                     compactLeading
@@ -88,7 +90,7 @@ struct IslandRootView: View {
                 .fill(Color.black.opacity(0.96))
         }
         .overlay {
-            if isCompactHovering {
+            if compactIsHighlighted {
                 compactSurfaceShape
                     .fill(Color.accentColor.opacity(0.14))
             } else if !hasPhysicalNotch {
@@ -168,20 +170,31 @@ struct IslandRootView: View {
         .padding(.bottom, 12)
         .contentShape(expandedSurfaceShape)
         .background {
-            expandedSurfaceShape
-                .fill(Color.black.opacity(0.94))
+            ZStack {
+                IslandVisualEffectBackground(material: .hudWindow)
+                Color.black.opacity(0.30)
+                LinearGradient(
+                    colors: [Color.white.opacity(0.07), .clear],
+                    startPoint: .top,
+                    endPoint: .center
+                )
+            }
+            .clipShape(expandedSurfaceShape)
         }
         .overlay {
-            if !hasPhysicalNotch {
-                expandedSurfaceShape
-                    .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
-            }
+            expandedSurfaceShape
+                .strokeBorder(Color.white.opacity(hasPhysicalNotch ? 0.07 : 0.13),
+                              lineWidth: 1)
         }
         .shadow(color: .black.opacity(0.28), radius: 18, y: 10)
     }
 
     private var hasPhysicalNotch: Bool {
         coordinator.currentLayout?.hasPhysicalNotch == true
+    }
+
+    private var compactIsHighlighted: Bool {
+        isCompactHovering || coordinator.isPointerHovering
     }
 
     private var compactSurfaceShape: IslandSurfaceShape {
@@ -372,6 +385,26 @@ private struct IslandSurfaceShape: InsettableShape {
                           control: CGPoint(x: rect.minX, y: rect.maxY))
         path.closeSubpath()
         return path
+    }
+}
+
+/// AppKit's HUD vibrancy gives the expanded island a real translucent backdrop
+/// instead of approximating glass with a nearly opaque SwiftUI color.
+private struct IslandVisualEffectBackground: NSViewRepresentable {
+    var material: NSVisualEffectView.Material
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = .behindWindow
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = material
+        nsView.blendingMode = .behindWindow
+        nsView.state = .active
     }
 }
 

@@ -21,6 +21,10 @@ enum IslandGeometryResolver {
     }
 
     static let compactWingWidth: CGFloat = 58
+    /// A physical camera housing cannot receive pointer events. Extending the
+    /// attached surface slightly below it creates one obvious click target while
+    /// keeping the top edge fused to the screen hardware.
+    static let physicalNotchClickExtension: CGFloat = 10
     static let floatingCompactSize = CGSize(width: 224, height: 38)
     static let maximumExpandedWidth: CGFloat = 520
     static let minimumExpandedWidth: CGFloat = 360
@@ -59,10 +63,11 @@ enum IslandGeometryResolver {
                              width: notchWidth,
                              height: notchHeight)
             let width = notchWidth + compactWingWidth * 2
+            let compactHeight = notchHeight + physicalNotchClickExtension
             compact = CGRect(x: housing.midX - width / 2,
-                             y: screen.frame.maxY - notchHeight,
+                             y: screen.frame.maxY - compactHeight,
                              width: width,
-                             height: notchHeight)
+                             height: compactHeight)
             topAnchor = screen.frame.maxY
             horizontalAnchor = housing.midX
         } else {

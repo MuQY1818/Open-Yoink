@@ -108,6 +108,9 @@ final class IslandModuleRegistry {
 final class IslandActivityCoordinator {
     private(set) var surfaceState: IslandSurfaceState = .compact
     var currentLayout: IslandGeometryResolver.Layout?
+    /// Visual-only hover state. It intentionally does not call
+    /// `onStateDidChange`, because pointer movement must never resize the panel.
+    var isPointerHovering = false
     var selectedModule: IslandModuleID = .shelf {
         didSet {
             guard oldValue != selectedModule else { return }
@@ -124,7 +127,13 @@ final class IslandActivityCoordinator {
     func setSurfaceState(_ state: IslandSurfaceState) {
         guard surfaceState != state else { return }
         surfaceState = state
+        if state.isExpanded { isPointerHovering = false }
         onStateDidChange?()
+    }
+
+    func setPointerHovering(_ hovering: Bool) {
+        guard isPointerHovering != hovering else { return }
+        isPointerHovering = hovering
     }
 
     func show(module: IslandModuleID = .shelf, pinned: Bool = false) {

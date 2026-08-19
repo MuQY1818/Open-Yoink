@@ -17,7 +17,10 @@ final class IslandGeometryResolverTests: XCTestCase {
                        CGRect(x: 645, y: 944, width: 222, height: 38))
         XCTAssertEqual(layout.compactFrame.width,
                        222 + IslandGeometryResolver.compactWingWidth * 2)
+        XCTAssertEqual(layout.compactFrame.height,
+                       38 + IslandGeometryResolver.physicalNotchClickExtension)
         XCTAssertEqual(layout.compactFrame.midX, screen.frame.midX)
+        XCTAssertEqual(layout.compactFrame.maxY, screen.frame.maxY)
         XCTAssertEqual(layout.expandedFrame.maxY, screen.frame.maxY)
     }
 
@@ -53,6 +56,8 @@ final class IslandGeometryResolverTests: XCTestCase {
                        CGRect(x: -849, y: 950, width: 185, height: 32))
         XCTAssertEqual(layout.compactFrame.midX, layout.cameraHousingFrame.midX)
         XCTAssertEqual(layout.expandedFrame.midX, layout.cameraHousingFrame.midX)
+        XCTAssertEqual(layout.compactFrame.height,
+                       32 + IslandGeometryResolver.physicalNotchClickExtension)
         XCTAssertEqual(layout.compactFrame.maxY, screen.frame.maxY)
     }
 

@@ -1087,30 +1087,43 @@ final class ShelfWindowController: NSObject {
         }
         islandHoverTask?.cancel()
         islandHoverTask = nil
+        islandActivityCoordinator.setPointerHovering(false)
     }
 
     private func handleIslandEvent(_ event: NSEvent, at point: CGPoint) {
         guard settings.shelfPresentationMode == .island else { return }
         switch event.type {
         case .leftMouseDown:
+            if !islandActivityCoordinator.surfaceState.isExpanded {
+                let layout = islandLayout(at: point)
+                guard layout.compactFrame.contains(point) else { return }
+                islandActivityCoordinator.currentLayout = layout
+                islandActivityCoordinator.show(
+                    module: islandActivityCoordinator.primaryActivity()?.moduleID ?? .shelf
+                )
+                return
+            }
             guard islandActivityCoordinator.surfaceState == .expanded,
                   !panel.frame.contains(point) else { return }
             hideShelf(animated: true)
         case .mouseMoved:
+            let layout = islandLayout(at: point)
             if !islandActivityCoordinator.surfaceState.isExpanded {
-                let layout = islandLayout(at: point)
                 if islandActivityCoordinator.currentLayout?.compactFrame != layout.compactFrame {
                     islandActivityCoordinator.currentLayout = layout
                     panel.setFrame(layout.compactFrame, display: true)
                 }
             }
+            islandActivityCoordinator.setPointerHovering(
+                !islandActivityCoordinator.surfaceState.isExpanded
+                    && layout.compactFrame.contains(point)
+            )
             guard settings.islandHoverRevealEnabled,
                   !islandActivityCoordinator.surfaceState.isExpanded else {
                 islandHoverTask?.cancel()
                 islandHoverTask = nil
                 return
             }
-            let layout = islandLayout(at: point)
             guard layout.compactFrame.insetBy(dx: -4, dy: -4).contains(point) else {
                 islandHoverTask?.cancel()
                 islandHoverTask = nil
