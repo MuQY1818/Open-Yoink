@@ -25,6 +25,7 @@ struct IslandRootView: View {
     @Environment(PowerSourceMonitor.self) private var powerMonitor
     @Environment(NowPlayingModuleStore.self) private var nowPlayingStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isCompactHovering = false
 
     var onPerformRecovery: ((RecoveryAction) -> Void)?
 
@@ -81,14 +82,28 @@ struct IslandRootView: View {
             }
         }
         .buttonStyle(.plain)
-        .contentShape(Rectangle())
+        .contentShape(compactSurfaceShape)
         .background {
-            RoundedRectangle(cornerRadius: 13, style: .continuous)
+            compactSurfaceShape
                 .fill(Color.black.opacity(0.96))
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 13, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
+            if isCompactHovering {
+                compactSurfaceShape
+                    .fill(Color.accentColor.opacity(0.14))
+            } else if !hasPhysicalNotch {
+                compactSurfaceShape
+                    .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
+            }
+        }
+        .onHover { hovering in
+            if reduceMotion {
+                isCompactHovering = hovering
+            } else {
+                withAnimation(.easeOut(duration: 0.16)) {
+                    isCompactHovering = hovering
+                }
+            }
         }
         .accessibilityLabel(Text(compactAccessibilityLabel))
         .accessibilityHint(Text("Open OpenYoink Island"))
@@ -151,25 +166,51 @@ struct IslandRootView: View {
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 12)
+        .contentShape(expandedSurfaceShape)
         .background {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            expandedSurfaceShape
                 .fill(Color.black.opacity(0.94))
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
+            if !hasPhysicalNotch {
+                expandedSurfaceShape
+                    .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
+            }
         }
         .shadow(color: .black.opacity(0.28), radius: 18, y: 10)
     }
 
+    private var hasPhysicalNotch: Bool {
+        coordinator.currentLayout?.hasPhysicalNotch == true
+    }
+
+    private var compactSurfaceShape: IslandSurfaceShape {
+        IslandSurfaceShape(attachedToScreenTop: hasPhysicalNotch, cornerRadius: 13)
+    }
+
+    private var expandedSurfaceShape: IslandSurfaceShape {
+        IslandSurfaceShape(attachedToScreenTop: hasPhysicalNotch, cornerRadius: 18)
+    }
+
     private var islandCap: some View {
         HStack(spacing: 8) {
-            Image(systemName: "tray.full.fill")
-                .foregroundStyle(Color.accentColor)
-                .accessibilityHidden(true)
-            Text("OpenYoink Island")
-                .font(.headline)
-            Spacer()
+            Button {
+                coordinator.collapse()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "tray.full.fill")
+                        .foregroundStyle(Color.accentColor)
+                        .accessibilityHidden(true)
+                    Text("OpenYoink Island")
+                        .font(.headline)
+                    Spacer(minLength: 8)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("Collapse Island"))
+            .help(Text("Collapse Island"))
+
             Button {
                 coordinator.setPinned(coordinator.surfaceState != .pinned)
             } label: {
@@ -295,6 +336,42 @@ struct IslandRootView: View {
         case .delivered, .targetAccepted: return "checkmark.circle.fill"
         default: return "arrow.up.arrow.down"
         }
+    }
+}
+
+/// A physical-notch surface has a straight top edge so its black chrome joins the
+/// camera housing without a transparent seam. Displays without a notch retain the
+/// independent rounded capsule used by the fallback presentation.
+private struct IslandSurfaceShape: InsettableShape {
+    var attachedToScreenTop: Bool
+    var cornerRadius: CGFloat
+    var insetAmount: CGFloat = 0
+
+    func inset(by amount: CGFloat) -> IslandSurfaceShape {
+        var copy = self
+        copy.insetAmount += amount
+        return copy
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let rect = rect.insetBy(dx: insetAmount, dy: insetAmount)
+        guard attachedToScreenTop else {
+            return RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .path(in: rect)
+        }
+
+        let radius = min(cornerRadius, rect.width / 2, rect.height / 2)
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - radius))
+        path.addQuadCurve(to: CGPoint(x: rect.maxX - radius, y: rect.maxY),
+                          control: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX + radius, y: rect.maxY))
+        path.addQuadCurve(to: CGPoint(x: rect.minX, y: rect.maxY - radius),
+                          control: CGPoint(x: rect.minX, y: rect.maxY))
+        path.closeSubpath()
+        return path
     }
 }
 

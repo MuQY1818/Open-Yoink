@@ -899,6 +899,15 @@ final class ShelfWindowController: NSObject {
         lastPresentationMode = settings.shelfPresentationMode
 
         if settings.shelfPresentationMode == .island {
+            // A regular floating panel is constrained below the menu bar by AppKit.
+            // Island chrome must occupy the camera-housing band itself, matching
+            // status-item z-order while staying below screen-saver windows so drag
+            // sessions keep reaching it.
+            panel.allowsTopEdgeOverlap = true
+            panel.level = NSWindow.Level(
+                rawValue: NSWindow.Level.statusBar.rawValue + 8
+            )
+            panel.hasShadow = false
             startEnabledIslandModules()
             startIslandEventMonitoring()
             if modeChanged || islandActivityCoordinator.surfaceState == .hidden {
@@ -911,6 +920,9 @@ final class ShelfWindowController: NSObject {
             panel.setFrame(target, display: true)
             panel.orderFront(nil)
         } else {
+            panel.allowsTopEdgeOverlap = false
+            panel.level = .floating
+            panel.hasShadow = true
             stopIslandModules()
             stopIslandEventMonitoring()
             islandActivityCoordinator.hide()

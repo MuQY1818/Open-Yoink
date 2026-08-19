@@ -5,6 +5,11 @@ import AppKit
 /// 透明背景 + 圆角 + vibrancy 视觉由内容层（`ShelfView`）实现。
 @MainActor
 final class ShelfPanel: NSPanel {
+    /// Island 模式需要真正贴住屏幕物理顶边。NSWindow 默认会把很矮的窗口
+    /// 约束到 `visibleFrame`（菜单栏下方），即使调用方传入的是刘海所在 frame。
+    /// 经典模式继续保留 AppKit 的常规屏幕约束。
+    var allowsTopEdgeOverlap = false
+
     /// S6: 键盘事件回调（空格 Quick Look / Delete 移除 / Esc 取消选择或关 QL）。
     /// 由 ShelfWindowController 注入；返回 true 表示事件已消费。
     /// 卡片单击会让面板成为 key（见 CardDragSourceAnchorView.mouseUp），未被
@@ -40,6 +45,10 @@ final class ShelfPanel: NSPanel {
     /// `makeKeyWindow ... returned NO` 警告），空格 Quick Look / Delete / Esc
     /// 全部失效。面板需要接键盘事件但不抢 main 状态，故只放开 key。
     override var canBecomeKey: Bool { true }
+
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        allowsTopEdgeOverlap ? frameRect : super.constrainFrameRect(frameRect, to: screen)
+    }
 
     override func keyDown(with event: NSEvent) {
         if onKeyDown?(event) == true { return }

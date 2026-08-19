@@ -39,7 +39,10 @@ enum IslandGeometryResolver {
     static func resolve(screen: ScreenGeometry) -> Layout {
         let left = screen.auxiliaryTopLeftArea
         let right = screen.auxiliaryTopRightArea
-        let notchWidth = max(0, right.minX - left.maxX)
+        // auxiliary areas have been observed in both screen-relative and global
+        // coordinates. Their widths are stable in either representation, while
+        // subtracting minX/maxX can place the housing on the wrong display.
+        let notchWidth = max(0, screen.frame.width - left.width - right.width)
         let notchHeight = max(0, screen.safeAreaTop)
         let hasNotch = notchHeight >= 20
             && !left.isEmpty
@@ -49,17 +52,19 @@ enum IslandGeometryResolver {
         let housing: CGRect
         let compact: CGRect
         let topAnchor: CGFloat
+        let horizontalAnchor: CGFloat
         if hasNotch {
-            housing = CGRect(x: left.maxX,
+            housing = CGRect(x: screen.frame.minX + left.width,
                              y: screen.frame.maxY - notchHeight,
                              width: notchWidth,
                              height: notchHeight)
             let width = notchWidth + compactWingWidth * 2
-            compact = CGRect(x: screen.frame.midX - width / 2,
+            compact = CGRect(x: housing.midX - width / 2,
                              y: screen.frame.maxY - notchHeight,
                              width: width,
                              height: notchHeight)
             topAnchor = screen.frame.maxY
+            horizontalAnchor = housing.midX
         } else {
             housing = .zero
             compact = CGRect(x: screen.visibleFrame.midX - floatingCompactSize.width / 2,
@@ -67,6 +72,7 @@ enum IslandGeometryResolver {
                              width: floatingCompactSize.width,
                              height: floatingCompactSize.height)
             topAnchor = compact.maxY
+            horizontalAnchor = screen.visibleFrame.midX
         }
 
         let availableWidth = max(240, screen.visibleFrame.width - 24)
@@ -75,12 +81,12 @@ enum IslandGeometryResolver {
                                     min(availableWidth, maximumExpandedWidth)))
         let heightCap = max(260, screen.visibleFrame.height * maximumExpandedHeightFraction)
         let expandedHeight = min(expandedPreferredHeight, heightCap)
-        let expanded = CGRect(x: screen.visibleFrame.midX - expandedWidth / 2,
+        let expanded = CGRect(x: horizontalAnchor - expandedWidth / 2,
                               y: topAnchor - expandedHeight,
                               width: expandedWidth,
                               height: expandedHeight)
         let activationHeight: CGFloat = 88
-        let activation = CGRect(x: screen.frame.midX - expandedWidth / 2,
+        let activation = CGRect(x: horizontalAnchor - expandedWidth / 2,
                                 y: screen.frame.maxY - activationHeight,
                                 width: expandedWidth,
                                 height: activationHeight)

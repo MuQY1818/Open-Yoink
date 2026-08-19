@@ -36,6 +36,26 @@ final class IslandGeometryResolverTests: XCTestCase {
         XCTAssertEqual(layout.expandedFrame.maxY, layout.compactFrame.maxY)
     }
 
+    func testNotchHousingUsesAuxiliaryWidthsAcrossCoordinateSpaces() {
+        let screen = IslandGeometryResolver.ScreenGeometry(
+            frame: CGRect(x: -1512, y: 0, width: 1512, height: 982),
+            visibleFrame: CGRect(x: -1512, y: 0, width: 1512, height: 949),
+            safeAreaTop: 32,
+            // Some screen snapshots expose these rects in screen-local coordinates.
+            auxiliaryTopLeftArea: CGRect(x: 0, y: 950, width: 663, height: 32),
+            auxiliaryTopRightArea: CGRect(x: 848, y: 950, width: 664, height: 32)
+        )
+
+        let layout = IslandGeometryResolver.resolve(screen: screen)
+
+        XCTAssertTrue(layout.hasPhysicalNotch)
+        XCTAssertEqual(layout.cameraHousingFrame,
+                       CGRect(x: -849, y: 950, width: 185, height: 32))
+        XCTAssertEqual(layout.compactFrame.midX, layout.cameraHousingFrame.midX)
+        XCTAssertEqual(layout.expandedFrame.midX, layout.cameraHousingFrame.midX)
+        XCTAssertEqual(layout.compactFrame.maxY, screen.frame.maxY)
+    }
+
     func testNegativeCoordinateExternalScreenStaysOnThatScreen() {
         let screen = IslandGeometryResolver.ScreenGeometry(
             frame: CGRect(x: -2560, y: -200, width: 2560, height: 1440),
