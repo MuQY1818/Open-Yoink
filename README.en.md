@@ -35,15 +35,7 @@ edge of your screen or inside the Mac notch, then drag them out wherever they be
 
 ## The problem it solves
 
-When you move something between Finder, a browser, Mail, and other apps, the destination is often buried behind another window or Space. OpenYoink gives you a temporary parking spot, so one awkward cross-window drag becomes three simple steps:
-
-```
-   ┌──────────┐      ┌──────────────┐      ┌──────────┐
-   │  Finder  │ ───▶ │   OpenYoink  │ ───▶ │  Target  │
-   │   desk   │  park │    shelf     │  drop │   app    │
-   └──────────┘      └──────────────┘      └──────────┘
-   Start dragging     Screen edge / Notch     Drag it home
-```
+When you move something between Finder, a browser, Mail, and other apps, the destination is often buried behind another window or Space. OpenYoink gives the content a temporary parking spot: drag it to a screen edge or the Mac notch, switch windows, and continue the drag to its destination.
 
 OpenYoink lives in the menu bar without a Dock icon. It appears when you need it and gets out of the way when you are done.
 
