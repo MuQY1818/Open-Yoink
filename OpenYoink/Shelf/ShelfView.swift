@@ -1,6 +1,11 @@
 import AppKit
 import SwiftUI
 
+enum ShelfPresentationStyle: Sendable {
+    case classic
+    case island
+}
+
 /// Shelf 根视图（S3：真实内容渲染）。
 ///
 /// 视觉规范（实施计划 §3）：vibrancy 底（.hudWindow 材质）+ 16pt 圆角 +
@@ -19,6 +24,12 @@ import SwiftUI
 /// DragContainerView 据此把拖入鼠标位置映射为行列插入下标。
 /// D10: 拖入/物化失败的内联提示（`ShelfNoticeModel`）渲染在标题栏下方。
 struct ShelfView: View {
+    let presentationStyle: ShelfPresentationStyle
+
+    init(presentationStyle: ShelfPresentationStyle = .classic) {
+        self.presentationStyle = presentationStyle
+    }
+
     @Environment(ShelfStore.self) private var store
 
     /// S4: 拖入悬停高亮与插入指示线位置，由 DragContainerView
@@ -62,7 +73,23 @@ struct ShelfView: View {
     private let columns = [GridItem(.adaptive(minimum: Self.columnWidth), spacing: Self.gridSpacing)]
 
     var body: some View {
-        VisualEffectBackground(material: .hudWindow, cornerRadius: Self.cornerRadius)
+        presentedSurface
+            .overlay(alignment: .topLeading) { marqueeOverlay }
+            .onChange(of: store.items) {
+                dropTargetState.reset()
+                interaction.normalize(for: store.items)
+            }
+            .onChange(of: transferStore.currentTask, initial: true) { _, task in
+                announcementCenter?.announce(task: task)
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("shelf.root")
+    }
+
+    @ViewBuilder
+    private var presentedSurface: some View {
+        if presentationStyle == .classic {
+            VisualEffectBackground(material: .hudWindow, cornerRadius: Self.cornerRadius)
             .overlay {
                 RoundedRectangle(cornerRadius: Self.cornerRadius)
                     .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
@@ -86,26 +113,31 @@ struct ShelfView: View {
             // 原位置是面板贴缘的 14pt —— 挂在 padding 前会被形状内缩 8pt
             // 带偏（真机验证点击落空），必须贴着面板真正的贴缘边。
             .overlay(alignment: outerCollapseStripAlignment) { outerCollapseStrip }
-            // C5: 框选选框在窗口 .global 坐标系 —— 必须挂在 padding 之后，
-            // overlay 局部原点才与窗口内容原点（即 .global 原点）重合。
-            .overlay(alignment: .topLeading) { marqueeOverlay }
-            // 项目集合变化后清除拖入视觉残留（S4 拖放完成后同样走这里复位）。
-            .onChange(of: store.items) {
-                dropTargetState.reset()
-                interaction.normalize(for: store.items)
-            }
-            .onChange(of: transferStore.currentTask, initial: true) { _, task in
-                announcementCenter?.announce(task: task)
-            }
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("shelf.root")
+        } else {
+            Color.clear
+                .overlay { content }
+                .overlay { dropTargetHighlight }
+                .overlay { expandedStackOverlay }
+                .overlay(alignment: .top) { noticeBanner }
+                .overlay(alignment: .bottom) { dropModeHint }
+                .animation(reduceMotion ? nil : Self.cardAnimation,
+                           value: interaction.expandedStackID)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.2),
+                           value: notices.message != nil)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.2),
+                           value: transferStore.hasVisibleActivity)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.2),
+                           value: dropTargetState.mode)
+        }
     }
 
     // MARK: - Content
 
     private var content: some View {
         VStack(spacing: 4) {
-            header
+            if presentationStyle == .classic {
+                header
+            }
             if transferStore.hasVisibleActivity {
                 ShelfActivityStrip(onPerformRecovery: performRecovery)
                     .transition(reduceMotion
@@ -334,7 +366,8 @@ struct ShelfView: View {
     /// 把手贴附侧（纯逻辑在 `ShelfLayoutEngine.innerEdgeHandleSide`）；
     /// custom 自由位置模式为 nil —— 不显示把手。
     private var collapseHandleSide: ShelfLayoutEngine.InnerEdgeHandleSide? {
-        ShelfLayoutEngine.innerEdgeHandleSide(for: settings.shelfPosition)
+        guard presentationStyle == .classic else { return nil }
+        return ShelfLayoutEngine.innerEdgeHandleSide(for: settings.shelfPosition)
     }
 
     private var collapseHandleAlignment: Alignment {

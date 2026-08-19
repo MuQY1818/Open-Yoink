@@ -137,13 +137,16 @@ final class DragStartMonitor {
     /// Ignore-list gate, evaluated only at the moment a drag is confirmed.
     private let shouldSuppress: @MainActor () -> Bool
     private let onDragStart: @MainActor () -> Void
+    private let onDragUpdate: @MainActor (CGPoint) -> Void
     private let onDragEnd: @MainActor () -> Void
 
     init(shouldSuppress: @escaping @MainActor () -> Bool,
          onDragStart: @escaping @MainActor () -> Void,
+         onDragUpdate: @escaping @MainActor (CGPoint) -> Void = { _ in },
          onDragEnd: @escaping @MainActor () -> Void) {
         self.shouldSuppress = shouldSuppress
         self.onDragStart = onDragStart
+        self.onDragUpdate = onDragUpdate
         self.onDragEnd = onDragEnd
     }
 
@@ -194,14 +197,16 @@ final class DragStartMonitor {
         case .leftMouseDown:
             tracker?.mouseDown(at: point)
         case .leftMouseDragged:
-            guard tracker?.mouseDragged(to: point) == true else { return }
+            let didBegin = tracker?.mouseDragged(to: point) == true
+            guard tracker?.phase == .dragging else { return }
             // EdgeTab: 投放暗示状态与抑制无关 —— 被抑制（忽略列表 / 正在拖动
             // 拉环本身）的拖拽依然是「拖拽进行中」，只是不触发唤出。
             isDragInProgress = true
             // 抑制（忽略列表前台）只影响唤出，不破坏跟踪器状态：抬起时
             // onDragEnd 照常到达，会话裁决（未 dragBegan）空转。
             guard !shouldSuppress() else { return }
-            onDragStart()
+            if didBegin { onDragStart() }
+            onDragUpdate(point)
         case .leftMouseUp:
             guard tracker?.mouseUp() == true else { return }
             isDragInProgress = false

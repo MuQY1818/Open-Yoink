@@ -107,6 +107,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                                                    tutorialTokenForItem: { [weak self] itemID in
                                                                        self?.onboardingDragContext.token(for: itemID)
                                                                    })
+    private lazy var shelfPresentationCoordinator = ShelfPresentationCoordinator(
+        windowController: shelfWindowController
+    )
     private lazy var onboardingController = OnboardingController(
         settings: settingsStore,
         shelfStore: shelfStore,
@@ -186,7 +189,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let self, !self.appState.isShelfVisible else { return }
         // UX2: 拖拽贴边唤出也记入自动唤出会话（拖空无落入自动收回）。
         self.dragAutoShowSession.markShownAutomatically()
-        self.shelfWindowController.showShelf(animated: true)
+        self.shelfPresentationCoordinator.show(animated: true)
     })
     /// UX1: 拖拽开始监听（按下 → 位移超阈值判定拖拽 → 抬起结束）。
     /// 同时承担 UX2 贴边唤出的会话记帐：只要任一拖拽驱动唤出路径可能
@@ -201,11 +204,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             || IgnoreListService.frontmostAppIsIgnored(in: self.settingsStore.ignoredAppBundleIDs)
     }, onDragStart: { [weak self] in
         self?.handleDragStart()
+    }, onDragUpdate: { [weak self] point in
+        self?.handleDragUpdate(at: point)
     }, onDragEnd: { [weak self] in
         self?.handleDragEnd()
     })
     /// UX1/2: 拖拽自动唤出会话裁决（纯逻辑状态机，见 Triggers/DragStartMonitor）。
     private var dragAutoShowSession = DragAutoShowSession()
+    private var islandDragWasActivated = false
 
     /// EdgeTab: 贴屏幕边缘的常驻拉环（单击展开 / 拖入接收 / 沿边拖动换位）。
     /// 拉环与 shelf 互斥（shelf 展开时拉环隐藏；shelf 的外缘隐形热区承担
@@ -220,7 +226,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.toggleShelf()
         },
         onShowShelf: { [weak self] in
-            self?.shelfWindowController.showShelf(animated: true)
+            self?.shelfPresentationCoordinator.show(animated: true)
         }
     )
 
@@ -274,6 +280,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !isUITesting {
             applyTriggerSettings()
         }
+        shelfPresentationCoordinator.applyCurrentMode(animated: false)
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(userDefaultsDidChange(_:)),
                                                name: UserDefaults.didChangeNotification,
@@ -324,6 +331,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        shelfPresentationCoordinator.shutdown()
         onboardingController.applicationWillTerminate()
         do {
             try persistence.saveNow(shelfStore.items)
@@ -365,11 +373,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func toggleShelf() {
-        shelfWindowController.toggleShelf(animated: true)
+        shelfPresentationCoordinator.toggle(animated: true)
     }
 
     private func toggleShelfForKeyboard() {
-        shelfWindowController.toggleShelfForKeyboard(animated: true)
+        shelfPresentationCoordinator.toggleForKeyboard(animated: true)
     }
 
     // MARK: - UX1/UX2 drag-driven appearance
@@ -379,10 +387,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 唤出，不标记、不动它）。`.edgeOnly` 只做记帐，唤出交给边缘触发。
     private func handleDragStart() {
         dragAutoShowSession.dragBegan()
+        if settingsStore.shelfPresentationMode == .island { return }
         guard settingsStore.dragAutoAppearMode == .immediate else { return }
         guard !appState.isShelfVisible else { return }
         dragAutoShowSession.markShownAutomatically()
-        shelfWindowController.showShelf(animated: true)
+        shelfPresentationCoordinator.show(animated: true)
+    }
+
+    private func handleDragUpdate(at point: CGPoint) {
+        guard settingsStore.shelfPresentationMode == .island,
+              settingsStore.dragAutoAppearMode != .off else { return }
+        if shelfPresentationCoordinator.dragApproachedTop(at: point) {
+            islandDragWasActivated = true
+        }
     }
 
     /// UX1: 拖拽结束。本轮为自动唤出且没有内容落入 → 动画收回；
@@ -395,8 +412,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 空架自动隐藏（拖拽中唯一可能误隐的路径）已在 EmptyShelfAutoHideRule
     /// 内按 isDragInProgress 门控。
     private func handleDragEnd() {
-        guard dragAutoShowSession.dragEnded(), appState.isShelfVisible else { return }
-        shelfWindowController.hideShelf(animated: true)
+        let imported = dragAutoShowSession.receivedImport
+        let shouldHideClassic = dragAutoShowSession.dragEnded()
+        if islandDragWasActivated {
+            shelfPresentationCoordinator.dragEnded(imported: imported)
+            islandDragWasActivated = false
+            return
+        }
+        guard shouldHideClassic, appState.isShelfVisible else { return }
+        shelfPresentationCoordinator.hide(animated: true)
     }
 
     // MARK: - UX3 clipboard save
@@ -415,7 +439,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         shelfStore.add(contentsOf: result.items)
-        shelfWindowController.showShelf(animated: true)
+        shelfPresentationCoordinator.show(animated: true)
     }
 
     // MARK: - Recent items re-add (S10)
@@ -442,7 +466,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .text, .stack:
             return
         }
-        shelfWindowController.showShelf(animated: true)
+        shelfPresentationCoordinator.show(animated: true)
     }
 
     // MARK: - Bookmark resolution at launch (S4)
@@ -663,7 +687,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             mouseShakeMonitor.stop()
         }
 
-        let edgeActive = settingsStore.dragAutoAppearMode == .edgeOnly
+        let isClassic = settingsStore.shelfPresentationMode == .classic
+        let edgeActive = isClassic
+            && settingsStore.dragAutoAppearMode == .edgeOnly
             && settingsStore.shelfPosition != .custom
         if edgeActive {
             edgeTriggerMonitor.start(
@@ -677,9 +703,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // EdgeTab 拉环常驻（开启 && 非 custom 即在位，不再随 shelf 显隐），
         // monitor 注册与拉环在位同一判定 —— 拉环一在位就需要拖拽状态。
-        let edgeTabActive = settingsStore.edgeTabEnabled
+        let edgeTabActive = isClassic
+            && settingsStore.edgeTabEnabled
             && settingsStore.shelfPosition != .custom
-        if settingsStore.dragAutoAppearMode == .immediate || edgeActive || edgeTabActive {
+        let islandDragActive = !isClassic && settingsStore.dragAutoAppearMode != .off
+        if (isClassic && settingsStore.dragAutoAppearMode == .immediate)
+            || edgeActive || edgeTabActive || islandDragActive {
             dragStartMonitor.start()
         } else {
             dragStartMonitor.stop()
@@ -700,6 +729,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private nonisolated func userDefaultsDidChange(_ notification: Notification) {
         Task { @MainActor in
             self.applyTriggerSettings()
+            self.shelfPresentationCoordinator.applyCurrentMode(animated: true)
             // Sparkle: 「自动检查更新」开关同步（值未变时不写，幂等）。
             self.updateController.applySettings()
         }

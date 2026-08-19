@@ -623,12 +623,11 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开" } }
       }
     },
-    "Open-Yoink is an independent clean-room implementation crafted for macOS. Its design was informed by studying the publicly observable behavior of several MIT-licensed open-source projects — HoldMac, DropKit, ShelfMate, NotchPocket, nab, and Dropshit. The only third-party code included is Sparkle (MIT), which powers automatic updates. A complete attribution record is available in THIRD_PARTY_NOTICES.md in the source repository." : {
+    "Open-Yoink is an independent clean-room implementation crafted for macOS. Bundled third-party components are Sparkle (MIT) for updates and mediaremote-adapter (BSD 3-Clause) for the opt-in experimental Now Playing module. A complete attribution record is available in THIRD_PARTY_NOTICES.md in the source repository." : {
       "extractionState" : "manual",
-      "comment" : "致谢段：按作者要求两种语言均展示英文原文。",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open-Yoink is an independent clean-room implementation crafted for macOS. Its design was informed by studying the publicly observable behavior of several MIT-licensed open-source projects — HoldMac, DropKit, ShelfMate, NotchPocket, nab, and Dropshit. The only third-party code included is Sparkle (MIT), which powers automatic updates. A complete attribution record is available in THIRD_PARTY_NOTICES.md in the source repository." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Open-Yoink is an independent clean-room implementation crafted for macOS. Its design was informed by studying the publicly observable behavior of several MIT-licensed open-source projects — HoldMac, DropKit, ShelfMate, NotchPocket, nab, and Dropshit. The only third-party code included is Sparkle (MIT), which powers automatic updates. A complete attribution record is available in THIRD_PARTY_NOTICES.md in the source repository." } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open-Yoink is an independent clean-room implementation crafted for macOS. Bundled third-party components are Sparkle (MIT) for updates and mediaremote-adapter (BSD 3-Clause) for the opt-in experimental Now Playing module. A complete attribution record is available in THIRD_PARTY_NOTICES.md in the source repository." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Open-Yoink 是面向 macOS 的独立净室实现。随应用捆绑的第三方组件包括用于更新的 Sparkle（MIT）以及仅供用户主动启用实验性“正在播放”模块使用的 mediaremote-adapter（BSD 3-Clause）。完整归属记录见源码仓库的 THIRD_PARTY_NOTICES.md。" } }
       }
     },
     "Position" : {
@@ -2099,6 +2098,318 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Sharing failed. The selected items remain on the shelf." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "分享失败，所选项目仍保留在暂存架。" } }
+      }
+    },
+    "Battery" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Battery" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "电池" } }
+      }
+    },
+    "Battery critically low" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Battery critically low" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "电量严重不足" } }
+      }
+    },
+    "Battery fully charged" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Battery fully charged" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "电池已充满" } }
+      }
+    },
+    "Battery low" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Battery low" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "电量不足" } }
+      }
+    },
+    "Battery unavailable" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Battery unavailable" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "电池不可用" } }
+      }
+    },
+    "Charging" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Charging" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在充电" } }
+      }
+    },
+    "Checking media access…" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Checking media access…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在检查媒体访问…" } }
+      }
+    },
+    "Collapse Island" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Collapse Island" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "收起灵动岛" } }
+      }
+    },
+    "Connected to power" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Connected to power" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已接通电源" } }
+      }
+    },
+    "Custom: %lld min" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Custom: %lld min" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "自定义：%lld 分钟" } }
+      }
+    },
+    "Drop into OpenYoink" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Drop into OpenYoink" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖入 OpenYoink" } }
+      }
+    },
+    "Enable Experimental Now Playing?" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enable Experimental Now Playing?" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "启用实验性正在播放功能？" } }
+      }
+    },
+    "Expand Island on hover" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Expand Island on hover" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "悬停时展开灵动岛" } }
+      }
+    },
+    "Experimental media support may stop working after a macOS update. It stays off unless you enable it." : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Experimental media support may stop working after a macOS update. It stays off unless you enable it." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "实验性媒体支持可能在 macOS 更新后失效，除非你主动启用，否则始终关闭。" } }
+      }
+    },
+    "Hover waits briefly before expanding. Click, drag to the top, and the global shortcut always remain available." : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Hover waits briefly before expanding. Click, drag to the top, and the global shortcut always remain available." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "悬停会短暂等待后再展开；点击、拖到屏幕顶部和全局快捷键始终可用。" } }
+      }
+    },
+    "Island Beta" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Island Beta" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "刘海 Beta" } }
+      }
+    },
+    "Island Modules" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Island Modules" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "灵动岛模块" } }
+      }
+    },
+    "Island uses the built-in camera housing when available. Displays without a notch use a floating pill below the menu bar." : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Island uses the built-in camera housing when available. Displays without a notch use a floating pill below the menu bar." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "有刘海时会与摄像头区域融合；无刘海显示器会在菜单栏下方显示悬浮胶囊。" } }
+      }
+    },
+    "New imports and deliveries appear here." : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "New imports and deliveries appear here." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新的导入和交付任务会显示在这里。" } }
+      }
+    },
+    "Next track" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Next track" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下一首" } }
+      }
+    },
+    "No active transfers" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No active transfers" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有进行中的传输" } }
+      }
+    },
+    "Nothing playing" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Nothing playing" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前没有播放内容" } }
+      }
+    },
+    "Not applicable" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Not applicable" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不适用" } }
+      }
+    },
+    "Notify when fully charged" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Notify when fully charged" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "充满电时提醒" } }
+      }
+    },
+    "Now Playing" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Now Playing" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在播放" } }
+      }
+    },
+    "Now Playing (Experimental)" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Now Playing (Experimental)" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在播放（实验性）" } }
+      }
+    },
+    "Now Playing unavailable" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Now Playing unavailable" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法获取正在播放内容" } }
+      }
+    },
+    "Open OpenYoink Island" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open OpenYoink Island" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开 OpenYoink 灵动岛" } }
+      }
+    },
+    "OpenYoink Island" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "OpenYoink Island" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "OpenYoink 灵动岛" } }
+      }
+    },
+    "OpenYoink Island, %lld shelf items" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "OpenYoink Island, %lld shelf items" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "OpenYoink 灵动岛，暂存架中有 %lld 项" } }
+      }
+    },
+    "Pause" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Pause" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂停" } }
+      }
+    },
+    "Pin Island" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Pin Island" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "固定灵动岛" } }
+      }
+    },
+    "Play" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Play" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "播放" } }
+      }
+    },
+    "Power connected" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Power connected" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已接通电源" } }
+      }
+    },
+    "Previous track" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Previous track" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上一首" } }
+      }
+    },
+    "Reset" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reset" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重置" } }
+      }
+    },
+    "Resume" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Resume" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "继续" } }
+      }
+    },
+    "Running on battery" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Running on battery" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在使用电池" } }
+      }
+    },
+    "Start" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Start" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开始" } }
+      }
+    },
+    "Start media in a supported player." : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Start media in a supported player." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请在支持的播放器中开始播放。" } }
+      }
+    },
+    "This Mac does not report an internal battery." : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This Mac does not report an internal battery." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这台 Mac 未报告内置电池。" } }
+      }
+    },
+    "This experimental module could not read the current player." : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This experimental module could not read the current player." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "实验性模块无法读取当前播放器。" } }
+      }
+    },
+    "This feature uses a bundled compatibility helper and may fail after macOS updates. Shelf, transfers, timer, and battery are unaffected." : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This feature uses a bundled compatibility helper and may fail after macOS updates. Shelf, transfers, timer, and battery are unaffected." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此功能使用随附的兼容性 helper，可能在 macOS 更新后失效；暂存架、传输、计时器和电池模块不受影响。" } }
+      }
+    },
+    "Time remaining %@" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Time remaining %@" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "剩余时间 %@" } }
+      }
+    },
+    "Timer" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Timer" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "计时器" } }
+      }
+    },
+    "Timer finished" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Timer finished" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "计时结束" } }
+      }
+    },
+    "Transfer complete" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Transfer complete" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "传输完成" } }
+      }
+    },
+    "Transfer completed with warnings" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Transfer completed with warnings" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "传输完成，但有警告" } }
+      }
+    },
+    "Transfer failed" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Transfer failed" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "传输失败" } }
+      }
+    },
+    "Transferring content…" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Transferring content…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在传输内容…" } }
+      }
+    },
+    "Transfers" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Transfers" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "传输" } }
+      }
+    },
+    "Unpin Island" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unpin Island" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消固定灵动岛" } }
       }
     }
   },

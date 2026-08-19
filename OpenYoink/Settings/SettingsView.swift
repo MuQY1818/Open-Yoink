@@ -274,6 +274,7 @@ private struct GeneralSettingsTab: View {
     @Environment(SettingsStore.self) private var settings
     @Environment(LaunchAtLoginController.self) private var launchAtLoginController
     @Environment(UpdateController.self) private var updateController
+    @State private var showingExperimentalMediaConfirmation = false
 
     var body: some View {
         @Bindable var settings = settings
@@ -308,14 +309,15 @@ private struct GeneralSettingsTab: View {
             }
 
             Section("Shelf") {
-                Picker("Position", selection: $settings.shelfPosition) {
-                    Text("Left").tag(SettingsStore.ShelfPosition.left)
-                    Text("Right").tag(SettingsStore.ShelfPosition.right)
-                    Text("Custom").tag(SettingsStore.ShelfPosition.custom)
+                Picker("Position", selection: $settings.shelfPlacement) {
+                    Text("Left").tag(SettingsStore.ShelfPlacement.left)
+                    Text("Right").tag(SettingsStore.ShelfPlacement.right)
+                    Text("Island Beta").tag(SettingsStore.ShelfPlacement.island)
+                    Text("Custom").tag(SettingsStore.ShelfPlacement.custom)
                 }
                 .pickerStyle(.segmented)
 
-                if settings.shelfPosition == .custom {
+                if settings.shelfPlacement == .custom {
                     // S9: custom 模式 —— 面板可拖动，拖动结束持久化 frame；
                     // 首次选中从右缘默认位置起步。边缘触发在无贴附缘时暂停。
                     Text("Drag the shelf by its title bar to place it anywhere. The edge trigger is unavailable in custom mode.")
@@ -323,27 +325,33 @@ private struct GeneralSettingsTab: View {
                         .foregroundStyle(.secondary)
                 }
 
-                LabeledContent("Width") {
-                    HStack(spacing: 8) {
-                        Slider(value: $settings.shelfWidth, in: 240...480, step: 10)
-                        Text("\(Int(settings.shelfWidth)) pt")
-                            .monospacedDigit()
-                            .frame(width: 52, alignment: .trailing)
+                if settings.shelfPresentationMode == .classic {
+                    LabeledContent("Width") {
+                        HStack(spacing: 8) {
+                            Slider(value: $settings.shelfWidth, in: 240...480, step: 10)
+                            Text("\(Int(settings.shelfWidth)) pt")
+                                .monospacedDigit()
+                                .frame(width: 52, alignment: .trailing)
+                        }
                     }
+
+                    Toggle("Hide after dragging out", isOn: $settings.autoHide)
+
+                    // UX6: 非空→空迁移时自动收回（手动唤出的空架不受影响）。
+                    Toggle("Hide automatically when empty", isOn: $settings.autoHideWhenEmpty)
+
+                    // EdgeTab: 拉环只在 shelf 隐藏时贴屏幕边缘显示（互斥模型；
+                    // shelf 展开后由面板外缘隐形热区承担同点位收起）。
+                    // custom 模式无贴附缘，开关不生效（说明文案覆盖）。
+                    Toggle("Show edge tab while shelf is hidden", isOn: $settings.edgeTabEnabled)
+                    Text("Click the tab to show the shelf, drag it along the edge to reposition, or drop files onto it. Not shown in custom position mode.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Island uses the built-in camera housing when available. Displays without a notch use a floating pill below the menu bar.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-
-                Toggle("Hide after dragging out", isOn: $settings.autoHide)
-
-                // UX6: 非空→空迁移时自动收回（手动唤出的空架不受影响）。
-                Toggle("Hide automatically when empty", isOn: $settings.autoHideWhenEmpty)
-
-                // EdgeTab: 拉环只在 shelf 隐藏时贴屏幕边缘显示（互斥模型；
-                // shelf 展开后由面板外缘隐形热区承担同点位收起）。
-                // custom 模式无贴附缘，开关不生效（说明文案覆盖）。
-                Toggle("Show edge tab while shelf is hidden", isOn: $settings.edgeTabEnabled)
-                Text("Click the tab to show the shelf, drag it along the edge to reposition, or drop files onto it. Not shown in custom position mode.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
 
                 Picker("After dragging out", selection: $settings.dragOutRemovalPolicy) {
                     Text("Keep on Shelf").tag(SettingsStore.DragOutRemovalPolicy.keep)
@@ -356,6 +364,43 @@ private struct GeneralSettingsTab: View {
                 Text("Dropping files keeps a reference. Hold ⌘ while dropping to move the original into the shelf — the original goes to the Trash, so it can be restored.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+
+            if settings.shelfPresentationMode == .island {
+                Section("Island Modules") {
+                    Toggle("Expand Island on hover", isOn: $settings.islandHoverRevealEnabled)
+                    Text("Hover waits briefly before expanding. Click, drag to the top, and the global shortcut always remain available.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Toggle("Timer", isOn: $settings.islandTimerEnabled)
+                    Toggle("Battery", isOn: $settings.islandBatteryEnabled)
+                    if settings.islandBatteryEnabled {
+                        Toggle("Notify when fully charged",
+                               isOn: $settings.islandFullChargeAlertEnabled)
+                    }
+
+                    Toggle("Now Playing (Experimental)", isOn: Binding(
+                        get: { settings.islandMediaEnabled },
+                        set: { enabled in
+                            if enabled && !settings.islandMediaEnabled {
+                                showingExperimentalMediaConfirmation = true
+                            } else {
+                                settings.islandMediaEnabled = false
+                            }
+                        }
+                    ))
+                    Text("Experimental media support may stop working after a macOS update. It stays off unless you enable it.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .alert("Enable Experimental Now Playing?",
+                       isPresented: $showingExperimentalMediaConfirmation) {
+                    Button("Cancel", role: .cancel) {}
+                    Button("Enable") { settings.islandMediaEnabled = true }
+                } message: {
+                    Text("This feature uses a bundled compatibility helper and may fail after macOS updates. Shelf, transfers, timer, and battery are unaffected.")
+                }
             }
 
             Section("Language") {
@@ -631,7 +676,7 @@ private struct AboutSettingsTab: View {
             }
 
             Section("Acknowledgments") {
-                Text("Open-Yoink is an independent clean-room implementation crafted for macOS. Its design was informed by studying the publicly observable behavior of several MIT-licensed open-source projects — HoldMac, DropKit, ShelfMate, NotchPocket, nab, and Dropshit. The only third-party code included is Sparkle (MIT), which powers automatic updates. A complete attribution record is available in THIRD_PARTY_NOTICES.md in the source repository.")
+                Text("Open-Yoink is an independent clean-room implementation crafted for macOS. Bundled third-party components are Sparkle (MIT) for updates and mediaremote-adapter (BSD 3-Clause) for the opt-in experimental Now Playing module. A complete attribution record is available in THIRD_PARTY_NOTICES.md in the source repository.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

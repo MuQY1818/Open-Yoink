@@ -89,6 +89,19 @@ final class ShelfWindowController: NSObject {
     /// 任务二：拖拽进行中状态（`DragStartMonitor.isDragInProgress`），供给
     /// 空架自动隐藏的门控 —— 拖拽期间任何自动显隐不得收起已可见的 shelf。
     private let dragStartMonitor: DragStartMonitor
+    /// v1.4: the classic shelf and Island share one panel and one dependency
+    /// graph. These stores own only first-party module state; no duplicate
+    /// ShelfStore or TransferStore is created.
+    let islandActivityCoordinator: IslandActivityCoordinator
+    let islandModuleRegistry: IslandModuleRegistry
+    let islandTimerStore: IslandTimerStore
+    let powerSourceMonitor: PowerSourceMonitor
+    let nowPlayingModuleStore: NowPlayingModuleStore
+    private var lastPresentationMode: SettingsStore.ShelfPresentationMode
+    private var islandGlobalMonitor: Any?
+    private var islandLocalMonitor: Any?
+    private var islandHoverTask: Task<Void, Never>?
+    private var islandLayoutTask: Task<Void, Never>?
     /// 快速上手期间只暂停自动隐藏，不改写用户的 autoHide 设置。
     private var onboardingPresentationCount = 0
     /// Freeze compact-height changes during global-coordinate marquee gestures;
@@ -111,7 +124,11 @@ final class ShelfWindowController: NSObject {
         )
         // S4: DragContainerView（NSDraggingDestination）包裹 hosting 视图。
         let hostingController = NSHostingController(
-            rootView: ShelfView()
+            rootView: ShelfPresentationRootView(
+                onPerformRecovery: { [weak self] action in
+                    self?.itemRecoveryController.perform(action)
+                }
+            )
                 .environment(store)
                 .environment(dropTargetState)
                 .environment(settings)
@@ -119,6 +136,11 @@ final class ShelfWindowController: NSObject {
                 .environment(interaction)
                 .environment(importCoordinator.noticeCenter)
                 .environment(importCoordinator.transferStore)
+                .environment(islandActivityCoordinator)
+                .environment(islandModuleRegistry)
+                .environment(islandTimerStore)
+                .environment(powerSourceMonitor)
+                .environment(nowPlayingModuleStore)
                 .environment(\.bookmarkService, importCoordinator.bookmarkService)
                 .environment(\.dragOutController, dragOutController)
                 .environment(\.quickLookCoordinator, quickLookCoordinator)
@@ -170,6 +192,16 @@ final class ShelfWindowController: NSObject {
         self.tempFileService = tempFileService
         self.settings = settings
         self.dragStartMonitor = dragStartMonitor
+        self.islandActivityCoordinator = IslandActivityCoordinator()
+        self.islandModuleRegistry = IslandModuleRegistry()
+        self.islandTimerStore = IslandTimerStore(defaults: settings.defaultsStore)
+        self.powerSourceMonitor = PowerSourceMonitor(
+            fullChargeAlertEnabled: { settings.islandFullChargeAlertEnabled }
+        )
+        self.nowPlayingModuleStore = NowPlayingModuleStore(
+            sourceFactory: { NowPlayingSourceFactory.bundled() }
+        )
+        self.lastPresentationMode = settings.shelfPresentationMode
         self.dragOutController = DragOutController(
             store: store,
             settings: settings,
@@ -194,6 +226,18 @@ final class ShelfWindowController: NSObject {
             notices: importCoordinator.noticeCenter
         )
         super.init()
+        islandActivityCoordinator.onStateDidChange = { [weak self] in
+            self?.scheduleIslandLayoutUpdate()
+        }
+        islandTimerStore.onActivity = { [weak self] activity in
+            self?.replaceIslandActivity(for: .timer, with: activity)
+        }
+        powerSourceMonitor.onActivity = { [weak self] activity in
+            self?.replaceIslandActivity(for: .battery, with: activity)
+        }
+        nowPlayingModuleStore.onActivity = { [weak self] activity in
+            self?.replaceIslandActivity(for: .media, with: activity)
+        }
         // UX5/UX6: 项目增删 → 紧凑高度动画过渡 + 空架自动隐藏裁决。
         store.onItemsDidChange = { [weak self] in
             self?.handleItemsDidChange()
@@ -247,10 +291,20 @@ final class ShelfWindowController: NSObject {
 
     deinit {
         quickActionLayoutTask?.cancel()
+        islandHoverTask?.cancel()
+        islandLayoutTask?.cancel()
         NotificationCenter.default.removeObserver(self)
     }
 
     // MARK: - Public API
+
+    func shutdown() {
+        quickActionLayoutTask?.cancel()
+        islandHoverTask?.cancel()
+        islandLayoutTask?.cancel()
+        stopIslandModules()
+        stopIslandEventMonitoring()
+    }
 
     func toggleShelf(animated: Bool = true) {
         if appState.isShelfVisible {
@@ -277,6 +331,9 @@ final class ShelfWindowController: NSObject {
         interaction.normalize(for: store.items)
         if takeKeyboardFocus, interaction.focusedItemID == nil {
             interaction.focusedItemID = store.selectedItems.first?.id ?? store.items.first?.id
+        }
+        if settings.shelfPresentationMode == .island {
+            islandActivityCoordinator.show(module: .shelf)
         }
         appState.showShelf()
         let targetFrame = targetFrame()
@@ -334,6 +391,23 @@ final class ShelfWindowController: NSObject {
         appState.hideShelf()
         // S6: shelf 隐藏时关掉 Quick Look 并释放会话资源（不恢复键盘焦点）。
         quickLookCoordinator.closeForShelfHide()
+        if settings.shelfPresentationMode == .island {
+            islandActivityCoordinator.collapse()
+            let compactFrame = targetFrame()
+            guard animated else {
+                panel.alphaValue = 1
+                panel.setFrame(compactFrame, display: true)
+                panel.orderFront(nil)
+                return
+            }
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = Self.animationDuration
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                panel.animator().alphaValue = 1
+                panel.animator().setFrame(compactFrame, display: true)
+            }
+            return
+        }
         let targetFrame = hiddenFrame(for: panel.frame)
         guard animated else {
             panel.orderOut(nil)
@@ -426,6 +500,10 @@ final class ShelfWindowController: NSObject {
         case 53: // Escape
             if quickLookCoordinator.isPreviewing {
                 quickLookCoordinator.dismiss()
+                return true
+            }
+            if settings.shelfPresentationMode == .island {
+                hideShelf(animated: !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
                 return true
             }
             if interaction.expandedStackID != nil {
@@ -581,7 +659,13 @@ final class ShelfWindowController: NSObject {
     /// custom 用校验后的持久化 frame（首次/所在屏被拔掉时从目标屏
     /// 右缘默认 frame 起步）。
     private func targetFrame() -> NSRect {
-        ShelfLayoutEngine.targetFrame(
+        if settings.shelfPresentationMode == .island {
+            let layout = islandLayout()
+            islandActivityCoordinator.currentLayout = layout
+            return islandActivityCoordinator.surfaceState.isExpanded
+                ? layout.expandedFrame : layout.compactFrame
+        }
+        return ShelfLayoutEngine.targetFrame(
             position: settings.shelfPosition,
             width: settings.shelfWidth,
             itemCount: store.items.count,
@@ -606,7 +690,32 @@ final class ShelfWindowController: NSObject {
 
     /// 隐藏态 frame：左/右向贴附缘方向平移一个面板宽度；custom 原位（淡出）。
     private func hiddenFrame(for frame: NSRect) -> NSRect {
-        ShelfLayoutEngine.hiddenFrame(for: frame, position: settings.shelfPosition)
+        if settings.shelfPresentationMode == .island {
+            return islandLayout().compactFrame
+        }
+        return ShelfLayoutEngine.hiddenFrame(for: frame, position: settings.shelfPosition)
+    }
+
+    private func islandLayout(at point: CGPoint = NSEvent.mouseLocation)
+        -> IslandGeometryResolver.Layout {
+        let screens = NSScreen.screens.map { screen in
+            IslandGeometryResolver.ScreenGeometry(
+                frame: screen.frame,
+                visibleFrame: screen.visibleFrame,
+                safeAreaTop: screen.safeAreaInsets.top,
+                auxiliaryTopLeftArea: screen.auxiliaryTopLeftArea ?? .zero,
+                auxiliaryTopRightArea: screen.auxiliaryTopRightArea ?? .zero
+            )
+        }
+        // AppKit always exposes at least one screen while the app is running.
+        return IslandGeometryResolver.resolve(at: point, screens: screens)
+            ?? IslandGeometryResolver.resolve(screen: .init(
+                frame: CGRect(x: 0, y: 0, width: 1440, height: 900),
+                visibleFrame: CGRect(x: 0, y: 0, width: 1440, height: 875),
+                safeAreaTop: 0,
+                auxiliaryTopLeftArea: .zero,
+                auxiliaryTopRightArea: .zero
+            ))
     }
 
     /// 当前屏幕几何快照（NSScreen → 纯值，供 ShelfLayoutEngine）。
@@ -624,7 +733,7 @@ final class ShelfWindowController: NSObject {
     /// ShelfLayoutEngine 回退主屏；custom frame 落出所有屏幕则回退右缘默认）。
     /// 隐藏态无持久目标，show 时自会按最新几何计算，这里无需动作。
     @objc private func screenParametersDidChange(_ notification: Notification) {
-        guard appState.isShelfVisible else { return }
+        guard appState.isShelfVisible || settings.shelfPresentationMode == .island else { return }
         let target = targetFrame()
         panel.setFrame(target, display: true)
     }
@@ -642,7 +751,12 @@ final class ShelfWindowController: NSObject {
     }
 
     private func revalidateFrameAfterSpaceChange() {
-        guard appState.isShelfVisible else { return }
+        guard appState.isShelfVisible || settings.shelfPresentationMode == .island else { return }
+        if settings.shelfPresentationMode == .island {
+            panel.setFrame(targetFrame(), display: true)
+            panel.orderFront(nil)
+            return
+        }
         let corrected = ShelfLayoutEngine.onscreenCorrection(for: panel.frame,
                                                              screens: Self.screenGeometries())
             ?? targetFrame()
@@ -663,7 +777,8 @@ final class ShelfWindowController: NSObject {
     }
 
     private func applyLayoutSettings() {
-        guard appState.isShelfVisible else { return }
+        applyPresentationSettings(animated: true)
+        guard appState.isShelfVisible || settings.shelfPresentationMode == .island else { return }
         let target = targetFrame()
         guard target != panel.frame else { return }
         guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
@@ -713,6 +828,7 @@ final class ShelfWindowController: NSObject {
     /// ActivityStrip changes compact height but must not participate in the
     /// non-empty → empty auto-hide state machine.
     private func handleActivityVisibilityDidChange() {
+        publishTransferActivity()
         guard appState.isShelfVisible else { return }
         let target = targetFrame()
         guard target != panel.frame else { return }
@@ -768,6 +884,235 @@ final class ShelfWindowController: NSObject {
             context.duration = Self.animationDuration
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             panel.animator().setFrame(target, display: true)
+        }
+    }
+
+    // MARK: - Island presentation
+
+    /// Applies the persisted mode without changing the user's explicit
+    /// classic position. In Island mode a collapsed compact surface remains
+    /// on-screen; in classic mode the historical hidden/orderOut behavior is
+    /// restored.
+    func applyPresentationSettings(animated: Bool = false) {
+        islandModuleRegistry.apply(settings: settings)
+        let modeChanged = lastPresentationMode != settings.shelfPresentationMode
+        lastPresentationMode = settings.shelfPresentationMode
+
+        if settings.shelfPresentationMode == .island {
+            startEnabledIslandModules()
+            startIslandEventMonitoring()
+            if modeChanged || islandActivityCoordinator.surfaceState == .hidden {
+                islandActivityCoordinator.setSurfaceState(
+                    appState.isShelfVisible ? .expanded : .compact
+                )
+            }
+            let target = targetFrame()
+            panel.alphaValue = 1
+            panel.setFrame(target, display: true)
+            panel.orderFront(nil)
+        } else {
+            stopIslandModules()
+            stopIslandEventMonitoring()
+            islandActivityCoordinator.hide()
+            if appState.isShelfVisible {
+                let target = targetFrame()
+                panel.alphaValue = 1
+                if animated && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+                    NSAnimationContext.runAnimationGroup { context in
+                        context.duration = Self.animationDuration
+                        context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                        panel.animator().setFrame(target, display: true)
+                    }
+                } else {
+                    panel.setFrame(target, display: true)
+                }
+                panel.orderFront(nil)
+            } else {
+                panel.orderOut(nil)
+            }
+        }
+    }
+
+    func islandDragApproachedTop(at point: CGPoint) -> Bool {
+        guard settings.shelfPresentationMode == .island else { return false }
+        let layout = islandLayout(at: point)
+        guard layout.activationFrame.contains(point) else { return false }
+        islandActivityCoordinator.currentLayout = layout
+        if !islandActivityCoordinator.surfaceState.isExpanded {
+            islandActivityCoordinator.beginDrag()
+            appState.showShelf()
+            return true
+        }
+        return false
+    }
+
+    func islandDragEnded(imported: Bool) {
+        guard settings.shelfPresentationMode == .island else { return }
+        islandActivityCoordinator.endDrag(imported: imported)
+        if imported || islandActivityCoordinator.surfaceState.isExpanded {
+            appState.showShelf()
+        } else {
+            appState.hideShelf()
+        }
+    }
+
+    private func startEnabledIslandModules() {
+        if !islandModuleRegistry.isEnabled(islandActivityCoordinator.selectedModule) {
+            islandActivityCoordinator.selectedModule = .shelf
+        }
+        if islandModuleRegistry.isEnabled(.timer) { islandTimerStore.start() }
+        else { islandTimerStore.stop() }
+        if islandModuleRegistry.isEnabled(.battery) { powerSourceMonitor.start() }
+        else { powerSourceMonitor.stop() }
+        if islandModuleRegistry.isEnabled(.media) { nowPlayingModuleStore.start() }
+        else { nowPlayingModuleStore.stop() }
+        publishTransferActivity()
+    }
+
+    private func stopIslandModules() {
+        islandTimerStore.stop()
+        powerSourceMonitor.stop()
+        nowPlayingModuleStore.stop()
+        islandActivityCoordinator.removeActivities(for: .timer)
+        islandActivityCoordinator.removeActivities(for: .battery)
+        islandActivityCoordinator.removeActivities(for: .media)
+    }
+
+    private func replaceIslandActivity(for moduleID: IslandModuleID,
+                                       with activity: IslandActivity?) {
+        islandActivityCoordinator.removeActivities(for: moduleID)
+        islandActivityCoordinator.publish(activity)
+        if activity?.priority == .timerFinished,
+           settings.shelfPresentationMode == .island,
+           islandActivityCoordinator.surfaceState != .pinned {
+            islandActivityCoordinator.show(module: .timer)
+            appState.showShelf()
+        }
+    }
+
+    private func publishTransferActivity() {
+        islandActivityCoordinator.removeActivities(for: .transfers)
+        guard let task = importCoordinator.transferStore.currentTask else { return }
+        let title: String
+        let symbol: String
+        switch task.phase {
+        case .failed:
+            title = String(localized: "Transfer failed")
+            symbol = "exclamationmark.octagon.fill"
+        case .partiallySucceeded:
+            title = String(localized: "Transfer completed with warnings")
+            symbol = "exclamationmark.triangle.fill"
+        case .targetAccepted, .delivered:
+            title = String(localized: "Transfer complete")
+            symbol = "checkmark.circle.fill"
+        case .cancelled:
+            title = String(localized: "Transfer cancelled")
+            symbol = "xmark.circle"
+        default:
+            title = String(localized: "Transferring content…")
+            symbol = "arrow.up.arrow.down"
+        }
+        islandActivityCoordinator.publish(.init(
+            id: "transfer", moduleID: .transfers, priority: .transfer,
+            title: title, detail: nil, systemImage: symbol, expiresAt: nil
+        ))
+    }
+
+    private func scheduleIslandLayoutUpdate() {
+        guard settings.shelfPresentationMode == .island else { return }
+        islandLayoutTask?.cancel()
+        islandLayoutTask = Task { @MainActor [weak self] in
+            await Task.yield()
+            guard let self, !Task.isCancelled else { return }
+            if self.islandActivityCoordinator.surfaceState.isExpanded {
+                self.appState.showShelf()
+            } else {
+                self.appState.hideShelf()
+            }
+            let target = self.targetFrame()
+            self.panel.orderFront(nil)
+            guard target != self.panel.frame else { return }
+            self.animateIsland(to: target)
+        }
+    }
+
+    private func animateIsland(to target: NSRect) {
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            panel.setFrame(target, display: true)
+            return
+        }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = Self.animationDuration
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            panel.animator().setFrame(target, display: true)
+        }
+    }
+
+    private func startIslandEventMonitoring() {
+        guard islandGlobalMonitor == nil, islandLocalMonitor == nil else { return }
+        let mask: NSEvent.EventTypeMask = [.leftMouseDown, .mouseMoved]
+        islandGlobalMonitor = NSEvent.addGlobalMonitorForEvents(matching: mask) {
+            [weak self] event in
+            let point = NSEvent.mouseLocation
+            Task { @MainActor in self?.handleIslandEvent(event, at: point) }
+        }
+        islandLocalMonitor = NSEvent.addLocalMonitorForEvents(matching: mask) {
+            [weak self] event in
+            let point = NSEvent.mouseLocation
+            Task { @MainActor in self?.handleIslandEvent(event, at: point) }
+            return event
+        }
+    }
+
+    private func stopIslandEventMonitoring() {
+        if let islandGlobalMonitor {
+            NSEvent.removeMonitor(islandGlobalMonitor)
+            self.islandGlobalMonitor = nil
+        }
+        if let islandLocalMonitor {
+            NSEvent.removeMonitor(islandLocalMonitor)
+            self.islandLocalMonitor = nil
+        }
+        islandHoverTask?.cancel()
+        islandHoverTask = nil
+    }
+
+    private func handleIslandEvent(_ event: NSEvent, at point: CGPoint) {
+        guard settings.shelfPresentationMode == .island else { return }
+        switch event.type {
+        case .leftMouseDown:
+            guard islandActivityCoordinator.surfaceState == .expanded,
+                  !panel.frame.contains(point) else { return }
+            hideShelf(animated: true)
+        case .mouseMoved:
+            if !islandActivityCoordinator.surfaceState.isExpanded {
+                let layout = islandLayout(at: point)
+                if islandActivityCoordinator.currentLayout?.compactFrame != layout.compactFrame {
+                    islandActivityCoordinator.currentLayout = layout
+                    panel.setFrame(layout.compactFrame, display: true)
+                }
+            }
+            guard settings.islandHoverRevealEnabled,
+                  !islandActivityCoordinator.surfaceState.isExpanded else {
+                islandHoverTask?.cancel()
+                islandHoverTask = nil
+                return
+            }
+            let layout = islandLayout(at: point)
+            guard layout.compactFrame.insetBy(dx: -4, dy: -4).contains(point) else {
+                islandHoverTask?.cancel()
+                islandHoverTask = nil
+                return
+            }
+            guard islandHoverTask == nil else { return }
+            islandHoverTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(300))
+                guard let self, !Task.isCancelled else { return }
+                self.islandHoverTask = nil
+                self.showShelf(animated: true)
+            }
+        default:
+            break
         }
     }
 }
