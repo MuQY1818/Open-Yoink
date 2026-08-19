@@ -294,6 +294,43 @@ final class ShelfLayoutEngineTests: XCTestCase {
         )
     }
 
+    func testContentHeight_quickActionsReserveOneCompactRow() {
+        XCTAssertEqual(
+            ShelfLayoutEngine.contentHeight(itemCount: 1, panelWidth: 320,
+                                            visibleHeight: 1020,
+                                            hasQuickActions: true),
+            236
+        )
+        XCTAssertEqual(
+            ShelfLayoutEngine.contentHeight(itemCount: 1, panelWidth: 320,
+                                            visibleHeight: 1020,
+                                            hasActivity: true,
+                                            hasQuickActions: true),
+            322
+        )
+        // An empty shelf cannot have an explicit selection; the defensive
+        // input must not create a floating action-only row.
+        XCTAssertEqual(
+            ShelfLayoutEngine.contentHeight(itemCount: 0, panelWidth: 320,
+                                            visibleHeight: 1020,
+                                            hasQuickActions: true),
+            200
+        )
+    }
+
+    func testTargetFrame_quickActionsRemainEdgeAttachedAndCentered() {
+        XCTAssertEqual(
+            ShelfLayoutEngine.targetFrame(position: .right,
+                                          width: 320,
+                                          itemCount: 1,
+                                          hasQuickActions: true,
+                                          mouseLocation: CGPoint(x: 500, y: 500),
+                                          screens: [mainScreen],
+                                          persistedCustomFrame: nil),
+            CGRect(x: 1600, y: 452, width: 320, height: 236)
+        )
+    }
+
     // MARK: - Space-change correction
 
     func testOnscreenCorrection_validFrameUnchanged() {

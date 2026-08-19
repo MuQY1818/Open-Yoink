@@ -15,7 +15,11 @@ final class ShelfStore {
     private(set) var items: [ShelfItem]
 
     /// Ids of the currently selected top-level items (multi-select).
-    private(set) var selection: Set<UUID> = []
+    private(set) var selection: Set<UUID> = [] {
+        didSet {
+            if oldValue != selection { onSelectionDidChange?() }
+        }
+    }
 
     private let persistence: PersistenceController?
 
@@ -23,6 +27,10 @@ final class ShelfStore {
     /// 移动、stack 操作、update）。ShelfWindowController 据此做紧凑高度动画
     /// 与空架自动隐藏；选择集变更不触发（不影响布局）。测试可不设置。
     var onItemsDidChange: (@MainActor () -> Void)?
+
+    /// Selection controls the v1.3 quick-action row and therefore affects the
+    /// compact panel height even though it is never persisted.
+    var onSelectionDidChange: (@MainActor () -> Void)?
 
     init(items: [ShelfItem] = [], persistence: PersistenceController? = nil) {
         self.items = items

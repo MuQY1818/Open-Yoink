@@ -1,3 +1,4 @@
+import AppKit
 import Carbon
 import XCTest
 @testable import OpenYoink
@@ -37,6 +38,37 @@ final class HotKeyMonitorTests: XCTestCase {
         )
         XCTAssertEqual(modifiers,
                        UInt32(cmdKey) | UInt32(shiftKey) | UInt32(optionKey) | UInt32(controlKey))
+    }
+
+    func testMatchesIgnoresIncidentalKeyboardFlagsButRequiresExactShortcutModifiers() throws {
+        let expected = shortcut(keyCode: 8, command: true, option: true)
+        let matching = try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [.command, .option, .capsLock, .numericPad],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "c",
+            charactersIgnoringModifiers: "c",
+            isARepeat: false,
+            keyCode: 8
+        ))
+        let missingOption = try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [.command],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "c",
+            charactersIgnoringModifiers: "c",
+            isARepeat: false,
+            keyCode: 8
+        ))
+
+        XCTAssertTrue(HotKeyMonitor.matches(matching, shortcut: expected))
+        XCTAssertFalse(HotKeyMonitor.matches(missingOption, shortcut: expected))
     }
 
     // MARK: - UX3 DoublePressDiscriminator

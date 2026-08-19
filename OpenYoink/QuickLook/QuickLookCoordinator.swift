@@ -153,12 +153,13 @@ enum ItemActions {
 
     // MARK: Shared helpers（QuickLookCoordinator 复用）
 
-    /// 解析 file/folder/image 的落地 URL：优先 bookmark（沙箱重启后恢复访问权），
-    /// 解析失败回退原始路径（仅作尽力而为的提示，文件可能已不存在）。
+    /// 解析 file/folder/image 的落地 URL：有 bookmark 时只信任 bookmark
+    /// 解析结果。安全书签无效时绝不回退旧 path；旧路径只是一条展示/重连
+    /// 提示，不能绕过用户已授予的安全范围访问边界。没有 bookmark 的旧数据
+    /// 才使用其原始 fileURL。
     static func resolveFileURL(for item: ShelfItem, bookmarkService: BookmarkService) -> URL? {
-        if let bookmark = item.bookmark,
-           let resolved = try? bookmarkService.resolve(bookmark) {
-            return resolved.url
+        if let bookmark = item.bookmark {
+            return try? bookmarkService.resolve(bookmark).url
         }
         return item.fileURL
     }

@@ -32,6 +32,9 @@ enum ShelfLayoutEngine {
     static let headerHeight: CGFloat = 28
     /// ActivityStrip 自身与 VStack 间距。只在状态可见时预留，避免覆盖卡片。
     static let activityStripHeight: CGFloat = 86
+    /// Selection action bar (36pt) plus up to 8pt surrounding VStack spacing
+    /// (the expanded-stack presentation uses the larger spacing).
+    static let quickActionBarHeight: CGFloat = 44
     /// 两行标题 + 一行可见状态的卡片高度估算。传输完成后 Ready 卡片保持
     /// 安静；托管副本、进行中和失败状态需要真实文字，不能只靠角标或颜色。
     static let cardRowHeight: CGFloat = 132
@@ -64,14 +67,17 @@ enum ShelfLayoutEngine {
     static func contentHeight(itemCount: Int,
                               panelWidth: CGFloat,
                               visibleHeight: CGFloat,
-                              hasActivity: Bool = false) -> CGFloat {
+                              hasActivity: Bool = false,
+                              hasQuickActions: Bool = false) -> CGFloat {
         let cap = visibleHeight * maximumHeightFraction
         let activityHeight = hasActivity ? activityStripHeight : 0
         guard itemCount > 0 else { return min(emptyStateHeight + activityHeight, cap) }
+        let quickActionHeight = hasQuickActions ? quickActionBarHeight : 0
         let columns = columnCount(forPanelWidth: panelWidth)
         let rows = max(1, (itemCount + columns - 1) / columns)
         let gridHeight = CGFloat(rows) * cardRowHeight + CGFloat(rows - 1) * gridSpacing
-        return min(headerHeight + gridHeight + contentPadding + activityHeight, cap)
+        return min(headerHeight + gridHeight + contentPadding + activityHeight + quickActionHeight,
+                   cap)
     }
 
     /// 边缘吸附 frame：贴 position 对应缘。UX5 起高度由内容决定
@@ -280,6 +286,7 @@ enum ShelfLayoutEngine {
                             width: CGFloat,
                             itemCount: Int,
                             hasActivity: Bool = false,
+                            hasQuickActions: Bool = false,
                             mouseLocation: CGPoint,
                             screens: [ScreenGeometry],
                             persistedCustomFrame: CGRect?,
@@ -292,7 +299,8 @@ enum ShelfLayoutEngine {
             let height = contentHeight(itemCount: itemCount,
                                        panelWidth: width,
                                        visibleHeight: screen.visibleFrame.height,
-                                       hasActivity: hasActivity)
+                                       hasActivity: hasActivity,
+                                       hasQuickActions: hasQuickActions)
             // left/right 必有 edge frame（nil 仅 custom 返回），兜底同防护分支。
             return edgeAttachedFrame(position: position, width: width, height: height,
                                      visibleFrame: screen.visibleFrame, edgeOffset: edgeOffset)

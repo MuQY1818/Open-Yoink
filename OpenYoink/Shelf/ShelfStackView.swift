@@ -72,6 +72,7 @@ struct ShelfStackView: View {
 /// 剩 0 项移除 stack；stack 消失后本浮层由 ShelfView 自动收起）。
 struct ShelfStackExpandedView: View {
     @Environment(TransferStore.self) private var transferStore
+    @Environment(DropTargetState.self) private var dropTargetState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let stack: ShelfItem
     let onDismiss: () -> Void
@@ -123,6 +124,12 @@ struct ShelfStackExpandedView: View {
                            value: stack.children)
             }
             .frame(maxHeight: 320)
+            if shouldShowQuickActions {
+                ShelfQuickActionBar(items: selectedActionItems)
+                    .transition(reduceMotion
+                        ? .opacity
+                        : .opacity.combined(with: .move(edge: .bottom)))
+            }
         }
         .padding(12)
         .background {
@@ -143,6 +150,15 @@ struct ShelfStackExpandedView: View {
             ? children.filter { interaction.childSelection.contains($0.id) }
             : [anchor]
         return DragOutContents(items: dragged, topLevelIDs: [])
+    }
+
+    private var selectedActionItems: [ShelfItem] {
+        (stack.children ?? []).filter { interaction.childSelection.contains($0.id) }
+    }
+
+    private var shouldShowQuickActions: Bool {
+        !dropTargetState.isTargeted
+            && ShelfActionCatalog.hasAnyAction(for: selectedActionItems)
     }
 
     private var header: some View {

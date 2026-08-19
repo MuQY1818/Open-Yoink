@@ -1967,6 +1967,139 @@
         "en" : { "stringUnit" : { "state" : "translated", "value" : "This permanently deletes OpenYoink's retained copy. The source application may no longer be able to provide it again." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这会永久删除 OpenYoink 保留的副本，来源应用可能无法再次提供该文件。" } }
       }
+    },
+    "Share" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Share" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "分享" } }
+      }
+    },
+    "More" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "More" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "更多" } }
+      }
+    },
+    "Copy Path" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Copy Path" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "复制路径" } }
+      }
+    },
+    "Path" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Path" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "路径" } }
+      }
+    },
+    "Finder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Finder" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "访达" } }
+      }
+    },
+    "Share the selected items" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Share the selected items" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "分享所选项目" } }
+      }
+    },
+    "Copy the selected file paths" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Copy the selected file paths" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "复制所选文件路径" } }
+      }
+    },
+    "Show the selected files in Finder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show the selected files in Finder" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在访达中显示所选文件" } }
+      }
+    },
+    "The selected items could not be shared." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The selected items could not be shared." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法分享所选项目。" } }
+      }
+    },
+    "A share is already in progress." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "A share is already in progress." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "分享操作正在进行中。" } }
+      }
+    },
+    "The selected file paths could not be copied." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The selected file paths could not be copied." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法复制所选文件路径。" } }
+      }
+    },
+    "%lld file paths copied; %lld unavailable items skipped." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld file paths copied; %lld unavailable items skipped." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已复制 %lld 条文件路径，跳过 %lld 个不可用项目。" } }
+      }
+    },
+    "%lld file paths copied to the Clipboard." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld file paths copied to the Clipboard." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已将 %lld 条文件路径复制到剪贴板。" } }
+      }
+    },
+    "The selected items could not be shown in Finder." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The selected items could not be shown in Finder." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法在访达中显示所选项目。" } }
+      }
+    },
+    "%lld items shown in Finder; %lld unavailable items skipped." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld items shown in Finder; %lld unavailable items skipped." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已在访达中显示 %lld 项，跳过 %lld 个不可用项目。" } }
+      }
+    },
+    "%lld items shown in Finder." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld items shown in Finder." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已在访达中显示 %lld 项。" } }
+      }
+    },
+    "%lld items shared; %lld unavailable items skipped." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld items shared; %lld unavailable items skipped." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已分享 %lld 项，跳过 %lld 个不可用项目。" } }
+      }
+    },
+    "%lld items shared." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld items shared." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已分享 %lld 项。" } }
+      }
+    },
+    "Sharing failed. The selected items remain on the shelf." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Sharing failed. The selected items remain on the shelf." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "分享失败，所选项目仍保留在暂存架。" } }
+      }
     }
   },
   "version" : "1.0"

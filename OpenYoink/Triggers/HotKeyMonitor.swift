@@ -325,7 +325,8 @@ final class HotKeyMonitor {
     /// fallback path only; the Carbon path matches by registration).
     nonisolated static func matches(_ event: NSEvent,
                                     shortcut: SettingsStore.HotKeyShortcut) -> Bool {
-        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        var flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        flags.subtract([.capsLock, .function, .numericPad])
         var expected: NSEvent.ModifierFlags = []
         if shortcut.command { expected.insert(.command) }
         if shortcut.shift { expected.insert(.shift) }

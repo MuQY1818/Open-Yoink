@@ -42,6 +42,9 @@ struct ShelfView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// 任务三：内缘收起把手的收起动作（ShelfWindowController 注入；Preview 为 nil 空操作）。
     @Environment(\.shelfHideAction) private var shelfHideAction
+    /// Marquee hit-testing uses global coordinates, so window resizing is held
+    /// until the gesture ends.
+    @Environment(\.shelfMarqueeActivityAction) private var shelfMarqueeActivityAction
     /// C5 框选状态：起点/当前点均在窗口 .global 坐标系（与卡片 frame 一致）。
     @State private var marqueeStart: CGPoint?
     @State private var marqueeCurrent: CGPoint?
@@ -113,6 +116,12 @@ struct ShelfView: View {
                 ShelfEmptyState()
             } else {
                 itemGrid
+            }
+            if shouldShowTopLevelQuickActions {
+                ShelfQuickActionBar(items: topLevelActionItems)
+                    .transition(reduceMotion
+                        ? .opacity
+                        : .opacity.combined(with: .move(edge: .bottom)))
             }
         }
         .padding(8)
@@ -231,7 +240,13 @@ struct ShelfView: View {
                 onToggleExpanded: { toggleStackExpansion(item.id) },
                 onRemove: { store.remove(ids: [item.id]) },
                 onRecover: { toggleStackExpansion(item.id) },
-                onCopy: { copyToClipboard([item]) },
+                onCopy: {
+                    copyToClipboard(ShelfActionSelectionResolver.contextualItems(
+                        anchor: item,
+                        visibleItems: store.items,
+                        selectedIDs: store.selection
+                    ))
+                },
                 transferStatus: stackTransferStatus(for: item),
                 dragContentsProvider: dragContents(for:)
             )
@@ -244,7 +259,13 @@ struct ShelfView: View {
                 onRemove: { store.remove(ids: [item.id]) },
                 onRecover: { itemRecoveryController?.recover(item) },
                 onCopy: item.availability == .available
-                    ? { copyToClipboard([item]) }
+                    ? {
+                        copyToClipboard(ShelfActionSelectionResolver.contextualItems(
+                            anchor: item,
+                            visibleItems: store.items,
+                            selectedIDs: store.selection
+                        ))
+                    }
                     : nil,
                 transferStatus: transferStore.accessibilityStatus(for: item.id),
                 dragContentsProvider: dragContents(for:)
@@ -397,7 +418,11 @@ struct ShelfView: View {
                             itemRecoveryController?.recover(child)
                         },
                         onCopyChild: { child in
-                            copyToClipboard([child])
+                            copyToClipboard(ShelfActionSelectionResolver.contextualItems(
+                                anchor: child,
+                                visibleItems: stack.children ?? [],
+                                selectedIDs: interaction.childSelection
+                            ))
                         }
                     )
                     .padding(8)
@@ -423,6 +448,21 @@ struct ShelfView: View {
     }
 
     // MARK: - Selection
+
+    private var topLevelActionItems: [ShelfItem] {
+        ShelfActionSelectionResolver.explicitItems(
+            topLevelItems: store.items,
+            topLevelSelection: store.selection,
+            expandedStackID: nil,
+            childSelection: []
+        )
+    }
+
+    private var shouldShowTopLevelQuickActions: Bool {
+        interaction.expandedStackID == nil
+            && !dropTargetState.isTargeted
+            && ShelfActionCatalog.hasAnyAction(for: topLevelActionItems)
+    }
 
     private func select(_ id: UUID, additive: Bool) {
         interaction.focusedItemID = id
@@ -500,6 +540,7 @@ struct ShelfView: View {
                     marqueeStart = value.startLocation
                     marqueeBaseSelection = NSEvent.modifierFlags.contains(.command)
                         ? store.selection : []
+                    shelfMarqueeActivityAction?(true)
                 }
                 marqueeCurrent = value.location
                 updateMarqueeSelection()
@@ -508,6 +549,7 @@ struct ShelfView: View {
                 marqueeStart = nil
                 marqueeCurrent = nil
                 marqueeBaseSelection = []
+                shelfMarqueeActivityAction?(false)
             }
     }
 
@@ -564,6 +606,17 @@ struct ShelfView: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
                 .allowsHitTesting(false)
         }
+    }
+}
+
+private struct ShelfMarqueeActivityActionEnvironmentKey: EnvironmentKey {
+    static var defaultValue: (@MainActor (Bool) -> Void)? { nil }
+}
+
+extension EnvironmentValues {
+    var shelfMarqueeActivityAction: (@MainActor (Bool) -> Void)? {
+        get { self[ShelfMarqueeActivityActionEnvironmentKey.self] }
+        set { self[ShelfMarqueeActivityActionEnvironmentKey.self] = newValue }
     }
 }
 

@@ -34,8 +34,20 @@ enum ShelfKeyboardNavigator {
 @Observable
 final class ShelfInteractionState {
     var focusedItemID: UUID?
-    var expandedStackID: UUID?
-    var childSelection: Set<UUID> = []
+    var expandedStackID: UUID? {
+        didSet {
+            if oldValue != expandedStackID { onActionSelectionDidChange?() }
+        }
+    }
+    var childSelection: Set<UUID> = [] {
+        didSet {
+            if oldValue != childSelection { onActionSelectionDidChange?() }
+        }
+    }
+
+    /// Expanded-stack selection also controls quick-action visibility. The
+    /// controller uses this callback solely for compact-height recalculation.
+    var onActionSelectionDidChange: (@MainActor () -> Void)?
 
     func visibleItems(in topLevelItems: [ShelfItem]) -> [ShelfItem] {
         guard let expandedStackID,

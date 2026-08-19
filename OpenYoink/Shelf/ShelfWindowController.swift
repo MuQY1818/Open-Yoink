@@ -80,6 +80,9 @@ final class ShelfWindowController: NSObject {
     /// v1.2: distinguishes external references from managed-copy loss and owns
     /// the safe user-driven recovery actions.
     private let itemRecoveryController: ItemRecoveryController
+    /// v1.3: shared non-destructive selection actions and the retained AppKit
+    /// share-session lifecycle.
+    private let shelfActionRunner: ShelfActionRunner
     /// Batch-level VoiceOver announcements live for the controller lifetime so
     /// SwiftUI redraws cannot repeat already spoken events.
     private let accessibilityAnnouncementCenter = AccessibilityAnnouncementCenter()
@@ -88,6 +91,11 @@ final class ShelfWindowController: NSObject {
     private let dragStartMonitor: DragStartMonitor
     /// 快速上手期间只暂停自动隐藏，不改写用户的 autoHide 设置。
     private var onboardingPresentationCount = 0
+    /// Freeze compact-height changes during global-coordinate marquee gestures;
+    /// the task also coalesces select+expand into one layout pass.
+    private var isMarqueeSelectionActive = false
+    private var quickActionLayoutPending = false
+    private var quickActionLayoutTask: Task<Void, Never>?
 
     struct OnboardingPresentationSnapshot: Equatable, Sendable {
         fileprivate let wasVisible: Bool
@@ -116,11 +124,15 @@ final class ShelfWindowController: NSObject {
                 .environment(\.quickLookCoordinator, quickLookCoordinator)
                 .environment(\.tempFileService, tempFileService)
                 .environment(\.itemRecoveryController, itemRecoveryController)
+                .environment(\.shelfActionRunner, shelfActionRunner)
                 .environment(\.accessibilityAnnouncementCenter,
                               accessibilityAnnouncementCenter)
                 // 任务三：内缘收起把手点击 → 走标准 hideShelf 滑出动画。
                 .environment(\.shelfHideAction, { [weak self] in
                     self?.hideShelf(animated: true)
+                })
+                .environment(\.shelfMarqueeActivityAction, { [weak self] isActive in
+                    self?.setMarqueeSelectionActive(isActive)
                 })
         )
         panel.contentView = DragContainerView(
@@ -177,10 +189,20 @@ final class ShelfWindowController: NSObject {
             notices: importCoordinator.noticeCenter,
             openStorageRecovery: onOpenStorageRecovery
         )
+        self.shelfActionRunner = ShelfActionRunner(
+            bookmarkService: importCoordinator.bookmarkService,
+            notices: importCoordinator.noticeCenter
+        )
         super.init()
         // UX5/UX6: 项目增删 → 紧凑高度动画过渡 + 空架自动隐藏裁决。
         store.onItemsDidChange = { [weak self] in
             self?.handleItemsDidChange()
+        }
+        store.onSelectionDidChange = { [weak self] in
+            self?.handleQuickActionVisibilityDidChange()
+        }
+        interaction.onActionSelectionDidChange = { [weak self] in
+            self?.handleQuickActionVisibilityDidChange()
         }
         importCoordinator.transferStore.onVisibilityDidChange = { [weak self] in
             self?.handleActivityVisibilityDidChange()
@@ -224,6 +246,7 @@ final class ShelfWindowController: NSObject {
     }
 
     deinit {
+        quickActionLayoutTask?.cancel()
         NotificationCenter.default.removeObserver(self)
     }
 
@@ -304,6 +327,10 @@ final class ShelfWindowController: NSObject {
     /// 向贴附缘滑出并淡出，结束后 orderOut。
     func hideShelf(animated: Bool = true) {
         let animated = animated && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        quickActionLayoutTask?.cancel()
+        quickActionLayoutTask = nil
+        quickActionLayoutPending = false
+        isMarqueeSelectionActive = false
         appState.hideShelf()
         // S6: shelf 隐藏时关掉 Quick Look 并释放会话资源（不恢复键盘焦点）。
         quickLookCoordinator.closeForShelfHide()
@@ -338,6 +365,28 @@ final class ShelfWindowController: NSObject {
     private func handleItemKeyDown(_ event: NSEvent) -> Bool {
         var modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         modifiers.subtract([.capsLock, .function, .numericPad])
+
+        // The global summon shortcut is user-configurable and may equal one
+        // of the fixed quick-action combinations below. In that case it keeps
+        // priority; never execute a shelf action from the same key press.
+        if settings.hotKeyEnabled,
+           let globalShortcut = settings.hotKeyShortcut,
+           HotKeyMonitor.matches(event, shortcut: globalShortcut) {
+            return false
+        }
+
+        if modifiers == [.command, .option],
+           event.charactersIgnoringModifiers?.lowercased() == "c" {
+            return performKeyboardAction(.copyPath)
+        }
+        if modifiers == [.command, .shift],
+           event.charactersIgnoringModifiers?.lowercased() == "j" {
+            return performKeyboardAction(.revealInFinder)
+        }
+        if modifiers == [.command, .shift],
+           event.charactersIgnoringModifiers?.lowercased() == "s" {
+            return performKeyboardAction(.share, relativeTo: panel.contentView)
+        }
 
         if modifiers == .command {
             switch event.charactersIgnoringModifiers?.lowercased() {
@@ -477,6 +526,16 @@ final class ShelfWindowController: NSObject {
         return true
     }
 
+    private func performKeyboardAction(_ action: ShelfAction,
+                                       relativeTo anchorView: NSView? = nil) -> Bool {
+        let items = keyboardActionItems()
+        guard !items.isEmpty, ShelfActionCatalog.canPerform(action, on: items) else {
+            return false
+        }
+        shelfActionRunner.perform(action, on: items, relativeTo: anchorView)
+        return true
+    }
+
     private func openFocusedItem() -> Bool {
         guard let item = focusedItem() else { return false }
         if item.availability != .available {
@@ -527,11 +586,22 @@ final class ShelfWindowController: NSObject {
             width: settings.shelfWidth,
             itemCount: store.items.count,
             hasActivity: importCoordinator.transferStore.hasVisibleActivity,
+            hasQuickActions: hasVisibleQuickActions,
             mouseLocation: NSEvent.mouseLocation,
             screens: Self.screenGeometries(),
             persistedCustomFrame: settings.customShelfFrame,
             edgeOffset: CGFloat(settings.shelfEdgeOffset)
         )
+    }
+
+    private var hasVisibleQuickActions: Bool {
+        let items = ShelfActionSelectionResolver.explicitItems(
+            topLevelItems: store.items,
+            topLevelSelection: store.selection,
+            expandedStackID: interaction.expandedStackID,
+            childSelection: interaction.childSelection
+        )
+        return ShelfActionCatalog.hasAnyAction(for: items)
     }
 
     /// 隐藏态 frame：左/右向贴附缘方向平移一个面板宽度；custom 原位（淡出）。
@@ -643,6 +713,50 @@ final class ShelfWindowController: NSObject {
     /// ActivityStrip changes compact height but must not participate in the
     /// non-empty → empty auto-hide state machine.
     private func handleActivityVisibilityDidChange() {
+        guard appState.isShelfVisible else { return }
+        let target = targetFrame()
+        guard target != panel.frame else { return }
+        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
+            panel.setFrame(target, display: true)
+            return
+        }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = Self.animationDuration
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            panel.animator().setFrame(target, display: true)
+        }
+    }
+
+    /// Explicit top-level or expanded-stack selection changes only affect the
+    /// quick-action row. They do not enter the item persistence or empty-shelf
+    /// auto-hide state machines.
+    private func handleQuickActionVisibilityDidChange() {
+        guard appState.isShelfVisible else { return }
+        if isMarqueeSelectionActive {
+            quickActionLayoutPending = true
+            quickActionLayoutTask?.cancel()
+            quickActionLayoutTask = nil
+            return
+        }
+
+        quickActionLayoutPending = false
+        quickActionLayoutTask?.cancel()
+        quickActionLayoutTask = Task { @MainActor [weak self] in
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+            self?.applyQuickActionLayoutChange()
+        }
+    }
+
+    private func setMarqueeSelectionActive(_ isActive: Bool) {
+        isMarqueeSelectionActive = isActive
+        if !isActive, quickActionLayoutPending {
+            handleQuickActionVisibilityDidChange()
+        }
+    }
+
+    private func applyQuickActionLayoutChange() {
+        quickActionLayoutTask = nil
         guard appState.isShelfVisible else { return }
         let target = targetFrame()
         guard target != panel.frame else { return }
