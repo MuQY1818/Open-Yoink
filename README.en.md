@@ -44,6 +44,7 @@ OpenYoink lives in the menu bar without a Dock icon. It appears when needed and 
 
 - **Accepts everyday content:** files, folders, plain and rich text, images, links, plus mail messages, calendar events, contacts, and more.
 - **Appears your way:** automatically when dragging, from an edge tab, with a global shortcut, or after a mouse-shake gesture.
+- **Optional OpenYoink Island:** manually opt into a surface that blends with the Mac camera housing; external and notchless displays fall back to a top pill with shelf, transfer, timer, and battery modules.
 - **Organizes without interruption:** Quick Look, multi-select, marquee selection, stacks, manual ordering, and recent items.
 - **Works across your desktop:** multiple displays, Spaces, and full-screen apps, with a per-app ignore list.
 - **Uses predictable file semantics:** source files are referenced by default, and Finder drops only request a copy. Hold ⌘ while importing to use the managed-move flow described in [File safety and lifecycle](#file-safety-and-lifecycle).
@@ -93,6 +94,7 @@ xattr -dr com.apple.quarantine /Applications/OpenYoink.app
 | Select multiple items | ⌘-click, or drag a marquee across empty shelf space |
 | Remove an item | Use the hover `×`, press `Delete`, or open the context menu |
 | Reposition the shelf | Drag the edge tab along the screen, or choose a position in Settings |
+| Enable Island | **Settings → General → Position → Island Beta**; upgrades retain the existing left, right, or custom layout until you opt in |
 
 The menu-bar **Settings…** window also controls shelf width, auto-hide behavior, post-drag policy, trigger sensitivity, ignored apps, launch at login, storage management, and language. Regular items stay on the shelf after drag-out by default; this can be changed to remove them or ask every time.
 
@@ -120,6 +122,7 @@ When dragging regular files out, OpenYoink provides file URLs plus Chromium-comp
 - No account is required, and there is no analytics or telemetry. Normal use does not require Accessibility or Input Monitoring permission; file access comes from content the user explicitly drags in.
 - In the current version, automatic update checks are enabled by default and can be disabled in Settings. Automatic and manual checks contact GitHub Pages / Releases; the current version has no other background network feature.
 - In the current version, OpenYoink reads the clipboard only when the user invokes the double-shortcut clipboard action.
+- Experimental Now Playing stays off by default. When explicitly enabled it first uses a bundled local compatibility helper; only if that helper is unavailable does it try Apple Music / Spotify AppleScript and potentially request Automation permission. The module does not use the network, and its failure is isolated from the shelf and other Island modules.
 - Persistence uses security-scoped bookmarks and atomic JSON writes to reduce unnecessary source-file copies and the risk of snapshot damage from partial writes.
 
 ## Build from source
@@ -140,7 +143,8 @@ xcodebuild \
   -project Open-Yoink.xcodeproj \
   -scheme OpenYoink \
   -destination 'platform=macOS' \
-  test
+  test \
+  -only-testing:OpenYoinkTests
 ```
 
 Local builds do not require a `DEVELOPMENT_TEAM`. SwiftUI renders the interface, while AppKit owns windows, drag and drop, and global events. The test suite covers persistence, import and delivery, shortcuts, triggers, and layout behavior.

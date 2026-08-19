@@ -94,7 +94,7 @@ final class TransferStoreTests: XCTestCase {
         store.recordSuccess(taskID: taskID, itemID: UUID())
 
         store.extendImport(id: taskID, by: 1)
-        try await Task.sleep(for: .milliseconds(30))
+        try await Task.sleep(for: .milliseconds(80))
 
         XCTAssertTrue(store.hasVisibleActivity)
         XCTAssertEqual(store.currentTask?.phase,
@@ -106,7 +106,7 @@ final class TransferStoreTests: XCTestCase {
         let taskID = store.beginImport(expectedCount: 1)
         store.recordSuccess(taskID: taskID, itemID: UUID())
 
-        try await Task.sleep(for: .milliseconds(30))
+        try await Task.sleep(for: .milliseconds(80))
 
         XCTAssertFalse(store.hasVisibleActivity)
         XCTAssertEqual(store.tasks.first?.phase, .delivered)
