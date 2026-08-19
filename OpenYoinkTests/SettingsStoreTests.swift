@@ -46,6 +46,48 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(store.language, .system)
         XCTAssertEqual(store.onboardingVersion, 0)
         XCTAssertFalse(store.hadPersistedOnboardingVersion)
+        XCTAssertEqual(store.shelfPresentationMode, .classic)
+        XCTAssertEqual(store.shelfPlacement, .right)
+        XCTAssertFalse(store.islandHoverRevealEnabled)
+        XCTAssertTrue(store.islandTimerEnabled)
+        XCTAssertTrue(store.islandBatteryEnabled)
+        XCTAssertFalse(store.islandMediaEnabled)
+    }
+
+    func testIslandPlacementPreservesLastClassicPosition() throws {
+        let (defaults, name) = try makeSuite()
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let store = SettingsStore(defaults: defaults)
+        store.shelfPosition = .left
+        store.shelfPlacement = .island
+        XCTAssertEqual(store.shelfPresentationMode, .island)
+        XCTAssertEqual(store.shelfPosition, .left)
+
+        store.shelfPlacement = .right
+        XCTAssertEqual(store.shelfPresentationMode, .classic)
+        XCTAssertEqual(store.shelfPosition, .right)
+    }
+
+    func testIslandSettingsPersistAcrossInstances() throws {
+        let (defaults, name) = try makeSuite()
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let store = SettingsStore(defaults: defaults)
+        store.shelfPlacement = .island
+        store.islandHoverRevealEnabled = true
+        store.islandTimerEnabled = false
+        store.islandBatteryEnabled = false
+        store.islandFullChargeAlertEnabled = true
+        store.islandMediaEnabled = true
+
+        let reloaded = SettingsStore(defaults: defaults)
+        XCTAssertEqual(reloaded.shelfPresentationMode, .island)
+        XCTAssertTrue(reloaded.islandHoverRevealEnabled)
+        XCTAssertFalse(reloaded.islandTimerEnabled)
+        XCTAssertFalse(reloaded.islandBatteryEnabled)
+        XCTAssertTrue(reloaded.islandFullChargeAlertEnabled)
+        XCTAssertTrue(reloaded.islandMediaEnabled)
     }
 
     func testOnboardingVersionPersistsAndKeepsExplicitState() throws {

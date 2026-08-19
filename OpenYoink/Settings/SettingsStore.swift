@@ -19,6 +19,20 @@ final class SettingsStore {
         case custom
     }
 
+    /// Which surface presents the same shelf data. Classic retains the
+    /// existing left/right/custom panel; Island anchors a compact surface to
+    /// the camera housing (or a floating top pill on displays without one).
+    enum ShelfPresentationMode: String, CaseIterable, Sendable {
+        case classic, island
+    }
+
+    /// User-facing placement picker. Keeping this separate from
+    /// `ShelfPosition` prevents Island from leaking into edge-only layout and
+    /// trigger switches while still presenting one simple control in Settings.
+    enum ShelfPlacement: String, CaseIterable, Sendable {
+        case left, right, island, custom
+    }
+
     /// What happens to an item after it is dragged out of the shelf.
     enum DragOutRemovalPolicy: String, CaseIterable, Sendable {
         case keep   // keep the item on the shelf
@@ -65,6 +79,69 @@ final class SettingsStore {
     /// Edge the shelf attaches to. Default: right.
     var shelfPosition: ShelfPosition {
         didSet { defaults.set(shelfPosition.rawValue, forKey: Keys.shelfPosition) }
+    }
+
+    /// Defaults to classic so an upgrade never moves an existing user's shelf.
+    var shelfPresentationMode: ShelfPresentationMode {
+        didSet {
+            defaults.set(shelfPresentationMode.rawValue,
+                         forKey: Keys.shelfPresentationMode)
+        }
+    }
+
+    /// Combined Settings binding. Selecting Island preserves the last classic
+    /// position so switching back restores the user's previous layout.
+    var shelfPlacement: ShelfPlacement {
+        get {
+            if shelfPresentationMode == .island { return .island }
+            switch shelfPosition {
+            case .left: return .left
+            case .right: return .right
+            case .custom: return .custom
+            }
+        }
+        set {
+            switch newValue {
+            case .island:
+                shelfPresentationMode = .island
+            case .left:
+                shelfPosition = .left
+                shelfPresentationMode = .classic
+            case .right:
+                shelfPosition = .right
+                shelfPresentationMode = .classic
+            case .custom:
+                shelfPosition = .custom
+                shelfPresentationMode = .classic
+            }
+        }
+    }
+
+    /// Optional hover reveal. Click, drag approach and the global shortcut are
+    /// always available, so disabling hover never makes Island unreachable.
+    var islandHoverRevealEnabled: Bool {
+        didSet { defaults.set(islandHoverRevealEnabled, forKey: Keys.islandHoverRevealEnabled) }
+    }
+
+    var islandTimerEnabled: Bool {
+        didSet { defaults.set(islandTimerEnabled, forKey: Keys.islandTimerEnabled) }
+    }
+
+    var islandBatteryEnabled: Bool {
+        didSet { defaults.set(islandBatteryEnabled, forKey: Keys.islandBatteryEnabled) }
+    }
+
+    var islandFullChargeAlertEnabled: Bool {
+        didSet {
+            defaults.set(islandFullChargeAlertEnabled,
+                         forKey: Keys.islandFullChargeAlertEnabled)
+        }
+    }
+
+    /// v1.4.1 experimental module. It remains opt-in because its cross-player
+    /// source relies on a private, OS-sensitive MediaRemote adapter.
+    var islandMediaEnabled: Bool {
+        didSet { defaults.set(islandMediaEnabled, forKey: Keys.islandMediaEnabled) }
     }
 
     /// Shelf width in points. Default: 320.
@@ -244,9 +321,19 @@ final class SettingsStore {
 
     private let defaults: UserDefaults
 
+    /// Shared persistence domain for feature stores that must follow the
+    /// isolated UI-test/defaults suite instead of silently using `.standard`.
+    var defaultsStore: UserDefaults { defaults }
+
     private enum Keys {
         private static let prefix = "OpenYoink."
         static let shelfPosition = prefix + "shelfPosition"
+        static let shelfPresentationMode = prefix + "shelfPresentationMode"
+        static let islandHoverRevealEnabled = prefix + "islandHoverRevealEnabled"
+        static let islandTimerEnabled = prefix + "islandTimerEnabled"
+        static let islandBatteryEnabled = prefix + "islandBatteryEnabled"
+        static let islandFullChargeAlertEnabled = prefix + "islandFullChargeAlertEnabled"
+        static let islandMediaEnabled = prefix + "islandMediaEnabled"
         static let shelfWidth = prefix + "shelfWidth"
         static let shelfEdgeOffset = prefix + "shelfEdgeOffset"
         static let edgeTabEnabled = prefix + "edgeTabEnabled"
@@ -282,6 +369,12 @@ final class SettingsStore {
         let persistedDragMode = defaults.string(forKey: Keys.dragAutoAppearMode)
         defaults.register(defaults: [
             Keys.shelfPosition: ShelfPosition.right.rawValue,
+            Keys.shelfPresentationMode: ShelfPresentationMode.classic.rawValue,
+            Keys.islandHoverRevealEnabled: false,
+            Keys.islandTimerEnabled: true,
+            Keys.islandBatteryEnabled: true,
+            Keys.islandFullChargeAlertEnabled: false,
+            Keys.islandMediaEnabled: false,
             Keys.shelfWidth: 320.0,
             Keys.shelfEdgeOffset: 0.5,
             Keys.edgeTabEnabled: true,
@@ -301,6 +394,16 @@ final class SettingsStore {
 
         shelfPosition = ShelfPosition(rawValue: defaults.string(forKey: Keys.shelfPosition) ?? "")
             ?? .right
+        shelfPresentationMode = ShelfPresentationMode(
+            rawValue: defaults.string(forKey: Keys.shelfPresentationMode) ?? ""
+        ) ?? .classic
+        islandHoverRevealEnabled = defaults.bool(forKey: Keys.islandHoverRevealEnabled)
+        islandTimerEnabled = defaults.bool(forKey: Keys.islandTimerEnabled)
+        islandBatteryEnabled = defaults.bool(forKey: Keys.islandBatteryEnabled)
+        islandFullChargeAlertEnabled = defaults.bool(
+            forKey: Keys.islandFullChargeAlertEnabled
+        )
+        islandMediaEnabled = defaults.bool(forKey: Keys.islandMediaEnabled)
         shelfWidth = defaults.double(forKey: Keys.shelfWidth)
         shelfEdgeOffset = defaults.double(forKey: Keys.shelfEdgeOffset)
         edgeTabEnabled = defaults.bool(forKey: Keys.edgeTabEnabled)
