@@ -31,7 +31,7 @@
 </a>
 
 > [!NOTE]
-> 当前稳定版 **v1.4.1**，包含 OpenYoink Island、模块化顶部界面，以及可选的“正在播放”模块。完整教程见[使用文档](https://muqy1818.github.io/OpenYoink/guide/)。
+> 当前稳定版 **v1.5.0**，新增 Flow 风格专注计时、专注热力图、Island 显示器选择与展开态设置入口。完整教程见[使用文档](https://muqy1818.github.io/OpenYoink/guide/)。
 
 ## 它解决什么问题
 

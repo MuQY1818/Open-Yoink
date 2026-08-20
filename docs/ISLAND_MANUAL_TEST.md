@@ -1,4 +1,4 @@
-# OpenYoink Island v1.4.x 真机验收
+# OpenYoink Island 真机验收
 
 本清单只用于人工验收。自动验证限定为 `xcodebuild build` 和
 `xcodebuild test ... -only-testing:OpenYoinkTests`，不运行 UI 自动化。
@@ -23,8 +23,16 @@
 - AppleScript 仅在实验模块开启且 helper 不可用时请求自动化权限；拒绝权限不会影响其他模块。
 - 播放器退出、媒体数据畸形和 helper 崩溃只让媒体模块进入不可用状态，Shelf 仍可正常拖放。
 
+## v1.5.0 / build 21
+
+- 计时器支持专注、短休息和长休息模式，开始、暂停、继续、重置与跨启动恢复正常。
+- 专注完成后写入本地热力图；周切换、日期统计、连续天数和空记录状态正确。
+- Island 可选择主显示器、自动跟随鼠标或固定到指定显示器；显示器断开后安全回退，重连后恢复。
+- 展开 Island 后可直接进入设置；左右控制数量与间距保持平衡，按钮不会贴边或遮挡模块内容。
+- Island 紧凑态悬停反馈持续到鼠标离开，不会只闪现一瞬间。
+
 ## 发布前证据
 
 - 记录测试设备、macOS 版本、内置/外接屏组合以及通过/失败项。
-- 核对 `1.4.0 (19)` 或 `1.4.1 (20)`、DMG SHA-256、ad-hoc 签名、Sparkle EdDSA 和 appcast build 递增。
+- 核对当前版本与 build、DMG SHA-256、ad-hoc 签名、Sparkle EdDSA 和 appcast build 递增。
 - 只有在真机验收完成并收到最终确认后，才创建 GitHub Release 和更新公开 feed。

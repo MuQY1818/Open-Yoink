@@ -4,6 +4,36 @@ import Observation
 @MainActor
 @Observable
 final class IslandTimerStore: IslandModule {
+    enum Mode: String, Codable, CaseIterable, Sendable {
+        case focus
+        case shortBreak
+        case longBreak
+
+        var defaultMinutes: Int {
+            switch self {
+            case .focus: 25
+            case .shortBreak: 5
+            case .longBreak: 15
+            }
+        }
+
+        var title: String {
+            switch self {
+            case .focus: String(localized: "Focus")
+            case .shortBreak: String(localized: "Short break")
+            case .longBreak: String(localized: "Long break")
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .focus: "scope"
+            case .shortBreak: "cup.and.saucer.fill"
+            case .longBreak: "leaf.fill"
+            }
+        }
+    }
+
     enum State: Equatable, Sendable {
         case idle
         case running(endDate: Date, originalDuration: TimeInterval)
@@ -17,6 +47,12 @@ final class IslandTimerStore: IslandModule {
         var endDate: Date?
         var remaining: TimeInterval?
         var originalDuration: TimeInterval
+        var sessionID: UUID?
+    }
+
+    private struct PersistedConfiguration: Codable {
+        var mode: Mode
+        var goal: String
     }
 
     let descriptor = IslandModuleDescriptor(
@@ -28,6 +64,9 @@ final class IslandTimerStore: IslandModule {
     )
 
     private static let persistenceKey = "OpenYoink.islandTimerState"
+    private static let configurationKey = "OpenYoink.islandTimerConfiguration"
+    private static let historyKey = "OpenYoink.islandFocusHistory"
+    private static let maximumHistoryCount = 2_000
 
     private let defaults: UserDefaults
     private let nowProvider: @MainActor () -> Date
@@ -35,6 +74,10 @@ final class IslandTimerStore: IslandModule {
     nonisolated(unsafe) private var tickerTask: Task<Void, Never>?
     private(set) var state: State = .idle
     private(set) var tick = 0
+    private(set) var mode: Mode = .focus
+    private(set) var goal = ""
+    private(set) var sessions: [IslandFocusSession] = []
+    private var activeSessionID: UUID?
     var onActivity: (@MainActor (IslandActivity?) -> Void)?
     var onStateChange: (@MainActor () -> Void)?
 
@@ -42,6 +85,8 @@ final class IslandTimerStore: IslandModule {
          now: @escaping @MainActor () -> Date = Date.init) {
         self.defaults = defaults
         self.nowProvider = now
+        restoreConfiguration()
+        restoreHistory()
         restore()
     }
 
@@ -67,11 +112,29 @@ final class IslandTimerStore: IslandModule {
 
     func start(duration: TimeInterval) {
         let duration = max(1, duration)
+        activeSessionID = UUID()
         state = .running(endDate: nowProvider().addingTimeInterval(duration),
                          originalDuration: duration)
         persist()
         publishActivity()
         scheduleTickerIfNeeded()
+        onStateChange?()
+    }
+
+    func selectMode(_ mode: Mode) {
+        guard state == .idle, self.mode != mode else { return }
+        self.mode = mode
+        persistConfiguration()
+        publishActivity()
+        onStateChange?()
+    }
+
+    func setGoal(_ goal: String) {
+        let sanitized = String(goal.prefix(80))
+        guard self.goal != sanitized else { return }
+        self.goal = sanitized
+        persistConfiguration()
+        publishActivity()
         onStateChange?()
     }
 
@@ -98,6 +161,7 @@ final class IslandTimerStore: IslandModule {
     func reset() {
         stop()
         state = .idle
+        activeSessionID = nil
         defaults.removeObject(forKey: Self.persistenceKey)
         onActivity?(nil)
         onStateChange?()
@@ -155,6 +219,16 @@ final class IslandTimerStore: IslandModule {
             publishActivity()
             return
         }
+        completeTimer(at: endDate, originalDuration: originalDuration)
+    }
+
+    private func completeTimer(at completionDate: Date,
+                               originalDuration: TimeInterval) {
+        let sessionID = activeSessionID ?? UUID()
+        activeSessionID = sessionID
+        recordFocusSession(id: sessionID,
+                           completedAt: completionDate,
+                           duration: originalDuration)
         state = .finished(originalDuration: originalDuration)
         stop()
         persist()
@@ -185,9 +259,9 @@ final class IslandTimerStore: IslandModule {
         case .running, .paused:
             onActivity?(.init(id: "timer.running", moduleID: .timer,
                               priority: .selectedModule,
-                              title: String(localized: "Timer"),
+                              title: activityTitle,
                               detail: formattedRemaining,
-                              systemImage: "timer", expiresAt: nil))
+                              systemImage: mode.systemImage, expiresAt: nil))
         case .finished:
             onActivity?(.init(id: "timer.finished", moduleID: .timer,
                               priority: .timerFinished,
@@ -197,6 +271,56 @@ final class IslandTimerStore: IslandModule {
         }
     }
 
+    private var activityTitle: String {
+        let trimmedGoal = goal.trimmingCharacters(in: .whitespacesAndNewlines)
+        if mode == .focus, !trimmedGoal.isEmpty { return trimmedGoal }
+        return mode.title
+    }
+
+    private func persistConfiguration() {
+        let value = PersistedConfiguration(mode: mode, goal: goal)
+        guard let data = try? JSONEncoder().encode(value) else { return }
+        defaults.set(data, forKey: Self.configurationKey)
+    }
+
+    private func recordFocusSession(id: UUID,
+                                    completedAt: Date,
+                                    duration: TimeInterval) {
+        guard mode == .focus,
+              !sessions.contains(where: { $0.id == id }) else { return }
+        let trimmedGoal = goal.trimmingCharacters(in: .whitespacesAndNewlines)
+        sessions.append(.init(id: id,
+                              completedAt: completedAt,
+                              duration: duration,
+                              goal: trimmedGoal.isEmpty ? nil : trimmedGoal))
+        sessions.sort { $0.completedAt < $1.completedAt }
+        if sessions.count > Self.maximumHistoryCount {
+            sessions.removeFirst(sessions.count - Self.maximumHistoryCount)
+        }
+        persistHistory()
+    }
+
+    private func persistHistory() {
+        guard let data = try? JSONEncoder().encode(sessions) else { return }
+        defaults.set(data, forKey: Self.historyKey)
+    }
+
+    private func restoreHistory() {
+        guard let data = defaults.data(forKey: Self.historyKey),
+              let restored = try? JSONDecoder().decode([IslandFocusSession].self,
+                                                       from: data) else { return }
+        sessions = Array(restored.sorted { $0.completedAt < $1.completedAt }
+            .suffix(Self.maximumHistoryCount))
+    }
+
+    private func restoreConfiguration() {
+        guard let data = defaults.data(forKey: Self.configurationKey),
+              let value = try? JSONDecoder().decode(PersistedConfiguration.self,
+                                                     from: data) else { return }
+        mode = value.mode
+        goal = String(value.goal.prefix(80))
+    }
+
     private func persist() {
         let value: PersistedState?
         switch state {
@@ -204,13 +328,16 @@ final class IslandTimerStore: IslandModule {
             value = nil
         case let .running(endDate, originalDuration):
             value = .init(kind: .running, endDate: endDate, remaining: nil,
-                          originalDuration: originalDuration)
+                          originalDuration: originalDuration,
+                          sessionID: activeSessionID)
         case let .paused(remaining, originalDuration):
             value = .init(kind: .paused, endDate: nil, remaining: remaining,
-                          originalDuration: originalDuration)
+                          originalDuration: originalDuration,
+                          sessionID: activeSessionID)
         case let .finished(originalDuration):
             value = .init(kind: .finished, endDate: nil, remaining: nil,
-                          originalDuration: originalDuration)
+                          originalDuration: originalDuration,
+                          sessionID: activeSessionID)
         }
         guard let value, let data = try? JSONEncoder().encode(value) else {
             defaults.removeObject(forKey: Self.persistenceKey)
@@ -227,15 +354,20 @@ final class IslandTimerStore: IslandModule {
         }
         switch value.kind {
         case .running:
+            activeSessionID = value.sessionID ?? UUID()
             if let endDate = value.endDate, endDate > nowProvider() {
                 state = .running(endDate: endDate, originalDuration: value.originalDuration)
             } else {
-                state = .finished(originalDuration: value.originalDuration)
+                completeTimer(at: value.endDate ?? nowProvider(),
+                              originalDuration: value.originalDuration)
+                return
             }
         case .paused:
+            activeSessionID = value.sessionID ?? UUID()
             state = .paused(remaining: max(0, value.remaining ?? 0),
                             originalDuration: value.originalDuration)
         case .finished:
+            activeSessionID = value.sessionID
             state = .finished(originalDuration: value.originalDuration)
         }
         publishActivity()

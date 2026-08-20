@@ -92,6 +92,10 @@ final class ShelfWindowController: NSObject {
     /// 任务二：拖拽进行中状态（`DragStartMonitor.isDragInProgress`），供给
     /// 空架自动隐藏的门控 —— 拖拽期间任何自动显隐不得收起已可见的 shelf。
     private let dragStartMonitor: DragStartMonitor
+    /// Expanded Island's visible Settings control uses the app's retained,
+    /// LSUIElement-safe settings window rather than SwiftUI's response-chain
+    /// action, which can silently fail for a non-activating panel.
+    private let onOpenSettings: @MainActor () -> Void
     /// v1.4: the classic shelf and Island share one dependency graph and one
     /// ShelfStore, but each owns an independent panel and visibility state.
     let islandActivityCoordinator: IslandActivityCoordinator
@@ -149,6 +153,9 @@ final class ShelfWindowController: NSObject {
                 presentationStyle: presentationStyle,
                 onPerformRecovery: { [weak self] action in
                     self?.itemRecoveryController.perform(action)
+                },
+                onOpenSettings: { [weak self] in
+                    self?.onOpenSettings()
                 }
             )
                 .environment(store)
@@ -225,6 +232,7 @@ final class ShelfWindowController: NSObject {
          recents: RecentItemsService,
          deliveryCoordinator: DeliveryCoordinator,
          dragStartMonitor: DragStartMonitor,
+         onOpenSettings: @escaping @MainActor () -> Void = {},
          onOpenStorageRecovery: @escaping @MainActor () -> Void = {},
          tutorialTokenForItem: @escaping @MainActor (UUID) -> String? = { _ in nil }) {
         self.appState = appState
@@ -233,6 +241,7 @@ final class ShelfWindowController: NSObject {
         self.tempFileService = tempFileService
         self.settings = settings
         self.dragStartMonitor = dragStartMonitor
+        self.onOpenSettings = onOpenSettings
         self.islandActivityCoordinator = IslandActivityCoordinator()
         self.islandModuleRegistry = IslandModuleRegistry()
         self.islandTimerStore = IslandTimerStore(defaults: settings.defaultsStore)
@@ -846,24 +855,21 @@ final class ShelfWindowController: NSObject {
 
     private func islandLayout(at point: CGPoint = NSEvent.mouseLocation)
         -> IslandGeometryResolver.Layout {
-        let screens = NSScreen.screens.map { screen in
-            IslandGeometryResolver.ScreenGeometry(
-                frame: screen.frame,
-                visibleFrame: screen.visibleFrame,
-                safeAreaTop: screen.safeAreaInsets.top,
-                auxiliaryTopLeftArea: screen.auxiliaryTopLeftArea ?? .zero,
-                auxiliaryTopRightArea: screen.auxiliaryTopRightArea ?? .zero
+        if let screen = IslandScreenCatalog.selectedScreen(
+            for: settings.islandDisplayTarget,
+            pointerPoint: point
+        ) {
+            return IslandGeometryResolver.resolve(
+                screen: IslandScreenCatalog.geometry(for: screen)
             )
         }
-        // AppKit always exposes at least one screen while the app is running.
-        return IslandGeometryResolver.resolve(at: point, screens: screens)
-            ?? IslandGeometryResolver.resolve(screen: .init(
-                frame: CGRect(x: 0, y: 0, width: 1440, height: 900),
-                visibleFrame: CGRect(x: 0, y: 0, width: 1440, height: 875),
-                safeAreaTop: 0,
-                auxiliaryTopLeftArea: .zero,
-                auxiliaryTopRightArea: .zero
-            ))
+        return IslandGeometryResolver.resolve(screen: .init(
+            frame: CGRect(x: 0, y: 0, width: 1440, height: 900),
+            visibleFrame: CGRect(x: 0, y: 0, width: 1440, height: 875),
+            safeAreaTop: 0,
+            auxiliaryTopLeftArea: .zero,
+            auxiliaryTopRightArea: .zero
+        ))
     }
 
     /// 当前屏幕几何快照（NSScreen → 纯值，供 ShelfLayoutEngine）。

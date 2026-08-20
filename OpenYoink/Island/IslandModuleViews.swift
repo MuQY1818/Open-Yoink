@@ -4,11 +4,15 @@ import SwiftUI
 struct ShelfPresentationRootView: View {
     let presentationStyle: ShelfPresentationStyle
     var onPerformRecovery: ((RecoveryAction) -> Void)?
+    var onOpenSettings: (() -> Void)?
 
     var body: some View {
         Group {
             if presentationStyle == .island {
-                IslandRootView(onPerformRecovery: onPerformRecovery)
+                IslandRootView(
+                    onPerformRecovery: onPerformRecovery,
+                    onOpenSettings: onOpenSettings
+                )
             } else {
                 ShelfView()
             }
@@ -29,11 +33,13 @@ struct IslandRootView: View {
     @State private var isCompactHovering = false
     @State private var isCompactMediaControlHovering = false
     @State private var isCollapseControlHovering = false
+    @State private var isSettingsControlHovering = false
     @State private var isSendingCompactMediaCommand = false
     @State private var mediaAccent = ArtworkAccent.fallback
     @State private var renderedSurfaceState: IslandSurfaceState = .compact
 
     var onPerformRecovery: ((RecoveryAction) -> Void)?
+    var onOpenSettings: (() -> Void)?
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -225,7 +231,11 @@ struct IslandRootView: View {
         if activity?.moduleID == .media,
            let data = nowPlayingStore.snapshot?.artworkData,
            let image = NSImage(data: data) {
-            CompactNowPlayingArtworkView(image: image, tint: mediaAccent.color)
+            CompactNowPlayingArtworkView(
+                image: image,
+                tint: mediaAccent.color,
+                isHovered: compactIsHighlighted
+            )
                 .id(nowPlayingStore.snapshot?.title)
                 .transition(.opacity.combined(with: .scale(scale: 0.86)))
         } else {
@@ -304,6 +314,7 @@ struct IslandRootView: View {
     private var compactMediaTransportButton: some View {
         let snapshot = nowPlayingStore.snapshot
         let isPlaying = snapshot?.isPlaying == true
+        let showsTransportControl = isCompactMediaControlHovering || compactIsHighlighted
         let actionLabel = isPlaying ? String(localized: "Pause") : String(localized: "Play")
         return Button {
             guard !isSendingCompactMediaCommand else { return }
@@ -320,8 +331,8 @@ struct IslandRootView: View {
                     tint: mediaAccent.color,
                     rhythmSeed: mediaRhythmSeed
                 )
-                .scaleEffect(isCompactMediaControlHovering ? 0.84 : 0.92)
-                .opacity(isCompactMediaControlHovering ? 0 : 1)
+                .scaleEffect(showsTransportControl ? 0.84 : 0.92)
+                .opacity(showsTransportControl ? 0 : 1)
 
                 Group {
                     if isSendingCompactMediaCommand {
@@ -341,8 +352,8 @@ struct IslandRootView: View {
                                                    lineWidth: 0.75)
                         }
                 }
-                .scaleEffect(isCompactMediaControlHovering ? 1 : 0.82)
-                .opacity(isCompactMediaControlHovering ? 1 : 0)
+                .scaleEffect(showsTransportControl ? 1 : 0.82)
+                .opacity(showsTransportControl ? 1 : 0)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
@@ -433,6 +444,9 @@ struct IslandRootView: View {
                 radius: hasPhysicalNotch ? 0 : 16,
                 y: hasPhysicalNotch ? 0 : 8)
         .contextMenu {
+            Button("Settings…") {
+                openSettings()
+            }
             Button(pinLabel) {
                 coordinator.setPinned(coordinator.surfaceState != .pinned)
             }
@@ -471,6 +485,8 @@ struct IslandRootView: View {
         return ZStack(alignment: .top) {
             HStack(spacing: 0) {
                 HStack(spacing: 2) {
+                    settingsButton(size: 26)
+
                     ForEach(leadingModules) { descriptor in
                         physicalNotchModuleButton(descriptor)
                     }
@@ -553,6 +569,8 @@ struct IslandRootView: View {
         HStack(spacing: 10) {
             moduleNavigation
             Spacer(minLength: 4)
+            settingsButton(size: 30)
+
             Button {
                 coordinator.setPinned(coordinator.surfaceState != .pinned)
             } label: {
@@ -577,6 +595,41 @@ struct IslandRootView: View {
             .help(Text("Collapse Island"))
         }
         .frame(height: 38)
+    }
+
+    private func settingsButton(size: CGFloat) -> some View {
+        Button {
+            openSettings()
+        } label: {
+            Image(systemName: "gearshape")
+                .font(.system(size: size == 30 ? 13 : 11, weight: .semibold))
+                .foregroundStyle(Color.white.opacity(isSettingsControlHovering ? 1 : 0.72))
+                .frame(width: size, height: size)
+                .background {
+                    Circle().fill(Color.white.opacity(isSettingsControlHovering ? 0.14 : 0.07))
+                }
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            if reduceMotion {
+                isSettingsControlHovering = hovering
+            } else {
+                withAnimation(.easeOut(duration: 0.14)) {
+                    isSettingsControlHovering = hovering
+                }
+            }
+        }
+        .accessibilityLabel(Text("Settings…"))
+        .help(Text("Settings…"))
+    }
+
+    private func openSettings() {
+        // The Island panel intentionally sits above ordinary app windows.
+        // Collapse it before presenting Settings so it cannot cover the
+        // controls the user just asked to reach.
+        coordinator.collapse()
+        onOpenSettings?()
     }
 
     private var pinLabel: String {
@@ -921,32 +974,68 @@ private struct IslandTransfersView: View {
 }
 
 private struct IslandTimerView: View {
+    private enum Page: Hashable {
+        case timer
+        case history
+    }
+
     @Environment(IslandTimerStore.self) private var timerStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var customMinutes = 25
+    @State private var page: Page = .timer
 
     var body: some View {
         VStack(spacing: 10) {
             IslandModuleHeader(
                 title: "Timer",
-                subtitle: timerSubtitle,
-                systemImage: "timer"
+                subtitle: page == .timer
+                    ? timerSubtitle
+                    : String(localized: "Focus history"),
+                systemImage: timerStore.mode.systemImage
             )
-            HStack(spacing: 18) {
-                IslandTimerDial(
-                    timeText: timerDisplayText,
-                    stateText: timerDialState,
-                    systemImage: timerStateSymbol,
-                    remainingFraction: timerDialRemainingFraction,
-                    tint: timerTint,
-                    tick: timerStore.tick,
-                    isRunning: isRunning,
-                    reduceMotion: reduceMotion
-                )
-                .frame(width: 146, height: 146)
+            .overlay(alignment: .trailing) {
+                timerPageSwitcher
+            }
 
-                VStack(spacing: 11) {
+            Group {
+                if page == .timer {
+                    timerControls
+                        .transition(.opacity.combined(with: .scale(scale: 0.985)))
+                } else {
+                    IslandFocusHistoryView()
+                        .transition(.opacity.combined(with: .scale(scale: 0.985)))
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .animation(reduceMotion ? nil : .smooth(duration: 0.26), value: page)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .onAppear {
+            customMinutes = timerStore.mode.defaultMinutes
+        }
+        .onChange(of: timerStore.mode) { _, mode in
+            customMinutes = mode.defaultMinutes
+        }
+    }
+
+    private var timerControls: some View {
+        HStack(spacing: 18) {
+            IslandTimerDial(
+                timeText: timerDisplayText,
+                stateText: timerDialState,
+                systemImage: timerStateSymbol,
+                remainingFraction: timerDialRemainingFraction,
+                tint: timerTint,
+                tick: timerStore.tick,
+                isRunning: isRunning,
+                reduceMotion: reduceMotion
+            )
+            .frame(width: 146, height: 146)
+
+            VStack(spacing: 7) {
                 if timerStore.state == .idle {
+                    timerModeSelector
+                    timerIntention
                     timerPresets
                     timerSetupRow
                 } else {
@@ -954,16 +1043,134 @@ private struct IslandTimerView: View {
                     timerRunningControls
                 }
             }
-                .frame(maxWidth: .infinity)
-            }
-            .padding(.horizontal, 4)
+            .frame(maxWidth: .infinity)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .padding(.horizontal, 4)
+    }
+
+    private var timerPageSwitcher: some View {
+        HStack(spacing: 2) {
+            timerPageButton(.timer,
+                            systemImage: "timer",
+                            accessibilityLabel: "Timer controls")
+            timerPageButton(.history,
+                            systemImage: "chart.dots.scatter",
+                            accessibilityLabel: "Focus history")
+        }
+        .padding(2)
+        .background(Capsule().fill(Color.white.opacity(0.07)))
+        .overlay {
+            Capsule().strokeBorder(IslandVisualStyle.hairline, lineWidth: 1)
+        }
+    }
+
+    private func timerPageButton(
+        _ target: Page,
+        systemImage: String,
+        accessibilityLabel: LocalizedStringKey
+    ) -> some View {
+        let selected = page == target
+        return Button {
+            if reduceMotion {
+                page = target
+            } else {
+                withAnimation(.smooth(duration: 0.26)) {
+                    page = target
+                }
+            }
+        } label: {
+            Image(systemName: systemImage)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(selected ? Color.white : IslandVisualStyle.tertiaryText)
+                .frame(width: 27, height: 24)
+                .background {
+                    if selected {
+                        Capsule().fill(Color.white.opacity(0.11))
+                    }
+                }
+                .contentShape(Capsule())
+        }
+        .buttonStyle(IslandPressFeedbackStyle(reduceMotion: reduceMotion))
+        .accessibilityLabel(Text(accessibilityLabel))
+        .modifier(IslandSelectedAccessibilityModifier(selected: selected))
+    }
+
+    private var timerModeSelector: some View {
+        HStack(spacing: 5) {
+            ForEach(IslandTimerStore.Mode.allCases, id: \.self) { mode in
+                let isSelected = timerStore.mode == mode
+                Button {
+                    timerStore.selectMode(mode)
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: mode.systemImage)
+                            .font(.system(size: 9, weight: .bold))
+                        Text(mode.title)
+                            .font(.system(size: 10, weight: .semibold))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(isSelected ? Color.white : IslandVisualStyle.secondaryText)
+                    .frame(maxWidth: .infinity, minHeight: 28)
+                    .background {
+                        Capsule()
+                            .fill(isSelected ? modeTint(mode).opacity(0.24)
+                                             : IslandVisualStyle.controlFill)
+                            .overlay {
+                                Capsule().strokeBorder(
+                                    isSelected ? modeTint(mode).opacity(0.64)
+                                               : IslandVisualStyle.hairline,
+                                    lineWidth: 1
+                                )
+                            }
+                    }
+                }
+                .buttonStyle(IslandPressFeedbackStyle(reduceMotion: reduceMotion))
+                .modifier(IslandSelectedAccessibilityModifier(selected: isSelected))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var timerIntention: some View {
+        if timerStore.mode == .focus {
+            HStack(spacing: 7) {
+                Image(systemName: "scope")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(timerTint)
+                TextField(String(localized: "What will you focus on?"), text: goalBinding)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(IslandVisualStyle.primaryText)
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 29)
+            .background(Capsule().fill(Color.white.opacity(0.065)))
+            .overlay {
+                Capsule().strokeBorder(timerTint.opacity(0.20), lineWidth: 1)
+            }
+        } else {
+            HStack(spacing: 7) {
+                Image(systemName: timerStore.mode.systemImage)
+                    .font(.system(size: 10, weight: .semibold))
+                Text(timerStore.mode == .shortBreak
+                     ? String(localized: "Take a breath")
+                     : String(localized: "Step away and recharge"))
+                    .font(.system(size: 11, weight: .medium))
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(timerTint)
+            .padding(.horizontal, 10)
+            .frame(height: 29)
+            .background(Capsule().fill(timerTint.opacity(0.075)))
+            .overlay {
+                Capsule().strokeBorder(timerTint.opacity(0.18), lineWidth: 1)
+            }
+        }
     }
 
     private var timerPresets: some View {
         HStack(spacing: 5) {
-            ForEach([5, 15, 25, 45, 60], id: \.self) { minutes in
+            ForEach(modePresets, id: \.self) { minutes in
                 let isSelected = customMinutes == minutes
                 Button {
                     if reduceMotion {
@@ -979,13 +1186,13 @@ private struct IslandTimerView: View {
                         .foregroundStyle(isSelected
                                          ? Color.white
                                          : IslandVisualStyle.secondaryText)
-                        .frame(maxWidth: .infinity, minHeight: 34)
+                        .frame(maxWidth: .infinity, minHeight: 27)
                         .background {
                             Capsule()
                                 .fill(isSelected
                                       ? AnyShapeStyle(LinearGradient(
-                                        colors: [Color.accentColor.opacity(0.9),
-                                                 Color.blue.opacity(0.65)],
+                                        colors: [timerTint.opacity(0.92),
+                                                 timerTint.opacity(0.58)],
                                         startPoint: .topLeading,
                                         endPoint: .bottomTrailing
                                       ))
@@ -1032,17 +1239,13 @@ private struct IslandTimerView: View {
             } label: {
                 Label("Start", systemImage: "play.fill")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.black.opacity(0.88))
                     .frame(maxWidth: .infinity)
-                    .frame(height: 38)
+                    .frame(height: 35)
                     .background {
-                        Capsule().fill(LinearGradient(
-                            colors: [Color.accentColor, Color.blue.opacity(0.76)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ))
+                        Capsule().fill(Color.white)
                     }
-                    .shadow(color: Color.accentColor.opacity(0.28), radius: 8, y: 3)
+                    .shadow(color: timerTint.opacity(0.32), radius: 8, y: 3)
             }
             .buttonStyle(IslandPressFeedbackStyle(reduceMotion: reduceMotion))
         }
@@ -1091,8 +1294,8 @@ private struct IslandTimerView: View {
 
     private var timerSubtitle: String {
         switch timerStore.state {
-        case .idle: return String(localized: "Choose a duration")
-        case .running: return String(localized: "Running")
+        case .idle: return String(localized: "Ready to flow")
+        case .running: return timerStore.mode.title
         case .paused: return String(localized: "Paused")
         case .finished: return String(localized: "Timer finished")
         }
@@ -1116,16 +1319,18 @@ private struct IslandTimerView: View {
 
     private var timerDialState: String {
         switch timerStore.state {
-        case .idle: return String(localized: "Ready")
-        case .running: return String(localized: "Focus")
+        case .idle, .running: return timerStore.mode.title
         case .paused: return String(localized: "Paused")
         case .finished: return String(localized: "Time's up")
         }
     }
 
     private var timerStatusDetail: String {
+        let trimmedGoal = timerStore.goal.trimmingCharacters(in: .whitespacesAndNewlines)
         switch timerStore.state {
-        case .idle: return String(localized: "Choose a duration")
+        case .idle: return String(localized: "Ready to flow")
+        case .running where timerStore.mode == .focus && !trimmedGoal.isEmpty:
+            return trimmedGoal
         case .running: return String(localized: "Countdown is running")
         case .paused: return String(localized: "Continue whenever you're ready")
         case .finished: return String(localized: "Your timer is complete")
@@ -1134,8 +1339,8 @@ private struct IslandTimerView: View {
 
     private var timerStateSymbol: String {
         switch timerStore.state {
-        case .idle: return "sparkles"
-        case .running: return "hourglass"
+        case .idle: return timerStore.mode.systemImage
+        case .running: return "hourglass.bottomhalf.filled"
         case .paused: return "pause.fill"
         case .finished: return "checkmark"
         }
@@ -1143,9 +1348,28 @@ private struct IslandTimerView: View {
 
     private var timerTint: Color {
         switch timerStore.state {
-        case .idle, .running: return .accentColor
-        case .paused: return .orange
+        case .idle, .running, .paused: return modeTint(timerStore.mode)
         case .finished: return .green
+        }
+    }
+
+    private var modePresets: [Int] {
+        switch timerStore.mode {
+        case .focus: [15, 25, 45]
+        case .shortBreak: [5, 10, 15]
+        case .longBreak: [15, 20, 30]
+        }
+    }
+
+    private var goalBinding: Binding<String> {
+        Binding(get: { timerStore.goal }, set: { timerStore.setGoal($0) })
+    }
+
+    private func modeTint(_ mode: IslandTimerStore.Mode) -> Color {
+        switch mode {
+        case .focus: Color(red: 0.22, green: 0.86, blue: 0.48)
+        case .shortBreak: Color(red: 0.26, green: 0.67, blue: 1.0)
+        case .longBreak: Color(red: 0.66, green: 0.43, blue: 0.98)
         }
     }
 
@@ -1196,6 +1420,350 @@ private struct IslandTimerView: View {
     }
 }
 
+private struct IslandFocusHistoryView: View {
+    private struct Cell: Equatable {
+        let date: Date
+        let period: IslandFocusPeriod
+    }
+
+    @Environment(IslandTimerStore.self) private var timerStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var weekOffset = 0
+    @State private var hoveredCell: Cell?
+    @State private var selectedCell: Cell?
+
+    private let calendar = Calendar.autoupdatingCurrent
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 14) {
+            focusSummary
+
+            VStack(spacing: 10) {
+                weekNavigation
+                heatmap
+                heatmapLegend
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .padding(.horizontal, 10)
+        .padding(.top, 2)
+        .frame(maxWidth: .infinity, minHeight: 150, alignment: .center)
+    }
+
+    private var focusSummary: some View {
+        let cell = hoveredCell ?? selectedCell
+        let summaryDate = cell?.date ?? Date()
+        let summaryPeriod = cell?.period
+        let duration = IslandFocusStatistics.duration(
+            timerStore.sessions,
+            on: summaryDate,
+            period: summaryPeriod,
+            calendar: calendar
+        )
+        let sessionCount = IslandFocusStatistics.sessions(
+            timerStore.sessions,
+            on: summaryDate,
+            period: summaryPeriod,
+            calendar: calendar
+        ).count
+        let summaryTint = summaryPeriod?.tint ?? focusGreen
+
+        return VStack(alignment: .leading, spacing: 5) {
+            Text(summaryTitle(for: cell))
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(summaryTint)
+                .textCase(.uppercase)
+                .lineLimit(1)
+
+            Text(focusDurationText(duration))
+                .font(.system(size: 28, weight: .semibold, design: .rounded))
+                .foregroundStyle(IslandVisualStyle.primaryText)
+                .monospacedDigit()
+                .contentTransition(.numericText())
+
+            Label(
+                String.localizedStringWithFormat(
+                    String(localized: "%lld focus sessions"),
+                    sessionCount
+                ),
+                systemImage: "checkmark.circle.fill"
+            )
+            .font(.system(size: 10, weight: .medium))
+            .foregroundStyle(IslandVisualStyle.secondaryText)
+            .lineLimit(1)
+
+            Label(
+                String.localizedStringWithFormat(
+                    String(localized: "%lld day streak"),
+                    IslandFocusStatistics.currentStreak(
+                        timerStore.sessions,
+                        at: Date(),
+                        calendar: calendar
+                    )
+                ),
+                systemImage: "flame.fill"
+            )
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(focusGreen)
+            .lineLimit(1)
+
+            if timerStore.sessions.isEmpty {
+                Text("Complete a focus session to start your map.")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(IslandVisualStyle.tertiaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 3)
+            }
+        }
+        .padding(.horizontal, 13)
+        .padding(.vertical, 12)
+        .frame(width: 136, alignment: .leading)
+        .frame(minHeight: 138, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.white.opacity(0.045))
+                .overlay {
+                    LinearGradient(
+                        colors: [summaryTint.opacity(0.11), .clear, .clear],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 16,
+                                                style: .continuous))
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.075), lineWidth: 1)
+                }
+        }
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: cell)
+    }
+
+    private var weekNavigation: some View {
+        HStack(spacing: 6) {
+            Button {
+                changeWeek(by: -1)
+            } label: {
+                Image(systemName: "chevron.left")
+                    .frame(width: 22, height: 22)
+            }
+            .buttonStyle(IslandPressFeedbackStyle(reduceMotion: reduceMotion))
+            .accessibilityLabel(Text("Previous week"))
+
+            Spacer(minLength: 0)
+
+            Text(weekRangeText)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundStyle(IslandVisualStyle.secondaryText)
+                .monospacedDigit()
+                .contentTransition(.numericText())
+
+            Spacer(minLength: 0)
+
+            Button {
+                changeWeek(by: 1)
+            } label: {
+                Image(systemName: "chevron.right")
+                    .frame(width: 22, height: 22)
+            }
+            .buttonStyle(IslandPressFeedbackStyle(reduceMotion: reduceMotion))
+            .disabled(weekOffset >= 0)
+            .opacity(weekOffset >= 0 ? 0.26 : 1)
+            .accessibilityLabel(Text("Next week"))
+        }
+        .font(.system(size: 10, weight: .bold))
+        .foregroundStyle(IslandVisualStyle.secondaryText)
+    }
+
+    private var heatmap: some View {
+        HStack(alignment: .top, spacing: 4) {
+            VStack(spacing: 4) {
+                Color.clear.frame(width: 18, height: 12)
+                ForEach(IslandFocusPeriod.allCases, id: \.self) { period in
+                    Image(systemName: period.systemImage)
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(period.tint.opacity(0.78))
+                        .frame(width: 18, height: 25)
+                        .accessibilityHidden(true)
+                }
+            }
+
+            ForEach(Array(weekDays.enumerated()), id: \.offset) { _, day in
+                VStack(spacing: 4) {
+                    Text(day, format: .dateTime.weekday(.narrow))
+                        .font(.system(size: 8, weight: .bold, design: .rounded))
+                        .foregroundStyle(calendar.isDateInToday(day)
+                                         ? Color.white
+                                         : IslandVisualStyle.tertiaryText)
+                        .frame(height: 12)
+
+                    ForEach(IslandFocusPeriod.allCases, id: \.self) { period in
+                        heatCell(day: day, period: period)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    private var heatmapLegend: some View {
+        HStack(spacing: 10) {
+            ForEach(IslandFocusPeriod.allCases, id: \.self) { period in
+                Label(period.title, systemImage: period.systemImage)
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(period.tint.opacity(0.76))
+            }
+            Spacer(minLength: 0)
+            Text("Focus time")
+                .font(.system(size: 8, weight: .medium))
+                .foregroundStyle(IslandVisualStyle.tertiaryText)
+        }
+        .lineLimit(1)
+    }
+
+    private func heatCell(day: Date, period: IslandFocusPeriod) -> some View {
+        let cell = Cell(date: day, period: period)
+        let duration = IslandFocusStatistics.duration(
+            timerStore.sessions,
+            on: day,
+            period: period,
+            calendar: calendar
+        )
+        let count = IslandFocusStatistics.sessions(
+            timerStore.sessions,
+            on: day,
+            period: period,
+            calendar: calendar
+        ).count
+        let isHighlighted = hoveredCell == cell || selectedCell == cell
+        let intensity = min(max(duration / 3_600, 0), 1)
+
+        return Button {
+            selectedCell = selectedCell == cell ? nil : cell
+        } label: {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(duration > 0
+                      ? period.tint.opacity(0.20 + intensity * 0.72)
+                      : Color.white.opacity(0.055))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(
+                            isHighlighted
+                                ? Color.white.opacity(0.78)
+                                : Color.white.opacity(duration > 0 ? 0.12 : 0.045),
+                            lineWidth: isHighlighted ? 1.2 : 1
+                        )
+                }
+                .shadow(color: duration > 0
+                        ? period.tint.opacity(0.16 + intensity * 0.18)
+                        : .clear,
+                        radius: 4)
+                .frame(maxWidth: .infinity, minHeight: 25, maxHeight: 25)
+                .scaleEffect(isHighlighted && !reduceMotion ? 1.055 : 1)
+                .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            hoveredCell = hovering ? cell : (hoveredCell == cell ? nil : hoveredCell)
+        }
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.14),
+                   value: isHighlighted)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(cellAccessibilityLabel(cell)))
+        .accessibilityValue(Text(
+            String.localizedStringWithFormat(
+                String(localized: "%lld focus sessions"),
+                count
+            ) + ", " + focusDurationText(duration)
+        ))
+        .modifier(IslandSelectedAccessibilityModifier(selected: selectedCell == cell))
+    }
+
+    private var weekStart: Date {
+        let currentWeek = calendar.dateInterval(of: .weekOfYear, for: Date())?.start
+            ?? calendar.startOfDay(for: Date())
+        return calendar.date(byAdding: .weekOfYear,
+                             value: weekOffset,
+                             to: currentWeek) ?? currentWeek
+    }
+
+    private var weekDays: [Date] {
+        (0..<7).compactMap {
+            calendar.date(byAdding: .day, value: $0, to: weekStart)
+        }
+    }
+
+    private var weekRangeText: String {
+        guard let end = weekDays.last else { return "" }
+        let startText = weekStart.formatted(.dateTime.month(.abbreviated).day())
+        let endText = end.formatted(.dateTime.month(.abbreviated).day())
+        return "\(startText) – \(endText)"
+    }
+
+    private func changeWeek(by amount: Int) {
+        let target = min(0, weekOffset + amount)
+        if reduceMotion {
+            weekOffset = target
+        } else {
+            withAnimation(.smooth(duration: 0.24)) {
+                weekOffset = target
+            }
+        }
+        hoveredCell = nil
+        selectedCell = nil
+    }
+
+    private func summaryTitle(for cell: Cell?) -> String {
+        guard let cell else { return String(localized: "Today") }
+        let date = cell.date.formatted(.dateTime.month(.abbreviated).day())
+        return "\(date) · \(cell.period.title)"
+    }
+
+    private func cellAccessibilityLabel(_ cell: Cell) -> String {
+        let date = cell.date.formatted(.dateTime.year().month().day().weekday(.wide))
+        return "\(date), \(cell.period.title)"
+    }
+
+    private func focusDurationText(_ duration: TimeInterval) -> String {
+        let totalMinutes = max(0, Int(duration.rounded() / 60))
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+        if hours == 0 { return "\(minutes)m" }
+        if minutes == 0 { return "\(hours)h" }
+        return "\(hours)h \(minutes)m"
+    }
+
+    private var focusGreen: Color {
+        Color(red: 0.22, green: 0.86, blue: 0.48)
+    }
+}
+
+private extension IslandFocusPeriod {
+    var title: String {
+        switch self {
+        case .morning: String(localized: "Morning")
+        case .afternoon: String(localized: "Afternoon")
+        case .evening: String(localized: "Evening")
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .morning: "sunrise.fill"
+        case .afternoon: "sun.max.fill"
+        case .evening: "moon.stars.fill"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .morning: Color(red: 1.0, green: 0.70, blue: 0.34)
+        case .afternoon: Color(red: 0.22, green: 0.86, blue: 0.48)
+        case .evening: Color(red: 0.66, green: 0.43, blue: 0.98)
+        }
+    }
+}
+
 private struct IslandTimerDial: View {
     let timeText: String
     let stateText: String
@@ -1214,6 +1782,10 @@ private struct IslandTimerDial: View {
             let radians = (fraction * 360 - 90) * Double.pi / 180
 
             ZStack {
+                Circle()
+                    .stroke(tint.opacity(isRunning ? 0.12 : 0.07), lineWidth: 1)
+                    .scaleEffect(1.075)
+                    .shadow(color: tint.opacity(isRunning ? 0.22 : 0.08), radius: 9)
                 Circle()
                     .fill(RadialGradient(
                         colors: [tint.opacity(isRunning ? 0.18 : 0.10),
@@ -1238,6 +1810,25 @@ private struct IslandTimerDial: View {
                             radius: isRunning ? 7 : 4)
                     .animation(reduceMotion ? nil : .easeOut(duration: 0.38),
                                value: fraction)
+
+                if isRunning {
+                    Circle()
+                        .trim(from: 0.02, to: 0.16)
+                        .stroke(
+                            AngularGradient(
+                                colors: [.clear, tint.opacity(0.22), .white, .clear],
+                                center: .center
+                            ),
+                            style: StrokeStyle(lineWidth: 2.2, lineCap: .round)
+                        )
+                        .rotationEffect(.degrees(reduceMotion
+                                                 ? -48
+                                                 : Double(tick % 120) * 9 - 90))
+                        .scaleEffect(1.075)
+                        .shadow(color: tint.opacity(0.55), radius: 5)
+                        .animation(reduceMotion ? nil : .smooth(duration: 0.72),
+                                   value: tick)
+                }
 
                 if fraction > 0.001 && fraction < 0.999 {
                     Circle()
@@ -1268,8 +1859,8 @@ private struct IslandTimerDial: View {
                 }
             }
             .frame(width: diameter, height: diameter)
-            .scaleEffect(isRunning && !reduceMotion && tick.isMultiple(of: 2) ? 1.012 : 1)
-            .animation(reduceMotion ? nil : .easeInOut(duration: 0.20), value: tick)
+            .scaleEffect(isRunning && !reduceMotion && tick.isMultiple(of: 2) ? 1.009 : 1)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.34), value: tick)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("\(stateText), \(timeText)"))
@@ -1975,8 +2566,10 @@ private struct IslandEqualizerView: View {
 
 private struct CompactNowPlayingArtworkView: View {
     @Environment(NowPlayingModuleStore.self) private var store
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let image: NSImage
     let tint: Color
+    let isHovered: Bool
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.5)) { context in
@@ -2003,11 +2596,17 @@ private struct CompactNowPlayingArtworkView: View {
                     .scaledToFill()
                     .frame(width: 18, height: 18)
                     .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(Color.black.opacity(isHovered ? 0.16 : 0))
+                    }
             }
             .frame(width: 23, height: 23)
+            .scaleEffect(isHovered ? 1.04 : 1)
             .shadow(color: store.snapshot?.isPlaying == true
                     ? tint.opacity(0.38) : .clear,
                     radius: 4)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: isHovered)
         }
         .accessibilityHidden(true)
     }

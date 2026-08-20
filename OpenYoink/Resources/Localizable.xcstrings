@@ -2394,6 +2394,42 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "计时器" } }
       }
     },
+    "Short break" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Short break" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "短休息" } }
+      }
+    },
+    "Long break" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Long break" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "长休息" } }
+      }
+    },
+    "What will you focus on?" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "What will you focus on?" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这一轮专注什么？" } }
+      }
+    },
+    "Take a breath" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Take a breath" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "歇一会，放松呼吸" } }
+      }
+    },
+    "Step away and recharge" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Step away and recharge" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "离开屏幕，恢复状态" } }
+      }
+    },
+    "Ready to flow" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Ready to flow" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "准备进入心流" } }
+      }
+    },
     "Timer finished" : {
       "extractionState" : "manual", "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Timer finished" } },
@@ -2589,7 +2625,7 @@
     "Focus" : {
       "extractionState" : "manual", "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Focus" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "专注中" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "专注" } }
       }
     },
     "Countdown is running" : {
@@ -2616,10 +2652,136 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "计时已完成" } }
       }
     },
+    "Focus history" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Focus history" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "专注记录" } }
+      }
+    },
+    "Timer controls" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Timer controls" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "计时控制" } }
+      }
+    },
+    "Today" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Today" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "今天" } }
+      }
+    },
+    "%lld focus sessions" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld focus sessions" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%lld 次专注" } }
+      }
+    },
+    "%lld day streak" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld day streak" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "连续 %lld 天" } }
+      }
+    },
+    "Complete a focus session to start your map." : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Complete a focus session to start your map." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "完成一次专注，点亮你的时间地图。" } }
+      }
+    },
+    "Previous week" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Previous week" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上一周" } }
+      }
+    },
+    "Next week" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Next week" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下一周" } }
+      }
+    },
+    "Morning" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Morning" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上午" } }
+      }
+    },
+    "Afternoon" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Afternoon" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下午" } }
+      }
+    },
+    "Evening" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Evening" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "晚上" } }
+      }
+    },
+    "Focus time" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Focus time" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "专注时长" } }
+      }
+    },
     "With Side Shelf enabled, the shelf shortcut controls it. Otherwise the shortcut opens Island Shelf." : {
       "extractionState" : "manual", "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "With Side Shelf enabled, the shelf shortcut controls it. Otherwise the shortcut opens Island Shelf." } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "启用侧边暂存架时，暂存架快捷键控制侧边架；关闭后快捷键才会打开灵动岛暂存架。" } }
+      }
+    },
+    "Display" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Display" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示器" } }
+      }
+    },
+    "Main Display" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Main Display" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "主显示器" } }
+      }
+    },
+    "Follow Pointer" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Follow Pointer" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "跟随鼠标" } }
+      }
+    },
+    "Unavailable Display" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unavailable Display" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示器不可用" } }
+      }
+    },
+    "Current Main" : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Current Main" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前主屏" } }
+      }
+    },
+    "Island stays on the display chosen as main in System Settings." : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Island stays on the display chosen as main in System Settings." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "灵动岛会固定在“系统设置”中选定的主显示器上。" } }
+      }
+    },
+    "Island follows the pointer and active drag across displays." : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Island follows the pointer and active drag across displays." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "灵动岛会跟随鼠标和正在进行的拖拽切换显示器。" } }
+      }
+    },
+    "This display is unavailable. Island is temporarily using the main display and will return when it reconnects." : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This display is unavailable. Island is temporarily using the main display and will return when it reconnects." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此显示器当前不可用。灵动岛会暂时使用主显示器，并在重新连接后自动返回。" } }
+      }
+    },
+    "Island stays on this display until you choose another." : {
+      "extractionState" : "manual", "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Island stays on this display until you choose another." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "灵动岛会固定在这块显示器上，直到你更改选择。" } }
       }
     },
     "Unpin Island" : {

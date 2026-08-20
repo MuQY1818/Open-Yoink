@@ -50,6 +50,7 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(store.shelfPlacement, .right)
         XCTAssertTrue(store.classicShelfEnabled)
         XCTAssertTrue(store.islandEnabled)
+        XCTAssertEqual(store.islandDisplayTarget, .main)
         XCTAssertTrue(store.islandShelfEnabled)
         XCTAssertEqual(store.preferredShelfSurface, .island)
         XCTAssertEqual(store.effectivePreferredShelfSurface, .classic)
@@ -80,6 +81,7 @@ final class SettingsStoreTests: XCTestCase {
 
         let store = SettingsStore(defaults: defaults)
         store.shelfPlacement = .island
+        store.islandDisplayTarget = .display("display-uuid")
         store.islandHoverRevealEnabled = true
         store.islandTimerEnabled = false
         store.islandBatteryEnabled = false
@@ -88,11 +90,26 @@ final class SettingsStoreTests: XCTestCase {
 
         let reloaded = SettingsStore(defaults: defaults)
         XCTAssertEqual(reloaded.shelfPresentationMode, .island)
+        XCTAssertEqual(reloaded.islandDisplayTarget, .display("display-uuid"))
         XCTAssertTrue(reloaded.islandHoverRevealEnabled)
         XCTAssertFalse(reloaded.islandTimerEnabled)
         XCTAssertFalse(reloaded.islandBatteryEnabled)
         XCTAssertTrue(reloaded.islandFullChargeAlertEnabled)
         XCTAssertTrue(reloaded.islandMediaEnabled)
+    }
+
+    func testIslandDisplayTargetCanSwitchBackToAutomatic() throws {
+        let (defaults, name) = try makeSuite()
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let store = SettingsStore(defaults: defaults)
+        store.islandDisplayTarget = .display("external-display")
+        XCTAssertEqual(SettingsStore(defaults: defaults).islandDisplayTarget,
+                       .display("external-display"))
+
+        store.islandDisplayTarget = .automatic
+        XCTAssertEqual(SettingsStore(defaults: defaults).islandDisplayTarget,
+                       .automatic)
     }
 
     func testSideShelfAndIslandPersistIndependently() throws {

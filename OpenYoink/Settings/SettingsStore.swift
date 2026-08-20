@@ -34,6 +34,41 @@ final class SettingsStore {
         case classic, island
     }
 
+    /// Stable Island placement across multiple displays. `.main` follows the
+    /// display designated as main in System Settings, `.automatic` preserves
+    /// the legacy pointer/drag-following behavior, and `.display` pins one
+    /// physical display using its ColorSync UUID.
+    enum IslandDisplayTarget: Hashable, Sendable {
+        case main
+        case automatic
+        case display(String)
+
+        fileprivate var persistedValue: String {
+            switch self {
+            case .main: "main"
+            case .automatic: "automatic"
+            case let .display(id): "display:\(id)"
+            }
+        }
+
+        fileprivate init(persistedValue: String?) {
+            guard let persistedValue else {
+                self = .main
+                return
+            }
+            if persistedValue == "automatic" {
+                self = .automatic
+            } else if persistedValue == "main" {
+                self = .main
+            } else if persistedValue.hasPrefix("display:") {
+                let id = String(persistedValue.dropFirst("display:".count))
+                self = id.isEmpty ? .main : .display(id)
+            } else {
+                self = .main
+            }
+        }
+    }
+
     /// User-facing placement picker. Keeping this separate from
     /// `ShelfPosition` prevents Island from leaking into edge-only layout and
     /// trigger switches while still presenting one simple control in Settings.
@@ -98,6 +133,13 @@ final class SettingsStore {
 
     var islandEnabled: Bool {
         didSet { defaults.set(islandEnabled, forKey: Keys.islandEnabled) }
+    }
+
+    var islandDisplayTarget: IslandDisplayTarget {
+        didSet {
+            defaults.set(islandDisplayTarget.persistedValue,
+                         forKey: Keys.islandDisplayTarget)
+        }
     }
 
     /// Shelf is an optional Island module. Turning it off never deletes shelf
@@ -401,6 +443,7 @@ final class SettingsStore {
         static let shelfSurfaceSettingsVersion = prefix + "shelfSurfaceSettingsVersion"
         static let classicShelfEnabled = prefix + "classicShelfEnabled"
         static let islandEnabled = prefix + "islandEnabled"
+        static let islandDisplayTarget = prefix + "islandDisplayTarget"
         static let islandShelfEnabled = prefix + "islandShelfEnabled"
         static let preferredShelfSurface = prefix + "preferredShelfSurface"
         static let islandHoverRevealEnabled = prefix + "islandHoverRevealEnabled"
@@ -471,6 +514,7 @@ final class SettingsStore {
             Keys.shelfPresentationMode: ShelfPresentationMode.classic.rawValue,
             Keys.classicShelfEnabled: true,
             Keys.islandEnabled: true,
+            Keys.islandDisplayTarget: IslandDisplayTarget.main.persistedValue,
             Keys.islandShelfEnabled: true,
             Keys.preferredShelfSurface: PreferredShelfSurface.island.rawValue,
             Keys.islandHoverRevealEnabled: false,
@@ -542,6 +586,9 @@ final class SettingsStore {
         }
         classicShelfEnabled = resolvedClassicShelfEnabled
         islandEnabled = resolvedIslandEnabled
+        islandDisplayTarget = IslandDisplayTarget(
+            persistedValue: defaults.string(forKey: Keys.islandDisplayTarget)
+        )
         islandShelfEnabled = resolvedIslandShelfEnabled
         preferredShelfSurface = resolvedPreferredSurface
         if needsSurfaceMigration {

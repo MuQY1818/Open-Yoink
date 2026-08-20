@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import Observation
 import SwiftUI
 import UniformTypeIdentifiers
@@ -274,6 +275,7 @@ private struct GeneralSettingsTab: View {
     @Environment(SettingsStore.self) private var settings
     @Environment(LaunchAtLoginController.self) private var launchAtLoginController
     @Environment(UpdateController.self) private var updateController
+    @State private var islandScreens: [IslandScreenCatalog.Option] = []
 
     var body: some View {
         @Bindable var settings = settings
@@ -384,6 +386,29 @@ private struct GeneralSettingsTab: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
+                    Picker("Display", selection: $settings.islandDisplayTarget) {
+                        Text("Main Display")
+                            .tag(SettingsStore.IslandDisplayTarget.main)
+                        Text("Follow Pointer")
+                            .tag(SettingsStore.IslandDisplayTarget.automatic)
+                        ForEach(islandScreens) { screen in
+                            Text(islandScreenTitle(screen))
+                                .tag(SettingsStore.IslandDisplayTarget.display(screen.id))
+                        }
+                        if case let .display(id) = settings.islandDisplayTarget,
+                           !islandScreens.contains(where: { $0.id == id }) {
+                            Text("Unavailable Display")
+                                .tag(SettingsStore.IslandDisplayTarget.display(id))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .accessibilityIdentifier("settings.islandDisplay")
+
+                    Text(islandDisplayDescription)
+                        .font(.caption)
+                        .foregroundStyle(isSelectedIslandDisplayUnavailable
+                                         ? Color.orange : Color.secondary)
+
                     Toggle("Expand Island on hover", isOn: $settings.islandHoverRevealEnabled)
                     Text("Click is always available. Hover waits briefly before expanding.")
                         .font(.caption)
@@ -447,6 +472,43 @@ private struct GeneralSettingsTab: View {
         .onAppear { launchAtLoginController.refresh() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             launchAtLoginController.refresh()
+        }
+        .onAppear {
+            refreshIslandScreens()
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: NSApplication.didChangeScreenParametersNotification
+        )) { _ in
+            refreshIslandScreens()
+        }
+    }
+
+    private func refreshIslandScreens() {
+        islandScreens = IslandScreenCatalog.options()
+    }
+
+    private func islandScreenTitle(_ screen: IslandScreenCatalog.Option) -> String {
+        guard screen.isMain else { return screen.name }
+        return "\(screen.name) · \(String(localized: "Current Main"))"
+    }
+
+    private var isSelectedIslandDisplayUnavailable: Bool {
+        guard case let .display(id) = settings.islandDisplayTarget else {
+            return false
+        }
+        return !islandScreens.contains(where: { $0.id == id })
+    }
+
+    private var islandDisplayDescription: String {
+        switch settings.islandDisplayTarget {
+        case .main:
+            String(localized: "Island stays on the display chosen as main in System Settings.")
+        case .automatic:
+            String(localized: "Island follows the pointer and active drag across displays.")
+        case .display where isSelectedIslandDisplayUnavailable:
+            String(localized: "This display is unavailable. Island is temporarily using the main display and will return when it reconnects.")
+        case .display:
+            String(localized: "Island stays on this display until you choose another.")
         }
     }
 }

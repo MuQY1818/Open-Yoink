@@ -101,6 +101,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                                                    recents: recentItemsService,
                                                                    deliveryCoordinator: deliveryCoordinator,
                                                                    dragStartMonitor: dragStartMonitor,
+                                                                   onOpenSettings: { [weak self] in
+                                                                       self?.settingsWindowController.show(pane: .general)
+                                                                   },
                                                                    onOpenStorageRecovery: { [weak self] in
                                                                        self?.settingsWindowController.show(pane: .storage)
                                                                    },
