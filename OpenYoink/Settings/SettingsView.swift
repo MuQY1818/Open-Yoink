@@ -348,6 +348,10 @@ private struct GeneralSettingsTab: View {
                     // shelf 展开后由面板外缘隐形热区承担同点位收起）。
                     // custom 模式无贴附缘，开关不生效（说明文案覆盖）。
                     Toggle("Show edge tab while shelf is hidden", isOn: $settings.edgeTabEnabled)
+                    Toggle("Preview shelf when hovering over the edge tab",
+                           isOn: $settings.classicShelfHoverRevealEnabled)
+                        .disabled(!settings.edgeTabEnabled
+                                  || settings.shelfPosition == .custom)
                     Text("Click the tab to show the shelf, drag it along the edge to reposition, or drop files onto it. Not shown in custom position mode.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -418,20 +422,30 @@ private struct GeneralSettingsTab: View {
 
             if settings.islandEnabled {
                 Section("Island Modules") {
-                    Toggle("Shelf", isOn: $settings.islandShelfEnabled)
+                    islandModuleControl("Shelf", id: .shelf)
                     Text("The Island Shelf and Side Shelf use the same items. Turning this module off never deletes them.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    Toggle("Timer", isOn: $settings.islandTimerEnabled)
-                    Toggle("Battery", isOn: $settings.islandBatteryEnabled)
-                    if settings.islandBatteryEnabled {
+                    islandModuleControl("Transfers", id: .transfers)
+                    islandModuleControl("Timer", id: .timer)
+                    islandModuleControl("Battery", id: .battery)
+                    if settings.isIslandModuleEnabled(.battery) {
                         Toggle("Notify when fully charged",
                                isOn: $settings.islandFullChargeAlertEnabled)
                     }
 
-                    Toggle("Now Playing", isOn: $settings.islandMediaEnabled)
+                    islandModuleControl("System Status", id: .system)
+                    Text("System status is read-only and never terminates apps, cleans disks, controls fans, or reads private sensors.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    islandModuleControl("Now Playing", id: .media)
                     Text("Shows artwork and controls from the active media player. Processing stays on this Mac; compatibility can vary after macOS updates.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Text("Open the Island module library to drag the five pinned positions into order.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -480,6 +494,29 @@ private struct GeneralSettingsTab: View {
             for: NSApplication.didChangeScreenParametersNotification
         )) { _ in
             refreshIslandScreens()
+        }
+    }
+
+    private func islandModuleControl(
+        _ title: LocalizedStringKey,
+        id: IslandModuleID
+    ) -> some View {
+        let enabled = settings.isIslandModuleEnabled(id)
+        let pinned = settings.isIslandModulePinned(id)
+        let pinnedCount = settings.islandModuleConfiguration.pinnedModuleIDs.count
+        return HStack {
+            Toggle(title, isOn: Binding(
+                get: { settings.isIslandModuleEnabled(id) },
+                set: { settings.setIslandModuleEnabled($0, id: id) }
+            ))
+            Spacer()
+            Button {
+                settings.setIslandModulePinned(!pinned, id: id)
+            } label: {
+                Label(pinned ? "Unpin" : "Pin", systemImage: pinned ? "pin.fill" : "pin")
+            }
+            .buttonStyle(.borderless)
+            .disabled(!enabled || (!pinned && pinnedCount >= 5))
         }
     }
 

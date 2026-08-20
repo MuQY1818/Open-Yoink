@@ -1,6 +1,288 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%@ is using significant resources" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ is using significant resources" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%@ 正在占用较多系统资源" } }
+      }
+    },
+    "available" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "available" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "可用" } }
+      }
+    },
+    "Choose up to five pinned modules" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose up to five pinned modules" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "最多固定五个模块" } }
+      }
+    },
+    "Connected to Power" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Connected to Power" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已连接电源" } }
+      }
+    },
+    "CPU" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "CPU" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "CPU" } }
+      }
+    },
+    "Critical" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Critical" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "危急" } }
+      }
+    },
+    "Disabled" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Disabled" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已停用" } }
+      }
+    },
+    "Empty module position" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Empty module position" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "空模块位置" } }
+      }
+    },
+    "Choose a module" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose a module" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择模块" } }
+      }
+    },
+    "Disk" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Disk" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "磁盘" } }
+      }
+    },
+    "Disk space is low" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Disk space is low" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "磁盘空间不足" } }
+      }
+    },
+    "Drag pinned rows to reorder the five Island positions." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Drag pinned rows to reorder the five Island positions." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "拖动已固定模块行可调整岛顶部五个位置的顺序。" } }
+      }
+    },
+    "Enabled in the module library" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enabled in the module library" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已启用，可从模块库打开" } }
+      }
+    },
+    "Fair" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Fair" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "偏高" } }
+      }
+    },
+    "Highest usage applications" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Highest usage applications" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "应用占用排行" } }
+      }
+    },
+    "Ignore Once" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Ignore Once" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "忽略本次" } }
+      }
+    },
+    "Low Power Mode" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Low Power Mode" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "低电量模式" } }
+      }
+    },
+    "Mac thermal state is critical" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Mac thermal state is critical" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Mac 热状态已达危急级别" } }
+      }
+    },
+    "Mac thermal state is serious" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Mac thermal state is serious" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Mac 热状态严重" } }
+      }
+    },
+    "Memory" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Memory" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "内存" } }
+      }
+    },
+    "Memory pressure is critical" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Memory pressure is critical" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "内存压力危急" } }
+      }
+    },
+    "Memory pressure is high" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Memory pressure is high" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "内存压力较高" } }
+      }
+    },
+    "Module Library" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Module Library" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "模块库" } }
+      }
+    },
+    "Module unavailable" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Module unavailable" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "模块不可用" } }
+      }
+    },
+    "Network" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Network" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "网络" } }
+      }
+    },
+    "Nominal" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Nominal" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正常" } }
+      }
+    },
+    "Normal" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Normal" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正常" } }
+      }
+    },
+    "Not Available" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Not Available" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不适用" } }
+      }
+    },
+    "On Battery" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "On Battery" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "电池供电" } }
+      }
+    },
+    "Open Full Settings" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open Full Settings" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开完整设置" } }
+      }
+    },
+    "Open the Island module library to drag the five pinned positions into order." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open the Island module library to drag the five pinned positions into order." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请在岛的模块库中拖动调整五个固定位置的顺序。" } }
+      }
+    },
+    "Performance may be reduced" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Performance may be reduced" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "性能可能降低" } }
+      }
+    },
+    "Pin" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Pin" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "固定" } }
+      }
+    },
+    "Pin module" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Pin module" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "固定模块" } }
+      }
+    },
+    "Pinned in the Island strip" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Pinned in the Island strip" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已固定到岛顶部" } }
+      }
+    },
+    "Preview shelf when hovering over the edge tab" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Preview shelf when hovering over the edge tab" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "悬停边缘拉环时预览暂存架" } }
+      }
+    },
+    "Read-only Mac status" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Read-only Mac status" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Mac 只读状态" } }
+      }
+    },
+    "Serious" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Serious" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "严重" } }
+      }
+    },
+    "System status is read-only and never terminates apps, cleans disks, controls fans, or reads private sensors." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "System status is read-only and never terminates apps, cleans disks, controls fans, or reads private sensors." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "系统状态模块只读，不会结束应用、清理磁盘、控制风扇或读取私有传感器。" } }
+      }
+    },
+    "Thermal" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Thermal" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "热状态" } }
+      }
+    },
+    "This module is not available in this version of OpenYoink." : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This module is not available in this version of OpenYoink." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前版本的 OpenYoink 不提供此模块。" } }
+      }
+    },
+    "Unknown App" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unknown App" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未知应用" } }
+      }
+    },
+    "Unpin" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unpin" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消固定" } }
+      }
+    },
+    "Unpin module" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unpin module" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消固定模块" } }
+      }
+    },
+    "View Details" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "View Details" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "查看详情" } }
+      }
+    },
+    "View system details" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "View system details" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "查看系统详情" } }
+      }
+    },
+    "Warning" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Warning" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "警告" } }
+      }
+    },
     "1 of 2" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "1 of 2" } },
@@ -816,6 +1098,14 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "System" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "跟随系统" } }
+      }
+    },
+    "System Status" : {
+      "extractionState" : "manual",
+      "comment" : "Read-only Island module showing Mac system metrics",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "System Status" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "系统状态" } }
       }
     },
     "Takes effect after relaunch." : {

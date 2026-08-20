@@ -31,7 +31,7 @@ edge of your screen or inside the Mac notch, then drag them out wherever they be
 </a>
 
 > [!NOTE]
-> The current stable release is **v1.5.0**, adding a Flow-inspired focus timer, focus heatmap, Island display selection, and an in-Island settings entry. See the [guide](https://muqy1818.github.io/OpenYoink/en/guide/) for the complete walkthrough.
+> The current stable release is **v1.6.1**, adding a modular five-position Island, an in-Island module library, side-tab hover preview, and a read-only Mac system status module. See the [guide](https://muqy1818.github.io/OpenYoink/en/guide/) for the complete walkthrough.
 
 ## The problem it solves
 

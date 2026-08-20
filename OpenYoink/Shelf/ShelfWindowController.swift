@@ -103,10 +103,21 @@ final class ShelfWindowController: NSObject {
     let islandTimerStore: IslandTimerStore
     let powerSourceMonitor: PowerSourceMonitor
     let nowPlayingModuleStore: NowPlayingModuleStore
+    let systemStatusModuleStore: SystemStatusModuleStore
+    let islandModuleContainer: IslandModuleContainer
+    private let transfersModuleRuntime: TransfersModuleRuntime
+    private let timerModuleRuntime: CallbackIslandModuleRuntime
+    private let batteryModuleRuntime: CallbackIslandModuleRuntime
+    private let mediaModuleRuntime: CallbackIslandModuleRuntime
     private var islandGlobalMonitor: Any?
     private var islandLocalMonitor: Any?
     private var islandHoverTask: Task<Void, Never>?
     private var islandLayoutTask: Task<Void, Never>?
+    private var classicHoverPreviewState = ClassicShelfHoverPreviewStateMachine()
+    private var classicHoverExitTask: Task<Void, Never>?
+    private var classicHoverGlobalMonitor: Any?
+    private var classicHoverLocalMonitor: Any?
+    private var isOpeningClassicHoverPreview = false
     /// 快速上手期间只暂停自动隐藏，不改写用户的 autoHide 设置。
     private var onboardingPresentationCount = 0
     /// Freeze compact-height changes during global-coordinate marquee gestures;
@@ -167,9 +178,11 @@ final class ShelfWindowController: NSObject {
                 .environment(importCoordinator.transferStore)
                 .environment(islandActivityCoordinator)
                 .environment(islandModuleRegistry)
+                .environment(islandModuleContainer)
                 .environment(islandTimerStore)
                 .environment(powerSourceMonitor)
                 .environment(nowPlayingModuleStore)
+                .environment(systemStatusModuleStore)
                 .environment(\.bookmarkService, importCoordinator.bookmarkService)
                 .environment(\.dragOutController, dragOutController)
                 .environment(\.quickLookCoordinator, quickLookCoordinator)
@@ -242,14 +255,90 @@ final class ShelfWindowController: NSObject {
         self.settings = settings
         self.dragStartMonitor = dragStartMonitor
         self.onOpenSettings = onOpenSettings
-        self.islandActivityCoordinator = IslandActivityCoordinator()
-        self.islandModuleRegistry = IslandModuleRegistry()
-        self.islandTimerStore = IslandTimerStore(defaults: settings.defaultsStore)
-        self.powerSourceMonitor = PowerSourceMonitor(
+        let islandActivityCoordinator = IslandActivityCoordinator()
+        let islandModuleRegistry = IslandModuleRegistry()
+        let islandTimerStore = IslandTimerStore(defaults: settings.defaultsStore)
+        let powerSourceMonitor = PowerSourceMonitor(
             fullChargeAlertEnabled: { settings.islandFullChargeAlertEnabled }
         )
-        self.nowPlayingModuleStore = NowPlayingModuleStore(
+        let nowPlayingModuleStore = NowPlayingModuleStore(
             sourceFactory: { NowPlayingSourceFactory.bundled() }
+        )
+        let systemStatusModuleStore = SystemStatusModuleStore(
+            isSelectedAndExpanded: {
+                islandActivityCoordinator.surfaceState.isExpanded
+                    && islandActivityCoordinator.selectedModule == .system
+            }
+        )
+        let shelfRuntime = CallbackIslandModuleRuntime(
+            descriptor: islandModuleRegistry.descriptor(for: .shelf)!
+        )
+        let transfersModuleRuntime = TransfersModuleRuntime(
+            transferStore: importCoordinator.transferStore
+        )
+        let timerModuleRuntime = CallbackIslandModuleRuntime(
+            descriptor: islandTimerStore.descriptor,
+            start: { islandTimerStore.start() },
+            stop: { islandTimerStore.stop() }
+        )
+        let batteryModuleRuntime = CallbackIslandModuleRuntime(
+            descriptor: powerSourceMonitor.descriptor,
+            start: { powerSourceMonitor.start() },
+            stop: { powerSourceMonitor.stop() }
+        )
+        let mediaModuleRuntime = CallbackIslandModuleRuntime(
+            descriptor: nowPlayingModuleStore.descriptor,
+            start: { nowPlayingModuleStore.start() },
+            stop: { nowPlayingModuleStore.stop() }
+        )
+        self.islandActivityCoordinator = islandActivityCoordinator
+        self.islandModuleRegistry = islandModuleRegistry
+        self.islandTimerStore = islandTimerStore
+        self.powerSourceMonitor = powerSourceMonitor
+        self.nowPlayingModuleStore = nowPlayingModuleStore
+        self.systemStatusModuleStore = systemStatusModuleStore
+        self.transfersModuleRuntime = transfersModuleRuntime
+        self.timerModuleRuntime = timerModuleRuntime
+        self.batteryModuleRuntime = batteryModuleRuntime
+        self.mediaModuleRuntime = mediaModuleRuntime
+        self.islandModuleContainer = IslandModuleContainer(
+            registrations: [
+                IslandModuleRegistration(
+                    descriptor: shelfRuntime.descriptor,
+                    runtime: shelfRuntime,
+                    makeContentView: { _ in AnyView(IslandShelfModuleView()) }
+                ),
+                IslandModuleRegistration(
+                    descriptor: transfersModuleRuntime.descriptor,
+                    runtime: transfersModuleRuntime,
+                    makeContentView: { context in
+                        AnyView(IslandTransfersView(
+                            onPerformRecovery: context.onPerformRecovery
+                        ))
+                    }
+                ),
+                IslandModuleRegistration(
+                    descriptor: timerModuleRuntime.descriptor,
+                    runtime: timerModuleRuntime,
+                    makeContentView: { _ in AnyView(IslandTimerView()) }
+                ),
+                IslandModuleRegistration(
+                    descriptor: batteryModuleRuntime.descriptor,
+                    runtime: batteryModuleRuntime,
+                    makeContentView: { _ in AnyView(IslandBatteryView()) }
+                ),
+                IslandModuleRegistration(
+                    descriptor: systemStatusModuleStore.descriptor,
+                    runtime: systemStatusModuleStore,
+                    makeContentView: { _ in AnyView(IslandSystemStatusView()) }
+                ),
+                IslandModuleRegistration(
+                    descriptor: mediaModuleRuntime.descriptor,
+                    runtime: mediaModuleRuntime,
+                    makeContentView: { _ in AnyView(IslandNowPlayingView()) }
+                ),
+            ],
+            coordinator: islandActivityCoordinator
         )
         self.classicDragOutController = DragOutController(
             store: store,
@@ -290,13 +379,19 @@ final class ShelfWindowController: NSObject {
             self?.scheduleIslandLayoutUpdate()
         }
         islandTimerStore.onActivity = { [weak self] activity in
-            self?.replaceIslandActivity(for: .timer, with: activity)
+            self?.timerModuleRuntime.replaceActivity(activity)
+            if activity?.priority == .timerFinished,
+               let self,
+               self.settings.islandEnabled,
+               self.islandActivityCoordinator.surfaceState != .pinned {
+                self.islandActivityCoordinator.show(module: .timer)
+            }
         }
         powerSourceMonitor.onActivity = { [weak self] activity in
-            self?.replaceIslandActivity(for: .battery, with: activity)
+            self?.batteryModuleRuntime.replaceActivity(activity)
         }
         nowPlayingModuleStore.onActivity = { [weak self] activity in
-            self?.replaceIslandActivity(for: .media, with: activity)
+            self?.mediaModuleRuntime.replaceActivity(activity)
         }
         // UX5/UX6: 项目增删 → 紧凑高度动画过渡 + 空架自动隐藏裁决。
         store.onItemsDidChange = { [weak self] in
@@ -365,6 +460,7 @@ final class ShelfWindowController: NSObject {
         quickActionLayoutTask?.cancel()
         islandHoverTask?.cancel()
         islandLayoutTask?.cancel()
+        classicHoverExitTask?.cancel()
         NotificationCenter.default.removeObserver(self)
     }
 
@@ -374,6 +470,8 @@ final class ShelfWindowController: NSObject {
         quickActionLayoutTask?.cancel()
         islandHoverTask?.cancel()
         islandLayoutTask?.cancel()
+        classicHoverExitTask?.cancel()
+        stopClassicHoverPreviewMonitoring()
         stopIslandModules()
         stopIslandEventMonitoring()
     }
@@ -382,7 +480,11 @@ final class ShelfWindowController: NSObject {
         switch effectivePreferredShelfSurface {
         case .classic:
             if appState.isShelfVisible {
-                hideShelf(animated: animated)
+                if classicHoverPreviewState.isPreview {
+                    promoteClassicHoverPreview()
+                } else {
+                    hideShelf(animated: animated)
+                }
             } else {
                 showShelf(animated: animated)
             }
@@ -399,7 +501,12 @@ final class ShelfWindowController: NSObject {
         switch effectivePreferredShelfSurface {
         case .classic:
             if appState.isShelfVisible {
-                hideShelf(animated: animated)
+                if classicHoverPreviewState.isPreview {
+                    promoteClassicHoverPreview()
+                    classicPanel.makeKey()
+                } else {
+                    hideShelf(animated: animated)
+                }
             } else {
                 showShelf(animated: animated, takeKeyboardFocus: true)
             }
@@ -436,6 +543,11 @@ final class ShelfWindowController: NSObject {
     /// 从贴附缘滑入并淡入（贴左缘时自左侧滑入，贴右缘时自右侧滑入）。
     func showShelf(animated: Bool = true, takeKeyboardFocus: Bool = false) {
         let animated = animated && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        if !isOpeningClassicHoverPreview {
+            performClassicHoverActions(
+                classicHoverPreviewState.handle(.persistentInteraction)
+            )
+        }
         itemRecoveryController.refreshAll()
         interaction.normalize(for: store.items)
         if takeKeyboardFocus, interaction.focusedItemID == nil {
@@ -517,6 +629,8 @@ final class ShelfWindowController: NSObject {
     /// 向贴附缘滑出并淡出，结束后 orderOut。
     func hideShelf(animated: Bool = true) {
         let animated = animated && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        performClassicHoverActions(classicHoverPreviewState.handle(.shelfHidden))
+        stopClassicHoverPreviewMonitoring()
         quickActionLayoutTask?.cancel()
         quickActionLayoutTask = nil
         quickActionLayoutPending = false
@@ -551,6 +665,142 @@ final class ShelfWindowController: NSObject {
             islandPanel.setFrame(islandTargetFrame(), display: true)
             islandPanel.orderFront(nil)
         }
+    }
+
+    // MARK: - Classic shelf hover preview
+
+    /// EdgeTabController forwards pointer changes here so the preview state is
+    /// shared with the actual shelf window and all persistent interactions.
+    func classicEdgeTabHoverChanged(_ hovering: Bool) {
+        guard settings.classicShelfHoverRevealEnabled,
+              settings.classicShelfEnabled,
+              settings.edgeTabEnabled,
+              settings.shelfPosition != .custom,
+              !dragStartMonitor.isDragInProgress,
+              !IgnoreListService.frontmostAppIsIgnored(
+                in: settings.ignoredAppBundleIDs
+              ) else {
+            suppressClassicHoverPreview()
+            return
+        }
+        let event: ClassicShelfHoverPreviewStateMachine.Event = hovering
+            ? .tabEntered : .tabExited
+        performClassicHoverActions(classicHoverPreviewState.handle(event))
+    }
+
+    func suppressClassicHoverPreview() {
+        performClassicHoverActions(classicHoverPreviewState.handle(.suppress))
+    }
+
+    func promoteClassicHoverPreviewIfNeeded() {
+        guard classicHoverPreviewState.isPreview else { return }
+        promoteClassicHoverPreview()
+    }
+
+    private func promoteClassicHoverPreview() {
+        performClassicHoverActions(
+            classicHoverPreviewState.handle(.persistentInteraction)
+        )
+    }
+
+    private func performClassicHoverActions(
+        _ actions: [ClassicShelfHoverPreviewStateMachine.Action]
+    ) {
+        for action in actions {
+            switch action {
+            case .scheduleDwell:
+                // `mouseEntered` already expresses the user's proximity
+                // intent. Reveal in the same event turn; only mouse exit keeps
+                // a grace period so crossing from the tab into the shelf does
+                // not make the panel flicker.
+                performClassicHoverActions(
+                    classicHoverPreviewState.handle(.dwellElapsed)
+                )
+            case .cancelDwell:
+                continue
+            case .showPreview:
+                guard !appState.isShelfVisible else { continue }
+                isOpeningClassicHoverPreview = true
+                showShelf(animated: true, takeKeyboardFocus: false)
+                isOpeningClassicHoverPreview = false
+                startClassicHoverPreviewMonitoring()
+                updateClassicHoverPreviewPointer(at: NSEvent.mouseLocation)
+            case .scheduleExit:
+                guard classicHoverExitTask == nil else { continue }
+                classicHoverExitTask = Task { @MainActor [weak self] in
+                    try? await Task.sleep(for: .milliseconds(500))
+                    guard let self, !Task.isCancelled else { return }
+                    self.classicHoverExitTask = nil
+                    self.performClassicHoverActions(
+                        self.classicHoverPreviewState.handle(.exitElapsed)
+                    )
+                }
+            case .cancelExit:
+                classicHoverExitTask?.cancel()
+                classicHoverExitTask = nil
+            case .hidePreview:
+                stopClassicHoverPreviewMonitoring()
+                if appState.isShelfVisible { hideShelf(animated: true) }
+            case .promoteToPersistent:
+                classicHoverExitTask?.cancel()
+                classicHoverExitTask = nil
+                stopClassicHoverPreviewMonitoring()
+            }
+        }
+    }
+
+    private func startClassicHoverPreviewMonitoring() {
+        guard classicHoverGlobalMonitor == nil, classicHoverLocalMonitor == nil else { return }
+        let mask: NSEvent.EventTypeMask = [
+            .mouseMoved, .leftMouseDown, .rightMouseDown, .otherMouseDown,
+            .leftMouseDragged,
+        ]
+        classicHoverGlobalMonitor = NSEvent.addGlobalMonitorForEvents(matching: mask) {
+            [weak self] event in
+            let point = NSEvent.mouseLocation
+            Task { @MainActor in self?.handleClassicHoverPreviewEvent(event, at: point) }
+        }
+        classicHoverLocalMonitor = NSEvent.addLocalMonitorForEvents(matching: mask) {
+            [weak self] event in
+            let point = NSEvent.mouseLocation
+            Task { @MainActor in self?.handleClassicHoverPreviewEvent(event, at: point) }
+            return event
+        }
+    }
+
+    private func stopClassicHoverPreviewMonitoring() {
+        if let classicHoverGlobalMonitor {
+            NSEvent.removeMonitor(classicHoverGlobalMonitor)
+            self.classicHoverGlobalMonitor = nil
+        }
+        if let classicHoverLocalMonitor {
+            NSEvent.removeMonitor(classicHoverLocalMonitor)
+            self.classicHoverLocalMonitor = nil
+        }
+    }
+
+    private func handleClassicHoverPreviewEvent(_ event: NSEvent, at point: CGPoint) {
+        guard classicHoverPreviewState.isPreview else { return }
+        guard !IgnoreListService.frontmostAppIsIgnored(
+            in: settings.ignoredAppBundleIDs
+        ) else {
+            suppressClassicHoverPreview()
+            return
+        }
+        switch event.type {
+        case .leftMouseDown, .rightMouseDown, .otherMouseDown, .leftMouseDragged:
+            if classicPanel.frame.contains(point) { promoteClassicHoverPreview() }
+        case .mouseMoved:
+            updateClassicHoverPreviewPointer(at: point)
+        default:
+            break
+        }
+    }
+
+    private func updateClassicHoverPreviewPointer(at point: CGPoint) {
+        let event: ClassicShelfHoverPreviewStateMachine.Event = classicPanel.frame
+            .insetBy(dx: -2, dy: -2).contains(point) ? .shelfEntered : .shelfExited
+        performClassicHoverActions(classicHoverPreviewState.handle(event))
     }
 
     private var effectivePreferredShelfSurface: SettingsStore.PreferredShelfSurface? {
@@ -984,7 +1234,7 @@ final class ShelfWindowController: NSObject {
     /// ActivityStrip changes compact height but must not participate in the
     /// non-empty → empty auto-hide state machine.
     private func handleActivityVisibilityDidChange() {
-        publishTransferActivity()
+        transfersModuleRuntime.refresh()
         guard appState.isShelfVisible else { return }
         let target = classicTargetFrame()
         guard target != classicPanel.frame else { return }
@@ -1116,61 +1366,14 @@ final class ShelfWindowController: NSObject {
             islandActivityCoordinator.selectedModule =
                 islandModuleRegistry.enabledDescriptors.first?.id ?? .transfers
         }
-        if islandModuleRegistry.isEnabled(.timer) { islandTimerStore.start() }
-        else { islandTimerStore.stop() }
-        if islandModuleRegistry.isEnabled(.battery) { powerSourceMonitor.start() }
-        else { powerSourceMonitor.stop() }
-        if islandModuleRegistry.isEnabled(.media) { nowPlayingModuleStore.start() }
-        else { nowPlayingModuleStore.stop() }
-        publishTransferActivity()
+        islandModuleContainer.apply(
+            configuration: settings.islandModuleConfiguration,
+            isActive: true
+        )
     }
 
     private func stopIslandModules() {
-        islandTimerStore.stop()
-        powerSourceMonitor.stop()
-        nowPlayingModuleStore.stop()
-        islandActivityCoordinator.removeActivities(for: .timer)
-        islandActivityCoordinator.removeActivities(for: .battery)
-        islandActivityCoordinator.removeActivities(for: .media)
-    }
-
-    private func replaceIslandActivity(for moduleID: IslandModuleID,
-                                       with activity: IslandActivity?) {
-        islandActivityCoordinator.removeActivities(for: moduleID)
-        islandActivityCoordinator.publish(activity)
-        if activity?.priority == .timerFinished,
-           settings.islandEnabled,
-           islandActivityCoordinator.surfaceState != .pinned {
-            islandActivityCoordinator.show(module: .timer)
-        }
-    }
-
-    private func publishTransferActivity() {
-        islandActivityCoordinator.removeActivities(for: .transfers)
-        guard let task = importCoordinator.transferStore.currentTask else { return }
-        let title: String
-        let symbol: String
-        switch task.phase {
-        case .failed:
-            title = String(localized: "Transfer failed")
-            symbol = "exclamationmark.octagon.fill"
-        case .partiallySucceeded:
-            title = String(localized: "Transfer completed with warnings")
-            symbol = "exclamationmark.triangle.fill"
-        case .targetAccepted, .delivered:
-            title = String(localized: "Transfer complete")
-            symbol = "checkmark.circle.fill"
-        case .cancelled:
-            title = String(localized: "Transfer cancelled")
-            symbol = "xmark.circle"
-        default:
-            title = String(localized: "Transferring content…")
-            symbol = "arrow.up.arrow.down"
-        }
-        islandActivityCoordinator.publish(.init(
-            id: "transfer", moduleID: .transfers, priority: .transfer,
-            title: title, detail: nil, systemImage: symbol, expiresAt: nil
-        ))
+        islandModuleContainer.stopAll()
     }
 
     private func scheduleIslandLayoutUpdate() {

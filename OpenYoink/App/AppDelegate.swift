@@ -232,6 +232,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         },
         onShowShelf: { [weak self] in
             self?.shelfPresentationCoordinator.showClassic(animated: true)
+        },
+        onHoverChanged: { [weak self] hovering in
+            self?.shelfWindowController.classicEdgeTabHoverChanged(hovering)
+        },
+        onPreviewSuppressed: { [weak self] in
+            self?.shelfWindowController.suppressClassicHoverPreview()
         }
     )
 
@@ -281,6 +287,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 已有内容落入」，拖结束时不再自动收回。
         dropImportCoordinator.onImportHandled = { [weak self] in
             self?.dragAutoShowSession.noteImport()
+            self?.shelfWindowController.promoteClassicHoverPreviewIfNeeded()
         }
         if !isUITesting {
             applyTriggerSettings()
@@ -387,7 +394,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - UX1/UX2 drag-driven appearance
 
-    /// UX1: 拖拽确认（位移超阈值）。开启新会话记帐；`.immediate` 模式下
+    /// UX1: 拖拽确认（位移超阈值）。开启新会话记帐；用户显式选择
+    /// `.immediate` 模式时
     /// shelf 不可见时立即唤出并打自动唤出标记（拖拽前已可见 = 用户手动
     /// 唤出，不标记、不动它）。`.edgeOnly` 只做记帐，唤出交给边缘触发。
     private func handleDragStart() {

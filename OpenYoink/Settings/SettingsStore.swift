@@ -1,4 +1,5 @@
 import Foundation
+import OpenYoinkModuleCore
 
 /// UserDefaults-backed app settings, observable by SwiftUI.
 ///
@@ -145,7 +146,10 @@ final class SettingsStore {
     /// Shelf is an optional Island module. Turning it off never deletes shelf
     /// contents and doesn't affect the side shelf.
     var islandShelfEnabled: Bool {
-        didSet { defaults.set(islandShelfEnabled, forKey: Keys.islandShelfEnabled) }
+        didSet {
+            defaults.set(islandShelfEnabled, forKey: Keys.islandShelfEnabled)
+            syncModuleConfigurationFromLegacy(.shelf, enabled: islandShelfEnabled)
+        }
     }
 
     var preferredShelfSurface: PreferredShelfSurface {
@@ -234,11 +238,17 @@ final class SettingsStore {
     }
 
     var islandTimerEnabled: Bool {
-        didSet { defaults.set(islandTimerEnabled, forKey: Keys.islandTimerEnabled) }
+        didSet {
+            defaults.set(islandTimerEnabled, forKey: Keys.islandTimerEnabled)
+            syncModuleConfigurationFromLegacy(.timer, enabled: islandTimerEnabled)
+        }
     }
 
     var islandBatteryEnabled: Bool {
-        didSet { defaults.set(islandBatteryEnabled, forKey: Keys.islandBatteryEnabled) }
+        didSet {
+            defaults.set(islandBatteryEnabled, forKey: Keys.islandBatteryEnabled)
+            syncModuleConfigurationFromLegacy(.battery, enabled: islandBatteryEnabled)
+        }
     }
 
     var islandFullChargeAlertEnabled: Bool {
@@ -252,7 +262,56 @@ final class SettingsStore {
     /// player never requests Automation access until the user asks for media
     /// controls, while the UI itself is a first-class Island module.
     var islandMediaEnabled: Bool {
-        didSet { defaults.set(islandMediaEnabled, forKey: Keys.islandMediaEnabled) }
+        didSet {
+            defaults.set(islandMediaEnabled, forKey: Keys.islandMediaEnabled)
+            syncModuleConfigurationFromLegacy(.media, enabled: islandMediaEnabled)
+        }
+    }
+
+    /// Versioned primary configuration for Island module enablement and the
+    /// five user-controlled pinned positions. The v1.5 booleans remain shadow
+    /// keys for one release so downgrading does not discard user choices.
+    var islandModuleConfiguration: IslandModuleConfiguration {
+        didSet {
+            persistIslandModuleConfiguration()
+            applyConfigurationToLegacyProperties()
+        }
+    }
+
+    /// Hovering the classic edge tab briefly previews the side shelf. The
+    /// feature is on by default so the shelf stays out of the way until the
+    /// pointer approaches its edge tab; an explicitly saved choice still wins.
+    var classicShelfHoverRevealEnabled: Bool {
+        didSet {
+            defaults.set(classicShelfHoverRevealEnabled,
+                         forKey: Keys.classicShelfHoverRevealEnabled)
+        }
+    }
+
+    func isIslandModuleEnabled(_ id: IslandModuleID) -> Bool {
+        islandModuleConfiguration.isEnabled(id)
+    }
+
+    func isIslandModulePinned(_ id: IslandModuleID) -> Bool {
+        islandModuleConfiguration.isPinned(id)
+    }
+
+    func setIslandModuleEnabled(_ enabled: Bool, id: IslandModuleID) {
+        var configuration = islandModuleConfiguration
+        configuration.setEnabled(enabled, for: id)
+        islandModuleConfiguration = configuration
+    }
+
+    func setIslandModulePinned(_ pinned: Bool, id: IslandModuleID) {
+        var configuration = islandModuleConfiguration
+        configuration.setPinned(pinned, for: id)
+        islandModuleConfiguration = configuration
+    }
+
+    func movePinnedIslandModules(fromOffsets: IndexSet, toOffset: Int) {
+        var configuration = islandModuleConfiguration
+        configuration.movePinned(fromOffsets: fromOffsets, toOffset: toOffset)
+        islandModuleConfiguration = configuration
     }
 
     /// Shelf width in points. Default: 320.
@@ -357,7 +416,8 @@ final class SettingsStore {
         didSet { defaults.set(edgeTriggerEnabled, forKey: Keys.edgeTriggerEnabled) }
     }
 
-    /// UX1: drag-triggered shelf appearance. Default: `.immediate`.
+    /// UX1: drag-triggered shelf appearance. Default: `.edgeOnly`, so starting
+    /// a drag does not cover content before the pointer approaches the shelf.
     /// `.edgeOnly` requires a non-custom shelf position (no attachment edge
     /// otherwise); `custom` position pauses the edge mechanism while active.
     var dragAutoAppearMode: DragAutoAppearMode {
@@ -431,6 +491,7 @@ final class SettingsStore {
     // MARK: - Init
 
     private let defaults: UserDefaults
+    @ObservationIgnored private var isApplyingModuleConfiguration = false
 
     /// Shared persistence domain for feature stores that must follow the
     /// isolated UI-test/defaults suite instead of silently using `.standard`.
@@ -451,6 +512,10 @@ final class SettingsStore {
         static let islandBatteryEnabled = prefix + "islandBatteryEnabled"
         static let islandFullChargeAlertEnabled = prefix + "islandFullChargeAlertEnabled"
         static let islandMediaEnabled = prefix + "islandMediaEnabled"
+        static let islandModuleConfiguration = prefix + "islandModuleConfiguration"
+        static let islandModuleConfigurationCorruptBackup =
+            prefix + "islandModuleConfigurationCorruptBackup"
+        static let classicShelfHoverRevealEnabled = prefix + "classicShelfHoverRevealEnabled"
         static let shelfWidth = prefix + "shelfWidth"
         static let shelfEdgeOffset = prefix + "shelfEdgeOffset"
         static let edgeTabEnabled = prefix + "edgeTabEnabled"
@@ -475,6 +540,15 @@ final class SettingsStore {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         hadPersistedOnboardingVersion = defaults.object(forKey: Keys.onboardingVersion) != nil
+        let persistedModuleConfigurationData = defaults.data(
+            forKey: Keys.islandModuleConfiguration
+        )
+        // Registration defaults are process-wide and leak into isolated test
+        // suites. Only durable migration evidence may classify an install as
+        // existing; v1.5 has onboardingVersion, while pre-release modular
+        // builds may only have the versioned configuration blob.
+        let hadPersistedAppSettings = hadPersistedOnboardingVersion
+            || persistedModuleConfigurationData != nil
         // UX1 迁移必须在注册默认值之前读取：注册域会让「从未设置」与
         // 「显式存过 immediate」无法区分（且 NSRegistrationDomain 进程内
         // 共享，跨 UserDefaults 实例可见）。旧版布尔 edgeTriggerEnabled（悬停
@@ -601,13 +675,56 @@ final class SettingsStore {
         if persistedSurfaceSettingsVersion < 1 {
             defaults.set(1, forKey: Keys.shelfSurfaceSettingsVersion)
         }
-        islandHoverRevealEnabled = defaults.bool(forKey: Keys.islandHoverRevealEnabled)
-        islandTimerEnabled = defaults.bool(forKey: Keys.islandTimerEnabled)
-        islandBatteryEnabled = defaults.bool(forKey: Keys.islandBatteryEnabled)
-        islandFullChargeAlertEnabled = defaults.bool(
+        let resolvedIslandHoverRevealEnabled = defaults.bool(
+            forKey: Keys.islandHoverRevealEnabled
+        )
+        let resolvedIslandTimerEnabled = defaults.bool(forKey: Keys.islandTimerEnabled)
+        let resolvedIslandBatteryEnabled = defaults.bool(forKey: Keys.islandBatteryEnabled)
+        let resolvedIslandFullChargeAlertEnabled = defaults.bool(
             forKey: Keys.islandFullChargeAlertEnabled
         )
-        islandMediaEnabled = defaults.bool(forKey: Keys.islandMediaEnabled)
+        let resolvedIslandMediaEnabled = defaults.bool(forKey: Keys.islandMediaEnabled)
+        islandHoverRevealEnabled = resolvedIslandHoverRevealEnabled
+        islandTimerEnabled = resolvedIslandTimerEnabled
+        islandBatteryEnabled = resolvedIslandBatteryEnabled
+        islandFullChargeAlertEnabled = resolvedIslandFullChargeAlertEnabled
+        islandMediaEnabled = resolvedIslandMediaEnabled
+        let migratedModuleConfiguration = Self.migratedModuleConfiguration(
+            existingInstallation: hadPersistedAppSettings,
+            shelfEnabled: resolvedIslandShelfEnabled,
+            timerEnabled: resolvedIslandTimerEnabled,
+            batteryEnabled: resolvedIslandBatteryEnabled,
+            mediaEnabled: resolvedIslandMediaEnabled
+        )
+        if let persistedModuleConfigurationData {
+            do {
+                var decoded = try JSONDecoder().decode(
+                    IslandModuleConfiguration.self,
+                    from: persistedModuleConfigurationData
+                )
+                decoded.normalize()
+                islandModuleConfiguration = decoded
+            } catch {
+                islandModuleConfiguration = migratedModuleConfiguration
+                if defaults.data(forKey: Keys.islandModuleConfigurationCorruptBackup) == nil {
+                    defaults.set(persistedModuleConfigurationData,
+                                 forKey: Keys.islandModuleConfigurationCorruptBackup)
+                }
+            }
+        } else {
+            islandModuleConfiguration = migratedModuleConfiguration
+            if let encoded = try? JSONEncoder().encode(migratedModuleConfiguration) {
+                defaults.set(encoded, forKey: Keys.islandModuleConfiguration)
+            }
+        }
+        let resolvedClassicShelfHoverRevealEnabled =
+            defaults.object(forKey: Keys.classicShelfHoverRevealEnabled) as? Bool
+            ?? true
+        classicShelfHoverRevealEnabled = resolvedClassicShelfHoverRevealEnabled
+        if defaults.object(forKey: Keys.classicShelfHoverRevealEnabled) == nil {
+            defaults.set(resolvedClassicShelfHoverRevealEnabled,
+                         forKey: Keys.classicShelfHoverRevealEnabled)
+        }
         shelfWidth = defaults.double(forKey: Keys.shelfWidth)
         shelfEdgeOffset = defaults.double(forKey: Keys.shelfEdgeOffset)
         edgeTabEnabled = defaults.bool(forKey: Keys.edgeTabEnabled)
@@ -631,13 +748,13 @@ final class SettingsStore {
         shakeTriggerEnabled = defaults.bool(forKey: Keys.shakeTriggerEnabled)
         edgeTriggerEnabled = defaults.bool(forKey: Keys.edgeTriggerEnabled)
         if let persistedDragMode {
-            dragAutoAppearMode = DragAutoAppearMode(rawValue: persistedDragMode) ?? .immediate
+            dragAutoAppearMode = DragAutoAppearMode(rawValue: persistedDragMode) ?? .edgeOnly
         } else if legacyEdgeTriggerEnabled {
             // 迁移：旧版悬停边缘触发开启 → 拖拽贴边唤出。
             dragAutoAppearMode = .edgeOnly
             defaults.set(DragAutoAppearMode.edgeOnly.rawValue, forKey: Keys.dragAutoAppearMode)
         } else {
-            dragAutoAppearMode = .immediate
+            dragAutoAppearMode = .edgeOnly
         }
         shakeSensitivity = TriggerSensitivity(
             rawValue: defaults.string(forKey: Keys.shakeSensitivity) ?? ""
@@ -658,5 +775,60 @@ final class SettingsStore {
             hotKeyShortcut = .default
         }
         ignoredAppBundleIDs = defaults.stringArray(forKey: Keys.ignoredAppBundleIDs) ?? []
+        // A valid primary configuration wins on every launch. Refresh the
+        // one-release v1.5 shadow keys immediately, not only after the user
+        // changes a module in this process.
+        applyConfigurationToLegacyProperties()
+    }
+
+    private static func migratedModuleConfiguration(
+        existingInstallation: Bool,
+        shelfEnabled: Bool,
+        timerEnabled: Bool,
+        batteryEnabled: Bool,
+        mediaEnabled: Bool
+    ) -> IslandModuleConfiguration {
+        if !existingInstallation {
+            return IslandModuleConfiguration(
+                enabledModuleIDs: [.shelf, .transfers, .timer, .battery, .system],
+                pinnedModuleIDs: [.shelf, .timer, .system]
+            )
+        }
+
+        var enabled: [IslandModuleID] = []
+        if shelfEnabled { enabled.append(.shelf) }
+        if mediaEnabled { enabled.append(.media) }
+        enabled.append(.transfers)
+        if timerEnabled { enabled.append(.timer) }
+        if batteryEnabled { enabled.append(.battery) }
+        return IslandModuleConfiguration(
+            enabledModuleIDs: enabled,
+            pinnedModuleIDs: Array(enabled.prefix(
+                IslandModuleConfiguration.maximumPinnedModules
+            ))
+        )
+    }
+
+    private func syncModuleConfigurationFromLegacy(_ id: IslandModuleID,
+                                                    enabled: Bool) {
+        guard !isApplyingModuleConfiguration else { return }
+        var configuration = islandModuleConfiguration
+        configuration.setEnabled(enabled, for: id)
+        islandModuleConfiguration = configuration
+    }
+
+    private func persistIslandModuleConfiguration() {
+        guard let data = try? JSONEncoder().encode(islandModuleConfiguration) else { return }
+        defaults.set(data, forKey: Keys.islandModuleConfiguration)
+    }
+
+    private func applyConfigurationToLegacyProperties() {
+        guard !isApplyingModuleConfiguration else { return }
+        isApplyingModuleConfiguration = true
+        defer { isApplyingModuleConfiguration = false }
+        islandShelfEnabled = islandModuleConfiguration.isEnabled(.shelf)
+        islandTimerEnabled = islandModuleConfiguration.isEnabled(.timer)
+        islandBatteryEnabled = islandModuleConfiguration.isEnabled(.battery)
+        islandMediaEnabled = islandModuleConfiguration.isEnabled(.media)
     }
 }

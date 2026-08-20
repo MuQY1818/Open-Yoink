@@ -65,8 +65,8 @@ final class TriggerSettingsTests: XCTestCase {
         XCTAssertEqual(store.edgeTriggerSensitivity, .medium)
         XCTAssertEqual(store.hotKeyShortcut, .default)
         XCTAssertEqual(store.ignoredAppBundleIDs, [])
-        // UX 批次新增项的默认值：拖拽立即出现、双击存剪贴板、空架自动隐藏。
-        XCTAssertEqual(store.dragAutoAppearMode, .immediate)
+        // UX 批次新增项的默认值：拖到边缘再出现、双击存剪贴板、空架自动隐藏。
+        XCTAssertEqual(store.dragAutoAppearMode, .edgeOnly)
         XCTAssertTrue(store.hotKeyDoublePressSavesClipboard)
         XCTAssertTrue(store.autoHideWhenEmpty)
     }
@@ -128,13 +128,13 @@ final class TriggerSettingsTests: XCTestCase {
         XCTAssertFalse(reloaded.autoHideWhenEmpty)
     }
 
-    func testDragAutoAppearMode_invalidPersistedValue_fallsBackToImmediate() throws {
+    func testDragAutoAppearMode_invalidPersistedValue_fallsBackToEdgeOnly() throws {
         let (defaults, name) = try makeSuite()
         defer { defaults.removePersistentDomain(forName: name) }
 
         defaults.set("garbage", forKey: "OpenYoink.dragAutoAppearMode")
         let store = SettingsStore(defaults: defaults)
-        XCTAssertEqual(store.dragAutoAppearMode, .immediate)
+        XCTAssertEqual(store.dragAutoAppearMode, .edgeOnly)
     }
 
     func testDragAutoAppearMode_legacyEdgeTriggerEnabled_migratesToEdgeOnly() throws {

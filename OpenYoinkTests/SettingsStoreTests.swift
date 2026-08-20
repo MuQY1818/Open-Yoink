@@ -58,6 +58,90 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertTrue(store.islandTimerEnabled)
         XCTAssertTrue(store.islandBatteryEnabled)
         XCTAssertFalse(store.islandMediaEnabled)
+        XCTAssertEqual(store.islandModuleConfiguration.enabledModuleIDs,
+                       [.shelf, .transfers, .timer, .battery, .system])
+        XCTAssertEqual(store.islandModuleConfiguration.pinnedModuleIDs,
+                       [.shelf, .timer, .system])
+        XCTAssertTrue(store.classicShelfHoverRevealEnabled)
+    }
+
+    func testExistingUserMigratesLegacyModuleOrderWithoutEnablingSystem() throws {
+        let (defaults, name) = try makeSuite()
+        defer { defaults.removePersistentDomain(forName: name) }
+        defaults.set(1, forKey: "OpenYoink.onboardingVersion")
+        defaults.set(true, forKey: "OpenYoink.islandShelfEnabled")
+        defaults.set(true, forKey: "OpenYoink.islandMediaEnabled")
+        defaults.set(true, forKey: "OpenYoink.islandTimerEnabled")
+        defaults.set(false, forKey: "OpenYoink.islandBatteryEnabled")
+
+        let store = SettingsStore(defaults: defaults)
+        XCTAssertEqual(store.islandModuleConfiguration.enabledModuleIDs,
+                       [.shelf, .media, .transfers, .timer])
+        XCTAssertEqual(store.islandModuleConfiguration.pinnedModuleIDs,
+                       [.shelf, .media, .transfers, .timer])
+        XCTAssertFalse(store.isIslandModuleEnabled(.system))
+        XCTAssertTrue(store.classicShelfHoverRevealEnabled)
+    }
+
+    func testUnknownModuleIDsSurviveReloadAndRuntimeEdits() throws {
+        let (defaults, name) = try makeSuite()
+        defer { defaults.removePersistentDomain(forName: name) }
+        let unknown = IslandModuleID(rawValue: "future.weather")
+        let configuration = IslandModuleConfiguration(
+            enabledModuleIDs: [.shelf, unknown],
+            pinnedModuleIDs: [unknown, .shelf]
+        )
+        defaults.set(try JSONEncoder().encode(configuration),
+                     forKey: "OpenYoink.islandModuleConfiguration")
+
+        let store = SettingsStore(defaults: defaults)
+        store.setIslandModuleEnabled(true, id: .timer)
+        let reloaded = SettingsStore(defaults: defaults)
+        XCTAssertTrue(reloaded.isIslandModuleEnabled(unknown))
+        XCTAssertTrue(reloaded.isIslandModulePinned(unknown))
+    }
+
+    func testPrimaryConfigurationShadowWritesLegacyBooleans() throws {
+        let (defaults, name) = try makeSuite()
+        defer { defaults.removePersistentDomain(forName: name) }
+        let store = SettingsStore(defaults: defaults)
+
+        store.setIslandModuleEnabled(false, id: .timer)
+        store.setIslandModuleEnabled(true, id: .media)
+
+        XCTAssertFalse(defaults.bool(forKey: "OpenYoink.islandTimerEnabled"))
+        XCTAssertTrue(defaults.bool(forKey: "OpenYoink.islandMediaEnabled"))
+    }
+
+    func testLoadingPrimaryConfigurationRefreshesLegacyShadowKeys() throws {
+        let (defaults, name) = try makeSuite()
+        defer { defaults.removePersistentDomain(forName: name) }
+        let configuration = IslandModuleConfiguration(
+            enabledModuleIDs: [.transfers, .media], pinnedModuleIDs: [.media]
+        )
+        defaults.set(try JSONEncoder().encode(configuration),
+                     forKey: "OpenYoink.islandModuleConfiguration")
+        defaults.set(true, forKey: "OpenYoink.islandTimerEnabled")
+        defaults.set(false, forKey: "OpenYoink.islandMediaEnabled")
+
+        _ = SettingsStore(defaults: defaults)
+
+        XCTAssertFalse(defaults.bool(forKey: "OpenYoink.islandTimerEnabled"))
+        XCTAssertTrue(defaults.bool(forKey: "OpenYoink.islandMediaEnabled"))
+    }
+
+    func testCorruptModuleConfigurationIsBackedUpWithoutBeingOverwritten() throws {
+        let (defaults, name) = try makeSuite()
+        defer { defaults.removePersistentDomain(forName: name) }
+        let corrupt = Data([0x00, 0xCA, 0xFE])
+        defaults.set(corrupt, forKey: "OpenYoink.islandModuleConfiguration")
+
+        let store = SettingsStore(defaults: defaults)
+
+        XCTAssertFalse(store.islandModuleConfiguration.enabledModuleIDs.isEmpty)
+        XCTAssertEqual(defaults.data(forKey: "OpenYoink.islandModuleConfiguration"), corrupt)
+        XCTAssertEqual(defaults.data(forKey: "OpenYoink.islandModuleConfigurationCorruptBackup"),
+                       corrupt)
     }
 
     func testIslandPlacementPreservesLastClassicPosition() throws {

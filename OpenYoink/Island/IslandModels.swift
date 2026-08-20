@@ -1,49 +1,14 @@
 import Foundation
 import Observation
+@_exported import OpenYoinkModuleCore
 
-enum IslandModuleID: String, CaseIterable, Codable, Sendable {
-    case shelf
-    case transfers
-    case timer
-    case battery
-    case media
-}
-
-struct IslandModuleDescriptor: Identifiable, Equatable, Sendable {
-    let id: IslandModuleID
-    let title: String
-    let systemImage: String
-    let order: Int
-    let isCore: Bool
-}
-
-enum IslandActivityPriority: Int, Comparable, Codable, Sendable {
-    case shelfSummary = 10
-    case selectedModule = 20
-    case nowPlaying = 25
-    case powerChange = 30
-    case criticalBattery = 40
-    case timerFinished = 50
-    case transfer = 60
-    case userDrag = 70
-
-    static func < (lhs: Self, rhs: Self) -> Bool {
-        lhs.rawValue < rhs.rawValue
-    }
-}
-
-struct IslandActivity: Identifiable, Equatable, Sendable {
-    let id: String
-    let moduleID: IslandModuleID
-    let priority: IslandActivityPriority
-    let title: String
-    let detail: String?
-    let systemImage: String
-    let expiresAt: Date?
-
-    func isActive(at date: Date) -> Bool {
-        expiresAt.map { $0 > date } ?? true
-    }
+extension IslandModuleID {
+    static let shelf = Self(rawValue: "shelf")
+    static let transfers = Self(rawValue: "transfers")
+    static let timer = Self(rawValue: "timer")
+    static let battery = Self(rawValue: "battery")
+    static let media = Self(rawValue: "media")
+    static let system = Self(rawValue: "system")
 }
 
 enum IslandSurfaceState: Equatable, Sendable {
@@ -87,25 +52,22 @@ final class IslandModuleRegistry {
     private(set) var descriptors: [IslandModuleDescriptor] = [
         .init(id: .shelf, title: String(localized: "Shelf"),
               systemImage: "tray.full", order: 0, isCore: true),
-        .init(id: .media, title: String(localized: "Now Playing"),
-              systemImage: "music.note", order: 1, isCore: false),
         .init(id: .transfers, title: String(localized: "Transfers"),
-              systemImage: "arrow.up.arrow.down", order: 2, isCore: true),
+              systemImage: "arrow.up.arrow.down", order: 1, isCore: true),
         .init(id: .timer, title: String(localized: "Timer"),
-              systemImage: "timer", order: 3, isCore: false),
+              systemImage: "timer", order: 2, isCore: false),
         .init(id: .battery, title: String(localized: "Battery"),
-              systemImage: "battery.75percent", order: 4, isCore: false),
+              systemImage: "battery.75percent", order: 3, isCore: false),
+        .init(id: .system, title: String(localized: "System Status"),
+              systemImage: "gauge.with.dots.needle.67percent", order: 4, isCore: false),
+        .init(id: .media, title: String(localized: "Now Playing"),
+              systemImage: "music.note", order: 5, isCore: false),
     ]
 
     private(set) var enabledIDs: Set<IslandModuleID> = [.shelf, .transfers]
 
     func apply(settings: SettingsStore) {
-        var enabled: Set<IslandModuleID> = [.transfers]
-        if settings.islandShelfEnabled { enabled.insert(.shelf) }
-        if settings.islandTimerEnabled { enabled.insert(.timer) }
-        if settings.islandBatteryEnabled { enabled.insert(.battery) }
-        if settings.islandMediaEnabled { enabled.insert(.media) }
-        enabledIDs = enabled
+        enabledIDs = Set(settings.islandModuleConfiguration.enabledModuleIDs)
     }
 
     var enabledDescriptors: [IslandModuleDescriptor] {
@@ -116,6 +78,10 @@ final class IslandModuleRegistry {
 
     func isEnabled(_ id: IslandModuleID) -> Bool {
         enabledIDs.contains(id)
+    }
+
+    func descriptor(for id: IslandModuleID) -> IslandModuleDescriptor? {
+        descriptors.first { $0.id == id }
     }
 }
 

@@ -31,7 +31,7 @@
 </a>
 
 > [!NOTE]
-> 当前稳定版 **v1.5.0**，新增 Flow 风格专注计时、专注热力图、Island 显示器选择与展开态设置入口。完整教程见[使用文档](https://muqy1818.github.io/OpenYoink/guide/)。
+> 当前稳定版 **v1.6.1**，新增五位置模块化 Island、模块库、侧边拉环悬停预览，以及只读的 Mac 系统状态模块。完整教程见[使用文档](https://muqy1818.github.io/OpenYoink/guide/)。
 
 ## 它解决什么问题
 

@@ -25,6 +25,7 @@
 
 /* Begin PBXBuildFile section */
 		2C00000000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 2B00000000000000000001 /* Sparkle */; };
+		3C00000000000000000001 /* OpenYoinkModuleCore in Frameworks */ = {isa = PBXBuildFile; productRef = 3B00000000000000000001 /* OpenYoinkModuleCore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -70,6 +71,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				2C00000000000000000001 /* Sparkle in Frameworks */,
+				3C00000000000000000001 /* OpenYoinkModuleCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -131,6 +133,7 @@
 			name = OpenYoink;
 			packageProductDependencies = (
 				2B00000000000000000001 /* Sparkle */,
+				3B00000000000000000001 /* OpenYoinkModuleCore */,
 			);
 			productName = OpenYoink;
 			productReference = 0F00000000000000000001 /* OpenYoink.app */;
@@ -211,6 +214,7 @@
 			mainGroup = 110000000000000000001;
 			packageReferences = (
 				2A00000000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */,
+				3A00000000000000000001 /* XCLocalSwiftPackageReference "OpenYoinkModuleCore" */,
 			);
 			productRefGroup = 110000000000000000004 /* Products */;
 			projectDirPath = "";
@@ -413,7 +417,7 @@
 				CODE_SIGN_ENTITLEMENTS = OpenYoink/Resources/OpenYoink.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 21;
+				CURRENT_PROJECT_VERSION = 23;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -424,7 +428,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.5.0;
+				MARKETING_VERSION = 1.6.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.weijue.OpenYoink;
 				PRODUCT_BUNDLE_PACKAGE_TYPE = APPL;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -442,7 +446,7 @@
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 21;
+				CURRENT_PROJECT_VERSION = 23;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -453,7 +457,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.5.0;
+				MARKETING_VERSION = 1.6.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.weijue.OpenYoink;
 				PRODUCT_BUNDLE_PACKAGE_TYPE = APPL;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -467,10 +471,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 21;
+				CURRENT_PROJECT_VERSION = 23;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.5.0;
+				MARKETING_VERSION = 1.6.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.weijue.OpenYoinkTests;
 				PRODUCT_BUNDLE_PACKAGE_TYPE = BNDL;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -485,10 +489,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 21;
+				CURRENT_PROJECT_VERSION = 23;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.5.0;
+				MARKETING_VERSION = 1.6.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.weijue.OpenYoinkTests;
 				PRODUCT_BUNDLE_PACKAGE_TYPE = BNDL;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -502,11 +506,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 21;
+				CURRENT_PROJECT_VERSION = 23;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.5.0;
+				MARKETING_VERSION = 1.6.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.weijue.OpenYoinkUITests;
 				PRODUCT_BUNDLE_PACKAGE_TYPE = BNDL;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -520,11 +524,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 21;
+				CURRENT_PROJECT_VERSION = 23;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.5.0;
+				MARKETING_VERSION = 1.6.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.weijue.OpenYoinkUITests;
 				PRODUCT_BUNDLE_PACKAGE_TYPE = BNDL;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -586,11 +590,23 @@
 		};
 /* End XCRemoteSwiftPackageReference section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		3A00000000000000000001 /* XCLocalSwiftPackageReference "OpenYoinkModuleCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/OpenYoinkModuleCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		2B00000000000000000001 /* Sparkle */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 2A00000000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
+		};
+		3B00000000000000000001 /* OpenYoinkModuleCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3A00000000000000000001 /* XCLocalSwiftPackageReference "OpenYoinkModuleCore" */;
+			productName = OpenYoinkModuleCore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

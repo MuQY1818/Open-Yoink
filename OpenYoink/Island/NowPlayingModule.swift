@@ -145,7 +145,7 @@ final class NowPlayingModuleStore: IslandModule {
         id: .media,
         title: String(localized: "Now Playing"),
         systemImage: "music.note",
-        order: 1,
+        order: 5,
         isCore: false
     )
 
