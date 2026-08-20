@@ -1,7 +1,8 @@
 ---
 layout: home
-title: OpenYoink
-titleTemplate: Drag now. Drop later.
+title: OpenYoink — Free, open-source drag shelf and Dynamic Island for macOS
+titleTemplate: false
+description: A free, open-source, local-first drag-and-drop shelf and Dynamic Island for moving files, images, text, and links across macOS windows and Spaces.
 
 hero:
   name: OpenYoink

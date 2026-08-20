@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "vitepress dev",
-    "build": "vitepress build && cp ../docs/appcast.xml .vitepress/dist/appcast.xml",
+    "build": "vitepress build && cp ../docs/appcast.xml .vitepress/dist/appcast.xml && npm run check:seo",
+    "check:seo": "node scripts/check-seo.mjs",
     "preview": "vitepress preview"
   },
   "devDependencies": {

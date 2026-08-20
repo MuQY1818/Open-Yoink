@@ -26,6 +26,7 @@ const features = [
 const guides = [
   { tag: '安装', text: 'Homebrew、DMG 与首次启动', link: '/guide/install' },
   { tag: '上手', text: '完成第一次拖入和拖出', link: '/guide/quick-start' },
+  { tag: '选型', text: '为什么选择 OpenYoink', link: '/guide/open-source-drag-shelf' },
   { tag: 'Island', text: '展开、收起与模块配置', link: '/guide/island' },
   { tag: '安全', text: '引用、物化与托管移动', link: '/guide/file-safety' },
   { tag: '排障', text: '打不开、更新失败与拖放问题', link: '/guide/troubleshooting' }
@@ -53,7 +54,7 @@ const guides = [
           <p class="oy-kicker">
             <img :src="withBase('/images/icon.png')" alt="" width="20" height="20">
             <span>OpenYoink for macOS 15+</span>
-            <span class="oy-pill">v1.4.1 · MIT</span>
+            <span class="oy-pill">v1.5.0 · MIT</span>
           </p>
           <h1>
             <span class="oy-h1-line">随手一拖，</span>
@@ -182,7 +183,7 @@ const guides = [
           <div class="oy-section-heading oy-heading-left">
             <p class="oy-eyebrow">REAL APP, REAL PIXELS</p>
             <h2>它真的长在 Mac 顶部</h2>
-            <p>下面是 v1.4.1 在真实刘海屏上的画面。黑色轮廓与屏幕顶边连续，内容按模块切换，不会用一块通用浮窗冒充 Island。</p>
+            <p>下面是 v1.5.0 在真实刘海屏上的画面。黑色轮廓与屏幕顶边连续，内容按模块切换，不会用一块通用浮窗冒充 Island。</p>
           </div>
           <div class="oy-shot-grid">
             <figure>
@@ -203,6 +204,31 @@ const guides = [
             </figure>
           </div>
           <p class="oy-preview-note">实机界面会随屏幕尺寸、系统语言与正在播放的内容自然适配。</p>
+        </div>
+      </section>
+
+      <section class="oy-story">
+        <div class="oy-container">
+          <div class="oy-section-heading oy-heading-left">
+            <p class="oy-eyebrow">BUILT FOR REAL MAC WORKFLOWS</p>
+            <h2>一个免费的开源 macOS 拖拽暂存架</h2>
+            <p>当 Finder、浏览器、邮件、全屏应用或不同 Space 互相遮挡时，OpenYoink 把一次容易中断的长拖拽拆成两个短步骤。</p>
+          </div>
+          <div class="oy-feature-grid">
+            <article>
+              <h3>跨窗口与 Space 搬文件</h3>
+              <p>先把文件、图片、文本或链接放进暂存架，切换到目标应用后再继续拖，不必一直按住鼠标。</p>
+            </article>
+            <article>
+              <h3>侧边架与 Mac 刘海任选</h3>
+              <p>经典侧边暂存架和 OpenYoink Island 可以独立开关，也可以共享同一组临时内容。</p>
+            </article>
+            <article>
+              <h3>免费、开源、本地优先</h3>
+              <p>MIT License、无账号、无订阅、无行为分析。OpenYoink 是独立项目，不隶属于商业 Yoink 或 Dropover。</p>
+            </article>
+          </div>
+          <a class="oy-island-link" :href="withBase('/guide/open-source-drag-shelf')">了解 OpenYoink 适合哪些场景<span class="oy-chevron" aria-hidden="true">›</span></a>
         </div>
       </section>
 
